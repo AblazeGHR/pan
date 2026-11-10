@@ -927,6 +927,11 @@ export function useWebSocket() {
     // the nav running-count badge read that one store, so this is the only
     // job.* subscription in the app — no page-local copies, no extra polling.
     // Incremental payloads carry the full job, so no REST refresh is needed.
+    // Canonical notifications intentionally carry no private Job payload.
+    // Reload the authorized projection through the same shared store.
+    unsubscribers.push(wsClient.on('canonical.changed', () => {
+      void useJobStore.getState().loadJobs();
+    }));
     unsubscribers.push(wsClient.on('job.created', (e: StreamEvent) => {
       const job = (e as unknown as { job?: Job }).job;
       if (job) useJobStore.getState().upsertJob(job, { epoch: e.serverEpoch || e.eventEpoch, seq: e.eventSeq });

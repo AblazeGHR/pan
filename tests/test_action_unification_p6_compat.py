@@ -34,52 +34,24 @@ def adopted(action_http, tmp_path, monkeypatch):
 def test_P6_ACTION_01_http_crud_lifecycle_and_new_group_reference(action_http, tmp_path, monkeypatch):
     client, service, old, build, ref, compat = adopted(action_http, tmp_path, monkeypatch)
     raw_source = old.path.read_bytes()
+    original_release = Groups(service).release(build['version'], actor=USER)
+    with service.transaction(readonly=True) as db:
+        before = db.execute('SELECT count(*) FROM final_operations').fetchone()[0]
     value = command_action(tmp_path, 'added')
-    value['enabled'] = False
-    before = compat.projection(old.read())['revision']
-    request = {'item': value, 'expectedRevision': before}
-    created = client.post('/api/actions/actions', json=request, headers={'x-pan-request-key': 'create-added'})
-    assert created.status_code == 200, created.text
-    assert created.json()['item']['enabled'] is False
-    repeat = client.post('/api/actions/actions', json=request, headers={'x-pan-request-key': 'create-added'})
-    assert repeat.json()['operation']['operationId'] == created.json()['operation']['operationId']
-    grouped = client.put('/api/actions/groups/tools', json={'item': {
-        'id': 'tools', 'name': 'With added', 'action_ids': ['echo', 'added']}, 'expectedRevision': before + 1})
-    assert grouped.status_code == 200, grouped.text
-    assert grouped.json()['groups'][0]['action_ids'] == ['echo', 'added']
-    disabled = client.post('/api/actions/groups/tools/build', json={'expectedRevision': before + 2})
-    assert disabled.status_code == 400
-    enabled = client.post('/api/actions/actions/added/lifecycle', json={'enabled': True, 'expectedRevision': before + 2},
-                          headers={'x-pan-request-key': 'enable-added'})
-    assert enabled.status_code == 200, enabled.text
-    assert next(a for a in enabled.json()['actions'] if a['id'] == 'added')['enabled'] is True
-    assert client.post('/api/actions/actions/added/lifecycle', json={'enabled': True, 'expectedRevision': before + 2},
-                       headers={'x-pan-request-key': 'enable-added'}).status_code == 200
-    built = client.post('/api/actions/groups/tools/build', json={'expectedRevision': before + 3})
-    assert built.status_code == 200, built.text
-    released = Groups(service).release(built.json()['groups'][0]['build']['version'], actor=USER)
-    assert [t['alias'] for t in released['tools']] == ['echo', 'added']
-    assert client.delete('/api/actions/actions/added').status_code == 400
-    removed = client.put('/api/actions/groups/tools', json={'item': {
-        'id': 'tools', 'name': 'Without added', 'action_ids': ['echo']}, 'expectedRevision': before + 4})
-    assert removed.status_code == 200, removed.text
-    deleted = client.delete('/api/actions/actions/added', params={'expectedRevision': before + 5})
-    assert deleted.status_code == 200, deleted.text
-    assert all(a['id'] != 'added' for a in deleted.json()['actions'])
-    # Delete only changes the current definition; the old build keeps exactly
-    # its original enabled snapshot and queryable release identity.
-    frozen = asyncio.run(Groups(service).invoke(released['version'], 'added', {'value': 'retained'}, 'retained-call', actor=USER))
-    assert frozen['result']['status'] == 'completed', frozen
-    assert 'retained' in frozen['result']['commands'][0]['stdout']
-    fixed = next(t['actionRef'] for t in released['tools'] if t['alias'] == 'added')
-    head = service.get('action', fixed['id'], actor=USER)
-    service.control('action', fixed['id'], {'operation': 'retire', 'expectedRevision': head['revision'],
-        'expectedStateRevision': head['stateRevision'], 'requestKey': 'explicit-version-revocation',
-        'parameters': {'revision': fixed['revision']}}, actor=USER)
-    with pytest.raises(fc.ContractError):
-        asyncio.run(Groups(service).invoke(released['version'], 'added', {'value': 'blocked'}, 'must-block', actor=USER))
-    assert Groups(service).release(build['version'], actor=USER)['version'] == build['version']
+    routes = [('POST', '/api/actions/actions', {'item': value}),
+              ('PUT', '/api/actions/groups/tools', {'item': {'id': 'tools', 'name': 'With added', 'action_ids': ['echo', 'added']}}),
+              ('POST', '/api/actions/actions/added/lifecycle', {'enabled': True}),
+              ('POST', '/api/actions/groups/tools/build', {}),
+              ('DELETE', '/api/actions/actions/added', None)]
+    for method, path, body in routes:
+        response = client.request(method, path, json=body)
+        assert response.status_code == 410, response.text
+        assert response.json()['detail']['code'] == 'retired'
     assert old.path.read_bytes() == raw_source
+    assert Groups(service).release(build['version'], actor=USER) == original_release
+    assert not (tmp_path / 'effects').exists()
+    with service.transaction(readonly=True) as db:
+        assert db.execute('SELECT count(*) FROM final_operations').fetchone()[0] == before
 
 
 def test_P6_ACTION_02_original_grants_drafts_and_frozen_lifecycle(action_http, tmp_path, monkeypatch):
@@ -177,15 +149,14 @@ def test_P6_ACTION_05_real_stdio_drafts_original_receipt_and_no_hidden_notificat
                 h.svc.auth.change_permissions(grants(action={'lifecycle': False}), 0)
                 arguments = {'operation': 'put', 'item': raw, 'request_key': 'draft-once'}
                 created = result(await client.call_tool('action_drafts', arguments))
-                assert created['item']['id'] == 'via_mcp' and created['item']['enabled'] is False, created
+                assert created['error']['code'] == 410, created
                 repeated = result(await client.call_tool('action_drafts', arguments))
-                assert repeated['operation']['operationId'] == created['operation']['operationId']
-                original = result(await client.call_tool('job_operation_get', {'operation_id': created['operation']['operationId']}))
-                assert original['requestKey'] == 'draft-once'
+                assert repeated == created
                 grouped = result(await client.call_tool('action_drafts', {'operation': 'put', 'kind': 'groups',
                     'item': {'name': 'MCP draft', 'action_ids': ['via_mcp']}, 'request_key': 'group-once'}))
-                assert grouped['item']['action_ids'] == ['via_mcp'], grouped
-                assert 'build' not in grouped['item']
+                assert grouped['error']['code'] == 410, grouped
+                with h.service.transaction(readonly=True) as db:
+                    assert db.execute("SELECT count(*) FROM final_operations WHERE requestKey IN ('draft-once','group-once')").fetchone()[0] == 0
                 forbidden = result(await client.call_tool('action_drafts', {'operation': 'build', 'kind': 'groups'}))
                 assert forbidden['error'] == 'Invalid draft operation or kind'
                 with h.service.transaction(readonly=True) as db:
@@ -289,11 +260,13 @@ def test_P6_COMPAT_03_build_restart_notification_is_not_replayed(action_http, tm
     expected = LegacyGroupCompatibility(service, old.root).projection(old.read())['revision']
     headers = {'x-pan-request-key': 'build-once'}
     first = client.post('/api/actions/groups/tools/build', json={'expectedRevision': expected}, headers=headers)
-    assert first.status_code == 200, first.text
+    assert first.status_code == 410, first.text
+    assert first.json()['detail']['code'] == 'retired'
     repeated = client.post('/api/actions/groups/tools/build', json={'expectedRevision': expected}, headers=headers)
-    assert repeated.status_code == 200, repeated.text
-    assert calls == [session.id]
-    assert first.json()['groups'][0]['build'] == repeated.json()['groups'][0]['build']
+    assert repeated.status_code == 410 and repeated.json() == first.json()
+    assert calls == []
+    assert LegacyGroupCompatibility(service, old.root).projection(old.read())['revision'] == expected
+    assert Groups(service).release(build['version'], actor=USER)['version'] == build['version']
 
 
 def test_P6_ACTION_06_deleting_one_reviewed_alias_does_not_retire_other_alias(action_http, tmp_path, monkeypatch):

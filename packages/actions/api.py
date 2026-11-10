@@ -146,113 +146,16 @@ def install(server):
 
     @router.delete('/api/actions/{kind}/{item_id}')
     async def delete(kind: str, item_id: str, request: Request, expectedRevision: int | None = None, confirmReferences: bool = False):
-        await require_capability(request, 'delete')
-        if kind not in {'actions', 'groups'}:
-            raise HTTPException(404, 'Unknown item kind')
-        try:
-            if kind == 'groups' and await compatible_write(request, item_id, 'delete', expectedRevision):
-                return await view(request)
-            if kind == 'actions':
-                await require_capability(request, 'delete')
-                if await compatible_action(request, 'delete', expectedRevision, aid=item_id, confirm_references=confirmReferences):
-                    return await view(request)
-            await io(Store().delete, kind, item_id, expectedRevision, authorized=await user(request), confirm_references=confirmReferences)
-            return await view(request)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        except PermissionError as exc:
-            raise HTTPException(401, str(exc)) from exc
-        except PersistenceError as exc:
-            raise HTTPException(503,str(exc)) from exc
+        await require_capability(request, 'updateConfig')
+        raise HTTPException(410, {'code': 'retired', 'message': 'Legacy Action/Group writes retired; use canonical APIs'})
 
     @router.post('/api/actions/groups/{group_id}/{operation}')
     @settled
     async def release(group_id: str, operation: str, data: dict, request: Request):
         await require_capability(request, 'lifecycle')
-        if operation == 'build':
-            raise HTTPException(410, {'code': 'retired', 'message': 'Legacy Group build retired; use canonical Group build'})
         if operation not in {'build', 'unbuild'} or set(data) - {'expectedRevision'}:
             raise HTTPException(400, 'Expected build or unbuild and optional expectedRevision')
-        pid = 'action-group-' + group_id.replace('_', '-')
-        try:
-            # Group first; this closes new-reference admission before collecting
-            # Sessions. No mutex or store writer lock is held while we await IO.
-            async with coordinator().claim(exclusive={pid}):
-                adapter = compatibility()
-                if adapter and await io(adapter.owned, group_id):
-                    if operation == 'build':
-                        receipt = await compatible_write(request, group_id, operation, data.get('expectedRevision'))
-                        if not receipt.get('replayed'):
-                            for session in await sessions():
-                                if any(b['enabled'] and b['plugin_id'] == pid for b in bindings(session)):
-                                    if server.worker.find_alive_worker_by_session(session.id):
-                                        server.worker.request_delayed_restart(session.id)
-                    else:
-                        from types import SimpleNamespace
-                        from packages.jobs.final_api import actor
-                        from .group_api import unbuild_operation
-                        who = await actor(request, 'action', 'lifecycle')
-                        def unbuild(gid, expected, key, *, actor):
-                            return adapter.mutate(gid, 'unbuild', expected, key, actor=actor)
-                        await unbuild_operation(group_id, {'expectedRevision': data.get('expectedRevision'),
-                            'requestKey': request_key(request)}, who,
-                            SimpleNamespace(service=adapter.service, unbuild=unbuild))
-                    return await view(request)
-                store = Store()
-                state = await io(store.read)
-                group = state['groups'].get(group_id)
-                if not group:
-                    raise HTTPException(404, 'Group not found')
-                if operation == 'build':
-                    catalog = await io(server._plugin_catalog)
-                    if pid in catalog.plugins and not group.get('build'):
-                        raise ValueError('Group plugin ID conflicts with an installed plugin')
-                    await io(store.build, group_id, data.get('expectedRevision'))
-                    for session in await sessions():
-                        if any(b['enabled'] and b['plugin_id'] == pid for b in bindings(session)):
-                            if server.worker.find_alive_worker_by_session(session.id):
-                                server.worker.request_delayed_restart(session.id)
-                else:
-                    owners = [s for s in await sessions() if any(b['plugin_id'] == pid for b in bindings(s))]
-                    async with coordinator().claim(exclusive={'session:' + s.id for s in owners}):
-                        blocked = blockers(pid, owners)
-                        if blocked:
-                            message = f'Cannot unbuild action group "{group["name"]}": it is enabled by running sessions:\n'
-                            message += '\n'.join(f'- {s["name"]}: {s["id"]}' for s in blocked)
-                            raise HTTPException(409, message + '\nStop or disable the group for these sessions first.')
-                        originals = []
-                        try:
-                            for session in owners:
-                                previous = copy.deepcopy(session.adapter_config)
-                                staged = copy.deepcopy(previous)
-                                await io(server._set_plugin_config, staged, [b for b in bindings(session) if b['plugin_id'] != pid])
-                                originals.append((session, previous))
-                                await server.sess.commit_adapter_config_async(session, staged, previous_config=previous)
-                            await io(store.unbuild, group_id, data.get('expectedRevision'))
-                        except BaseException as failure:
-                            errors = []
-                            for session, previous in originals:
-                                session.adapter_config = previous
-                            for session, previous in originals:
-                                try:
-                                    await server.sess.commit_adapter_config_async(session, previous)
-                                except Exception as exc:
-                                    errors.append(f'{session.id}: {exc}')
-                            if errors:
-                                raise HTTPException(500, 'Unbuild failed; registration retained, but Session rollback persistence failed: '
-                                                    + '; '.join(errors)) from failure
-                            raise
-                        # Publish retirement before releasing Session admission,
-                        # even if physical cleanup later fails. Old loaded pins
-                        # can never accept another task on this Worker.
-                        for session in owners:
-                            if server.worker.find_alive_worker_by_session(session.id):
-                                server.worker.request_delayed_restart(session.id)
-                        # Preserve legacy build files for read-only audit.
-
-            return await view(request)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
+        raise HTTPException(410, {'code': 'retired', 'message': 'Legacy Group build/unbuild retired; use canonical Group APIs'})
 
     @router.post('/api/action-drafts/{kind}/{operation}')
     async def drafts(kind: str, operation: str, data: dict, request: Request):

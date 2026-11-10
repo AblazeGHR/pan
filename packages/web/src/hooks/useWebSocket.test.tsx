@@ -79,6 +79,7 @@ const apiMock = vi.hoisted(() => ({
   fetchUiSettings: vi.fn(),
   fetchJobs: vi.fn(),
 }));
+vi.mock('@/services/legacyJobs', () => ({ fetchJobs: apiMock.fetchJobs }));
 
 vi.mock('@/services/api', () => ({
   fetchSessionHistory: apiMock.fetchSessionHistory,

@@ -54,13 +54,13 @@ def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path,
             try:
                 page = browser.new_page()
                 page.goto(url + '/react/')
-                page.get_by_role('heading', name='Job 维护模式').wait_for()
-                page.get_by_label('本机用户密钥').fill(auth.key())
-                page.get_by_role('button', name='查看保留数据').click()
+                page.get_by_role('heading', name='Job Maintenance mode').wait_for()
+                page.get_by_label('Local user key').fill(auth.key())
+                page.get_by_role('button', name='Inspect preserved data').click()
                 page.get_by_role('heading', name='old-original-identity').wait_for()
-                assert page.get_by_role('button', name='删除原记录').is_disabled()
-                assert page.get_by_text('未知效果未结算、不会重放。', exact=False).is_visible()
-                assert page.get_by_label('本机用户密钥').count() == 0
+                assert page.get_by_role('button', name='Delete source record').is_disabled()
+                assert page.get_by_text('unknown effects remain unsettled and will not replay.', exact=False).is_visible()
+                assert page.get_by_label('Local user key').count() == 0
                 for width in (1440, 390, 320):
                     page.set_viewport_size({'width': width, 'height': 900})
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
@@ -70,7 +70,7 @@ def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path,
                 assert denied.json()['error']['code'] == 'runtime_ownership_unverified'
                 page.route('**/api/job-maintenance/status', lambda route: route.fulfill(status=503, body='unavailable'))
                 page.reload()
-                page.get_by_role('alert').filter(has_text='无法核实启动状态').wait_for()
+                page.get_by_role('alert').filter(has_text='Startup state is unverified.').wait_for()
                 assert page.get_by_role('heading', name='Canonical Jobs').count() == 0
             finally:
                 browser.close()
@@ -125,6 +125,10 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
             app.state.automation = None
             app.state.job_final_service = None
 
+    from packages.core.character import CharacterManager
+    manager = CharacterManager(str(profile))
+    manager.load_manifest([])
+    monkeypatch.setattr(server, '_character_manager', manager)
     monkeypatch.setattr(server, '_owned_lifespan', no_effects)
     listener = socket.socket()
     listener.bind(('127.0.0.1', 0))
@@ -145,8 +149,9 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
                 page.goto(f'http://127.0.0.1:{port}/react/automation/canonical')
                 page.get_by_label('Local user key').fill(h.automation.auth.key())
                 page.get_by_role('button', name='Log in', exact=True).click()
+                page.get_by_role('button', name='Settings', exact=True).click()
                 page.get_by_role('heading', name='original-history-identity').wait_for()
-                assert page.get_by_role('button', name='删除原记录').is_enabled()
+                assert page.get_by_role('button', name='Delete source record').is_enabled()
                 for width in (1440, 390, 320):
                     page.set_viewport_size({'width': width, 'height': 900})
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
@@ -158,10 +163,10 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
                     route.abort()  # receipt committed; UI must query, not resend
                 page.route('**/api/job-maintenance/records/normal-preserved', lose_reply)
                 page.once('dialog', lambda dialog: dialog.accept())
-                page.get_by_role('button', name='删除原记录').click()
-                page.get_by_role('button', name='查询原删除结果').wait_for(state='visible')
-                page.get_by_role('button', name='查询原删除结果').click()
-                page.get_by_text('原记录已删除，审计备份保留。', exact=True).wait_for()
+                page.get_by_role('button', name='Delete source record').click()
+                page.get_by_role('button', name='Query original deletion result').wait_for(state='visible')
+                page.get_by_role('button', name='Query original deletion result').click()
+                page.get_by_text('The source record was deleted. The audit backup is retained.', exact=True).wait_for()
                 assert len(calls) == 1
                 assert calls[0]['expectedSha256'] == digest
                 assert calls[0]['expectedRevision'] == 1

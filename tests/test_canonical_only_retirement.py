@@ -38,6 +38,9 @@ def test_legacy_executor_refuses_even_unrecognizable_history_before_effect(entry
     ('PUT', '/api/actions/actions/old', {'item': {'id': 'old'}}),
     ('POST', '/api/actions/actions/old/lifecycle', {'enabled': True, 'expectedRevision': 0}),
     ('POST', '/api/actions/groups/old/build', {}),
+    ('POST', '/api/actions/groups/old/unbuild', {}),
+    ('DELETE', '/api/actions/actions/old', None),
+    ('DELETE', '/api/actions/groups/old', None),
     ('POST', '/api/action-drafts/actions/put', {'item': {}}),
     ('POST', '/api/action-drafts/groups/put', {'item': {}}),
 ])

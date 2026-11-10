@@ -55,23 +55,20 @@ def test_two_production_pages_refresh_external_commit_and_logout_stays_empty(tmp
                         assert response.status_code==201,response.text
                         job=response.json()['result']['object']
                         for page in pages:
-                            page.get_by_role('button', name='Refresh', exact=True).click()
-                            expect(page.get_by_role('heading',name='Remote create',exact=True)).to_be_visible()
+                            expect(page.get_by_text('Remote create',exact=True)).to_be_visible()
                         cfg = definition('job',job);cfg['name']='Remote edit'
                         response=client.put('/api/jobs/'+job['id'],json={'definition':cfg,'expectedRevision':job['configRevision'],'requestKey':'browser-external-edit'})
                         assert response.status_code==200,response.text
                         job=response.json()['result']['object']
                         for page in pages:
-                            page.get_by_role('button', name='Refresh', exact=True).click()
-                            expect(page.get_by_role('heading',name='Remote edit',exact=True)).to_be_visible()
+                            expect(page.get_by_text('Remote edit',exact=True)).to_be_visible()
                         pages[0].get_by_role('button',name='Log out',exact=True).click()
                         expect(pages[0].get_by_text('Sign in required',exact=True)).to_be_visible()
                         cfg=definition('job',job);cfg['name']='After logout'
                         response=client.put('/api/jobs/'+job['id'],json={'definition':cfg,'expectedRevision':job['configRevision'],'requestKey':'browser-external-after-logout'})
                         assert response.status_code==200,response.text
-                        pages[1].get_by_role('button', name='Refresh', exact=True).click()
-                        expect(pages[1].get_by_role('heading',name='After logout',exact=True)).to_be_visible()
-                        expect(pages[0].get_by_role('heading',name='After logout',exact=True)).to_have_count(0)
+                        expect(pages[1].get_by_text('After logout',exact=True)).to_be_visible()
+                        expect(pages[0].get_by_text('After logout',exact=True)).to_have_count(0)
                         assert any('canonical.changed' in f for f in frames if isinstance(f,str))
                         for frame in frames:
                             if isinstance(frame,str) and 'canonical.changed' in frame:

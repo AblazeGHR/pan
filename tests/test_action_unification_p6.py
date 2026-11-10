@@ -181,10 +181,11 @@ def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch, mode, view):
                 return await client.call_tool(name, arguments, **kwargs)
             async with stdio_client(params) as streams, ClientSession(*streams) as client:
                 await client.initialize()
-                tool = await discover(client)
-                schema = copy.deepcopy(tool.inputSchema)
-                before = await call(client, tool.name, {'value': 'old "quote" \\ 雪\n'})
-                assert before.structuredContent == {'value': 'old "quote" \\ 雪\n', 'requestKey': 'business-default'}
+                if view == 'gateway':
+                    assert result(await client.call_tool('api_discover', {'include_schema': True}))['tools'] == []
+                else:
+                    assert (await client.list_tools()).tools == []
+                assert not (tmp_path / 'effects').exists()
                 migration = LegacyGroupMigration(h.service, old.root)
                 plan = migration.preview(mappings, actor=USER)
                 artifacts = {p: p.read_bytes() for p in Path(build['directory']).iterdir()}
@@ -203,17 +204,24 @@ def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch, mode, view):
                 assert preview['excluded'] == []
                 groups.apply(apply_body(preview), actor=USER)
                 release = groups.publish('tools', 2, 'build-v2', actor=USER)['result']['release']
-                # Loaded old Worker retains the original provider and v1 schema.
-                frozen = await call(client, tool.name, {'value': 'still-old'})
-                assert frozen.structuredContent['value'] == 'still-old'
-                assert _pins[h.session.id][0][pid].version == build['version']
+                # Native pins stay frozen; direct/gateway requests can resolve
+                # only the newly published canonical release after adoption.
+                observed = await call(client, 'action-group-tools.echo', {'value': 'still-old'})
+                if view == 'native':
+                    assert observed.isError is True
+                    assert not (tmp_path / 'effects').exists()
+                else:
+                    assert observed.isError is False
+                    assert observed.meta['panOperation']['groupRelease'] == release['version']
+                    assert observed.structuredContent['value'] == 'v2'
+                    assert (tmp_path / 'effects').read_text() == 'x'
                 assert {p: p.read_bytes() for p in artifacts} == artifacts
             _pins.pop(h.session.id)
             pin(h.session, Catalog(h.bridge.runtime.get_manifest()))
             async with stdio_client(params) as streams, ClientSession(*streams) as client:
                 await client.initialize()
                 tool = await discover(client)
-                assert tool.inputSchema == schema
+                assert tool.inputSchema == old.read()['actions']['echo']['input_schema']
                 args = {'value': 'new', 'requestKey': 'business-key'}
                 called = await call(client, tool.name, args, meta={'panRequestKey': 'outer-once'})
                 assert not called.isError, called
@@ -223,7 +231,7 @@ def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch, mode, view):
                 assert called.meta['panOperation']['groupRelease'] == release['version']
                 conflict = await call(client, tool.name, {**args, 'value': 'changed'}, meta={'panRequestKey': 'outer-once'})
                 assert conflict.isError
-                assert (tmp_path / 'effects').read_text() == 'xxx'
+                assert (tmp_path / 'effects').read_text() == 'x' * (1 if view == 'native' else 2)
                 original = h.service.executor.execute_commands
                 async def lost_receipt(**kwargs):
                     await original(**kwargs)
@@ -235,13 +243,13 @@ def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch, mode, view):
                 repeated = await call(client, tool.name, args, meta={'panRequestKey': 'unknown-once'})
                 assert repeated.isError
                 assert repeated.meta['panOperation']['operationId'] == unknown.meta['panOperation']['operationId']
-                assert (tmp_path / 'effects').read_text() == 'xxxx'
+                assert (tmp_path / 'effects').read_text() == 'x' * (2 if view == 'native' else 3)
                 with h.service.transaction(readonly=True) as db:
                     assert db.execute("SELECT count(*) FROM final_documents WHERE kind='job'").fetchone()[0] == 0
                 h.svc.auth.change_permissions(grants(action={'invoke': False}), 1)
                 revoked = await call(client, tool.name, args, meta={'panRequestKey': 'revoked'})
                 assert revoked.isError
-                assert (tmp_path / 'effects').read_text() == 'xxxx'
+                assert (tmp_path / 'effects').read_text() == 'x' * (2 if view == 'native' else 3)
         finally:
             _pins.clear()
             await close(h)
@@ -260,24 +268,23 @@ def test_P6_GROUP_08_old_http_crud_build_unbuild_catalog(action_http, tmp_path, 
     install(SimpleNamespace(app=client.app, sess=SimpleNamespace(list_all=lambda **kw: [])))
     compat = LegacyGroupCompatibility(service, old.root)
     revision = compat.projection(old.read())['revision']
-    response = client.put('/api/actions/groups/tools', json={'item': {'id': 'tools', 'name': 'Renamed', 'action_ids': ['echo']},
-                                                          'expectedRevision': revision})
-    assert response.status_code == 200, response.text
-    assert response.json()['groups'][0]['name'] == 'Renamed'
-    assert response.json()['revision'] == revision + 1
-    stale = client.post('/api/actions/groups/tools/build', json={'expectedRevision': revision})
-    # The old HTTP Group release route reports stale registry CAS as 400.
-    assert stale.status_code == 400 and 'changed' in stale.text
-    response = client.post('/api/actions/groups/tools/build', json={'expectedRevision': revision + 1})
-    assert response.status_code == 200, response.text
-    assert response.json()['groups'][0]['build']['version'] != build['version']
-    response = client.post('/api/actions/groups/tools/unbuild', json={'expectedRevision': revision + 2})
-    assert response.status_code == 200, response.text
-    assert not response.json()['groups'][0].get('build')
-    response = client.delete('/api/actions/groups/tools', params={'expectedRevision': revision + 3})
-    assert response.status_code == 200, response.text
-    assert response.json()['groups'] == []
+    original = old.path.read_bytes()
+    with service.transaction(readonly=True) as db:
+        operations = db.execute('SELECT count(*) FROM final_operations').fetchone()[0]
+    for method, path, body in [
+        ('PUT', '/api/actions/groups/tools', {'item': {'id': 'tools', 'name': 'Renamed', 'action_ids': ['echo']}, 'expectedRevision': revision}),
+        ('POST', '/api/actions/groups/tools/build', {'expectedRevision': revision}),
+        ('POST', '/api/actions/groups/tools/unbuild', {'expectedRevision': revision}),
+        ('DELETE', '/api/actions/groups/tools', None),
+    ]:
+        response = client.request(method, path, json=body)
+        assert response.status_code == 410, response.text
+        assert response.json()['detail']['code'] == 'retired'
+    assert old.path.read_bytes() == original
+    with service.transaction(readonly=True) as db:
+        assert db.execute('SELECT count(*) FROM final_operations').fetchone()[0] == operations
     assert Path(build['directory'], 'snapshot.json').exists()
+
 
 
 def test_P6_GROUP_02_real_process_writer_excluded(action_http, tmp_path, monkeypatch):

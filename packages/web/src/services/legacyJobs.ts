@@ -60,6 +60,9 @@ export async function fetchJobKinds(): Promise<JobKindMeta[]> {
 }
 
 export async function fetchJobs(onPinMetadataStatus?: (status: 'available' | 'unavailable') => void): Promise<Job[]> {
+  // Global socket hydration also runs before login and after logout. Never
+  // retain or reload private canonical rows without the current authority.
+  if (!useAutomationAuth.getState().token) return [];
   const data = await call<{ jobs?: Job[] }>('jobs/legacy-list');
   onPinMetadataStatus?.('available');
   return data.jobs || [];

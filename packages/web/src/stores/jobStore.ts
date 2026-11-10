@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Job } from '@/types/jobs';
-import { fetchJobs } from '@/services/api';
+import { fetchJobs } from '@/services/legacyJobs';
 
 /**
  * Unified Job registry state — the single source of truth for every surface.

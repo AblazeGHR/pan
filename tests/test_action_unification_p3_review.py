@@ -21,7 +21,8 @@ def test_all_groups_unmapped_built_legacy_is_not_silently_excluded(action_http, 
     from tests.test_action_groups import command_action
     _, service = action_http
     monkeypatch.setattr(store, 'root', lambda: tmp_path / 'legacy')
-    legacy = store.Store()
+    from tests.support.legacy_action_source import LegacySource
+    legacy = LegacySource()
     legacy.put('actions', command_action(tmp_path, 'old_echo'))
     legacy.put('groups', {'id': 'legacy_tools', 'name': 'Original', 'action_ids': ['old_echo']})
     build = legacy.build('legacy_tools')
@@ -52,7 +53,8 @@ def test_explicit_alias_to_other_action_proves_legacy_group_out_of_scope(action_
     from tests.test_action_groups import api_action
     _, service = action_http
     monkeypatch.setattr(store, 'root', lambda: tmp_path / 'legacy')
-    legacy = store.Store()
+    from tests.support.legacy_action_source import LegacySource
+    legacy = LegacySource()
     legacy.put('actions', api_action('old_other'))
     legacy.put('groups', {'id': 'legacy_tools', 'name': 'Other', 'action_ids': ['old_other']})
     ref = install(service)
@@ -127,7 +129,8 @@ def test_legacy_direct_mcp_keeps_original_flat_schema_and_parameters(tmp_path, m
     from packages.plugins.ipc import Bridge
     from tests.test_action_groups import command_action
     monkeypatch.setattr(store, 'root', lambda: tmp_path / 'actions')
-    legacy = store.Store()
+    from tests.support.legacy_action_source import LegacySource
+    legacy = LegacySource()
     action = command_action(tmp_path)
     legacy.put('actions', action)
     legacy.put('groups', {'id': 'legacy_tools', 'name': 'Legacy', 'action_ids': ['echo']})
@@ -144,13 +147,13 @@ def test_legacy_direct_mcp_keeps_original_flat_schema_and_parameters(tmp_path, m
         try:
             async with stdio_client(params) as streams, ClientSession(*streams) as client:
                 await client.initialize()
-                tool = (await client.list_tools()).tools[0]
-                assert tool.inputSchema == action['input_schema']
-                flat = await client.call_tool(tool.name, {'value': 'original-flat-argument'})
-                assert flat.isError is False
-                assert flat.structuredContent == {'value': 'original-flat-argument'}
-                wrapped = await client.call_tool(tool.name, {'arguments': {'value': 'wrong-shape'}, 'requestKey': 'new-protocol'})
+                assert (await client.list_tools()).tools == []
+                flat = await client.call_tool('action-group-legacy-tools.echo', {'value': 'original-flat-argument'})
+                assert flat.isError is True
+                wrapped = await client.call_tool('action-group-legacy-tools.echo', {'arguments': {'value': 'wrong-shape'}, 'requestKey': 'new-protocol'})
                 assert wrapped.isError is True
+                assert not (tmp_path / 'effects').exists()
+                assert legacy.read()['actions']['echo']['input_schema'] == action['input_schema']
         finally:
             await bridge.close()
     asyncio.run(exercise())
