@@ -536,6 +536,18 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect(api.updateCompletedJobRetentionSettings).not.toHaveBeenCalled();
   });
 
+  it('does not submit when the account or profile changes before saving', async () => {
+    renderView(); fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const input = await screen.findByRole('spinbutton', { name: 'Keep Completed Runs for days' });
+    fireEvent.change(input, { target: { value: '21' } });
+    api.fetchCompletedJobRetentionSettings.mockResolvedValueOnce({ ...retentionResponse(), requestScope: 'other-profile' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Account or profile changed');
+    expect((input as HTMLInputElement).value).toBe('21');
+    expect(api.updateCompletedJobRetentionSettings).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('pan:job-retention-pending')).toBeNull();
+  });
+
   it('keeps the draft on a definite scope conflict without treating it as a saved write', async () => {
     api.updateCompletedJobRetentionSettings.mockRejectedValueOnce(Object.assign(new Error('request_scope_conflict'), { status: 409 }));
     renderView(); fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
