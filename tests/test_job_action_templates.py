@@ -74,25 +74,49 @@ def test_complete_fields_defaults_and_template_revision(tmp_path):
     with pytest.raises(Conflict):templates.put({'id':t['id'],'name':'stale','config':t['config']},0,True)
 
 
-@async_test
-async def test_instantiate_copy_revision_display_only_and_idempotence(tmp_path):
-    rt,_=await setup(tmp_path)
-    try:
-        t=rt.templates.put({'name':'complete','config':config()},0,True)
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            results=list(pool.map(lambda _:rt.instantiate(t['id'],1,'key',{'name':'instance'}),range(8)))
-        assert len({r['jobId'] for r in results})==1
-        job=results[0];assert job['templateRevision']==1 and job['config']['name']=='instance'
-        updated=rt.templates.put({'id':t['id'],'name':'edited','config':{**config(),'name':'changed'}},1,True)
-        assert updated['revision']==2 and rt.get(job['jobId'])['config']['name']=='instance'
-        assert rt.instantiate(t['id'],1,'key',{'name':'instance'})['jobId']==job['jobId']
-        with pytest.raises(Conflict):rt.instantiate(t['id'],2,'key')
-        with pytest.raises(ValueError):rt.instantiate(t['id'],2,'other',{'arguments':{}})
-        rt.templates.delete(t['id'],2)
-        rt.delete(job['jobId'],1)
-        with pytest.raises(KeyError):rt.instantiate(t['id'],1,'key',{'name':'instance'})
-        assert not jobs.list_jobs(rt.root)
-    finally:await rt.close()
+def test_instantiate_copy_revision_display_only_and_idempotence(h):
+    from tests.test_job_final_http_service import create, control, job_def, USER
+    from packages.jobs.final_contracts import ContractError
+    value = {'name': 'complete', 'jobDefinition': job_def(h), 'composition': {'creators': [], 'triggers': []}}
+    template = create(h, 'job-templates', value)
+    response = control(h, 'job-templates', template, 'publish', 'publish-copy-template')
+    assert response.status_code == 200, response.text
+    template = response.json()['result']['object']
+    body = {'expectedRevision': template['revision'], 'requestKey': 'stable-copy-key',
+            'overrides': {'name': 'instance'}}
+    def instantiate(_):
+        return h.service.instantiate_template(template['id'], body, actor=USER)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        receipts = list(pool.map(instantiate, range(8)))
+    assert len({r['operationId'] for r in receipts}) == 1
+    ids = {r['result']['objectIds']['job'] for r in receipts}
+    assert len(ids) == 1
+    jid, = ids
+    child = h.service.get('job', jid, actor=USER)
+    assert child['name'] == 'instance' and child['steps'] == value['jobDefinition']['steps']
+    # Canonical publication is immutable; edits cannot mutate this source or
+    # the already instantiated copy. Display overrides never replace config.
+    with pytest.raises(ContractError) as immutable:
+        h.service.write('template', template['id'], {'definition': {**value, 'name': 'edited'},
+            'expectedRevision': template['revision'], 'requestKey': 'edit-published'}, actor=USER)
+    assert immutable.value.code == 'reference_conflict'
+    assert h.service.get('job', jid, actor=USER) == child
+    with pytest.raises(ContractError) as conflict:
+        h.service.instantiate_template(template['id'], {**body, 'expectedRevision': template['revision'] + 1}, actor=USER)
+    assert conflict.value.code == 'idempotency_conflict'
+    with pytest.raises(ContractError) as config_override:
+        h.service.instantiate_template(template['id'], {**body, 'requestKey': 'unsafe-override',
+            'overrides': {'arguments': {}}}, actor=USER)
+    assert config_override.value.code == 'invalid_schema'
+    response = control(h, 'job-templates', template, 'retire', 'retire-copy-template')
+    assert response.status_code == 200, response.text
+    original = instantiate(0)
+    assert original['operationId'] == receipts[0]['operationId'] and original['replayed'] is True
+    with pytest.raises(ContractError) as retired:
+        h.service.instantiate_template(template['id'], {**body, 'requestKey': 'retired-new-copy'}, actor=USER)
+    assert retired.value.code == 'reference_conflict'
+    assert [j['id'] for j in h.service.list('job', actor=USER)['items']] == [jid]
+    assert h.service.get('job', jid, actor=USER) == child
 
 
 @async_test
