@@ -22,7 +22,6 @@ def run(server, *args, **kwargs):
         nonlocal seeded
         service = getattr(app.state, 'job_final_service', None)
         if not seeded and service:
-            seeded = True
             from packages.actions import store
             from packages.actions.group_migration import LegacyGroupMigration, enroll_fresh_source, command_definition
             from packages.actions.groups import Groups
@@ -76,6 +75,7 @@ def run(server, *args, **kwargs):
             (RUNTIME / 'p6-seed.json').write_text(json.dumps({'sourceSha': fc.digest(old.read()), 'groupRelease': built['version'], 'ref': ref,
                 'actionRef': action_ref, 'actionRevision': published['revision'], 'actionStateRevision': published['stateRevision'],
                 'templateId': template['id'], 'templateRevision': template['revision']}), 'utf-8')
+            seeded = True
         return await call_next(request)
     return original_run(server, *args, **kwargs)
 
