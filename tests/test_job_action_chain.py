@@ -15,6 +15,7 @@ from packages.jobs import chains
 from packages.jobs.action_templates import Conflict, config_value, references
 import packages.actions.executor as executor
 from tests.test_automation_core import async_test
+from tests.test_job_final_http_service import h
 
 
 def _action(action_id, *, monitoring=False):
@@ -50,32 +51,46 @@ async def _runtime(tmp_path, ids=('one', 'two')):
     return runtime
 
 
-def test_chain_mapping_order_and_step_audit(tmp_path, monkeypatch):
-    async def run():
-        runtime = await _runtime(tmp_path)
-        calls = []
+def test_chain_mapping_order_and_step_audit(h):
+    from tests.test_job_final_http_service import create, control, job_def
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    calls = []
 
-        async def execute(action, args, event, progress, pause):
-            calls.append((action['id'], args['value']))
-            return {'ok': True, 'structuredContent': {'value': args['value'] + '!'}}
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            calls.append((effect_key['stepId'], text))
+            return {'status': 'queued', 'messageId': text + '!'}
 
-        monkeypatch.setattr(executor, 'execute_dynamic', execute)
-        try:
-            job = runtime.create(_config([
-                {'stepId': 'first', 'actionId': 'one', 'arguments': {'value': {'from': 'input', 'path': 'input'}}},
-                {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': {'from': 'step', 'stepId': 'first', 'path': 'value'}}},
-            ]), True)
-            await runtime.launch(job['jobId'], 1)
-            await asyncio.gather(*runtime.tasks.values())
-            current = runtime.get(job['jobId'])
-            assert calls == [('one', 'seed'), ('two', 'seed!')]
-            assert current['status'] == 'completed'
-            assert [s['status'] for s in current['lastExecution']['stepExecutions']] == ['completed', 'completed']
-            assert all(s['attempts'] for s in current['lastExecution']['stepExecutions'])
-        finally:
-            await runtime.close()
-
-    asyncio.run(run())
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    value = job_def(h, steps=2)
+    value['steps'][0]['arguments']['text'] = {'from': 'input', 'path': 'input'}
+    value['steps'][1]['arguments']['text'] = {'from': 'step', 'stepId': 's0', 'path': 'messageId'}
+    value['inputSchema'] = {'type': 'object', 'properties': {'input': {'type': 'string'}},
+                            'required': ['input'], 'additionalProperties': False}
+    value['arguments'] = {'input': 'seed'}
+    job = create(h, value=value)
+    response = control(h, 'jobs', job, 'enable')
+    assert response.status_code == 200, response.text
+    job = response.json()['result']['object']
+    admitted = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+        'expectedRevision': job['configRevision'], 'requestKey': 'chain-mapping',
+        'input': {'input': 'seed'}, 'cause': {'type': 'manual'}})
+    assert admitted.status_code == 202, admitted.text
+    rid = admitted.json()['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert calls == [('s0', 'seed'), ('s1', 'seed!')]
+    assert state['runs'][rid]['state'] == 'completed'
+    assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['completed', 'completed']
+    attempts = list(state['attempts'].values())
+    assert len(attempts) == 2 and {a['stepId'] for a in attempts} == {'s0', 's1'}
+    assert all(a['runId'] == rid and a['state'] == 'succeeded' for a in attempts)
+    assert len(state['effects']) == 2
+    assert {e['attemptId'] for e in state['effects']} == {a['attemptId'] for a in attempts}
+    assert all(e['effectKey']['runId'] == rid and e['outcome'] == 'succeeded' for e in state['effects'])
+    # Repeated dispatch observes terminal identity and never repeats providers.
+    asyncio.run(h.service.dispatch_once())
+    assert calls == [('s0', 'seed'), ('s1', 'seed!')]
 
 
 def _steps():
