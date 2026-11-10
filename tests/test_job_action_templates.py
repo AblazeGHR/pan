@@ -556,128 +556,188 @@ def test_fixed_template_action_capability_idempotence_and_group_gate(h):
         validate_action({**raw, 'input_schema':{'type':'object', 'properties':{'x':{'type':'string'}}, 'additionalProperties':False}})
 
 
-@async_test
-async def test_running_template_instantiation_uses_private_context_after_template_delete(tmp_path,monkeypatch):
-    import packages.actions.executor as executor
-    rt,_=await setup(tmp_path)
-    t=rt.templates.put({'name':'fixed','config':{**config(),'enabled':False}},0,True)
-    a={**action(),'id':'instantiate','execution':{'kind':'job_template','templateId':t['id'],'templateRevision':1}}
-    rt.actions.put('actions',a,authorized=True)
-    parent=rt.create({**config(),'actionId':'instantiate'},True)
-    entered,release=asyncio.Event(),asyncio.Event();original=executor.execute_dynamic
-    async def blocked(*args,**kwargs):entered.set();await release.wait();return await original(*args,**kwargs)
-    monkeypatch.setattr(executor,'execute_dynamic',blocked)
-    try:
-        await rt.launch(parent['jobId'],1);await asyncio.wait_for(entered.wait(),2)
-        rt.templates.delete(t['id'],1);release.set();done=await finished(rt,parent['jobId'])
-        child=rt.get(done['lastExecution']['createdJobId'])
-        assert child['templateRevision']==1 and not child['enabled']
-        assert not rt.actions.read().get('jobExecutions')
-        assert rt.view(done)['integrity']['status']=='incomplete'
-    finally:release.set();await rt.close()
+def test_running_template_instantiation_uses_private_context_after_template_delete(h, monkeypatch):
+    from tests.test_job_final_http_service import enabled, job_def, launch, control, USER
+    from tests.test_action_unification_p4 import plans
+    from tests.test_action_groups import canonical_state
+    from packages.actions import invocation
+    from packages.jobs.final_contracts import ContractError
+    template, ref, _ = canonical_fixed_template(h, key='private')
+    cfg = job_def(h)
+    cfg['steps'] = [{'stepId':'create', 'actionRef':ref, 'arguments':{}, 'completion':{'contract':'job-created'}}]
+    parent = enabled(h, cfg)
+    async def scenario():
+        entered, release = asyncio.Event(), asyncio.Event()
+        original = invocation.template_job_execute
+        original_receipts = []
+        async def blocked(*args, **kwargs):
+            receipt = await original(*args, **kwargs)
+            original_receipts.append(copy.deepcopy(receipt))
+            entered.set()
+            await release.wait()
+            return receipt
+        monkeypatch.setattr(invocation, 'template_job_execute', blocked)
+        rid = launch(h, parent, 'private-template-run')['runId']
+        frozen = copy.deepcopy(plans(h, parent['id'])[rid]['frozen'])
+        task = asyncio.create_task(h.service.dispatch_once())
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            # The original composition is already committed; retiring the
+            # source cannot invalidate its delayed original receipt.
+            jid = original_receipts[0]['receipt']['output']['jobId']
+            child = h.service.get('job', jid, actor=USER)
+            retired = control(h, 'job-templates', template, 'retire', 'retire-private-template')
+            assert retired.status_code == 200, retired.text
+            release.set()
+            await asyncio.wait_for(task, 5)
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        state = h.service.final.get(parent['id'])
+        assert state['runs'][rid]['state'] == 'completed'
+        assert len(state['attempts']) == len(state['effects']) == len(original_receipts) == 1
+        assert state['effects'][0]['receipt'] == original_receipts[0]
+        assert h.service.get('job', jid, actor=USER) == child and child['state'] == 'disabled'
+        assert plans(h, parent['id'])[rid]['frozen'] == frozen
+        before = canonical_state(h.service)
+        with pytest.raises(ContractError) as denied:
+            await h.service.invoke_action(ref['id'], {'actionRef':ref, 'arguments':{},
+                'requestKey':'new-after-template-retired'}, actor=USER)
+        assert denied.value.code == 'reference_conflict' and canonical_state(h.service) == before
+        await h.service.dispatch_once()
+        assert len(h.service.list('job', actor=USER)['items']) == 2
+        assert not Store().read().get('jobExecutions') and h.provider.calls == []
+    asyncio.run(scenario())
 
 
-@async_test
-async def test_reference_graph_cycle_rejected_and_template_restore_does_not_enable(tmp_path):
-    rt,_=await setup(tmp_path)
-    try:
-        t=rt.templates.put({'name':'fixed','config':config()},0,True)
-        loop={**action(),'execution':{'kind':'job_template','templateId':t['id'],'templateRevision':1}}
-        with pytest.raises(ValueError,match='cycle'):rt.actions.put('actions',loop,authorized=True)
-        rt.actions.delete('actions','pause',authorized=True,confirm_references=True)
-        rt.actions.put('actions',action())
-        view=rt.templates.list()[0]
-        assert view['integrity']['status']=='complete' and view['integrity']['approvalRequired'] and not view['usable']
-        fixed=rt.templates.put({'id':t['id'],'name':'fixed','config':config()},1,True)
-        assert fixed['revision']==2 and fixed['referenceGeneration']==rt.actions.read()['actionGenerations']['pause']
-        enabled=rt.templates.put({'id':t['id'],'name':'fixed','config':config()},2,True)
-        assert rt.templates.view(enabled, rt.actions.read())['usable']
-    finally:await rt.close()
+def test_reference_graph_cycle_rejected_and_template_restore_does_not_enable(h):
+    from packages.jobs.action_templates import check_action_graph
+    from packages.jobs.final_contracts import ContractError
+    from packages.jobs.final_service import definition, object_ref
+    from tests.test_job_final_http_service import USER, create, control, job_def, launch
+    from tests.test_action_groups import canonical_state
+    # Keep the shared read/definition graph validator's original cycle fence.
+    state = Store().read()
+    loop = {**action(), 'execution':{'kind':'job_template', 'templateId':'jtpl_cycle', 'templateRevision':1}}
+    state['actions']['pause'] = validate_action(loop)
+    state.setdefault('jobTemplates', {})['jtpl_cycle'] = {'id':'jtpl_cycle', 'revision':1, 'config':config()}
+    with pytest.raises(ValueError, match='cycle'):
+        check_action_graph(state, loop)
+    template, _, _ = canonical_fixed_template(h, key='graph')
+    original = h.service.get('action', h.action['id'], actor=USER)
+    response = h.client.request('DELETE', '/api/jobs/actions/' + original['id'], json={
+        'expectedRevision':original['revision'], 'expectedStateRevision':original['stateRevision'],
+        'requestKey':'retire-template-reference'})
+    assert response.status_code == 200, response.text
+    retired = response.json()['result']['object']
+    before = canonical_state(h.service)
+    with pytest.raises(ContractError) as unavailable:
+        h.service.instantiate_template(template['id'], {'expectedRevision':template['revision'],
+            'requestKey':'unavailable-graph-copy'}, actor=USER)
+    assert unavailable.value.code == 'reference_conflict' and canonical_state(h.service) == before
+    with pytest.raises(ContractError) as restore:
+        h.service.write('action', original['id'], {'definition':definition('action', original),
+            'expectedRevision':retired['revision'], 'requestKey':'restore-graph-reference'}, actor=USER)
+    assert restore.value.code == 'reference_conflict' and canonical_state(h.service) == before
+    replacement = h.service.publish_action('explicit_graph_replacement', definition('action', original))
+    value = job_def(h)
+    value['steps'][0]['actionRef'] = object_ref('action', replacement)
+    successor = create(h, 'job-templates', {'name':'repaired graph', 'jobDefinition':value,
+        'composition':{'creators':[], 'triggers':[]}}, 'repair-graph-template')
+    published = control(h, 'job-templates', successor, 'publish', 'publish-graph-repair')
+    assert published.status_code == 200, published.text
+    successor = published.json()['result']['object']
+    copy_receipt = h.service.instantiate_template(successor['id'], {'expectedRevision':successor['revision'],
+        'requestKey':'explicit-repaired-graph-copy'}, actor=USER)
+    jid = copy_receipt['result']['objectIds']['job']
+    child = h.service.get('job', jid, actor=USER)
+    assert child['state'] == 'disabled' and h.service.final.runs(jid) == []
+    assert h.provider.calls == []
+    activated = control(h, 'jobs', child, 'enable', 'enable-repaired-copy')
+    assert activated.status_code == 200, activated.text
+    rid = launch(h, activated.json()['result']['object'], 'run-repaired-graph')['runId']
+    asyncio.run(h.service.dispatch_once())
+    done = h.service.final.get(jid)
+    assert done['runs'][rid]['state'] == 'completed'
+    assert len(done['attempts']) == len(done['effects']) == len(h.provider.calls) == 1
+    assert h.service.get('action', original['id'], actor=USER) == retired
 
 
-@async_test
-async def test_api_permissions_unknown_fields_legacy_aliases_and_repair(tmp_path,monkeypatch):
-    """R5 successor: the old template/Action-Job HTTP surface only refuses.
-
-    The previous version exercised the whole draft -> repair -> instantiate ->
-    run-now flow.  That flow no longer exists, so it is replaced by the two
-    properties that still matter: authentication is checked first (an
-    anonymous caller cannot probe), and an authenticated caller gets an
-    explicit retirement with no persisted Job, template or receipt.
-    """
-    from fastapi import FastAPI
-    from packages.automation.auth import UserAuth
-    from packages.automation.api import install as install_auth
-    from packages.actions.api import install as install_actions
-    from packages.jobs import action_api,api as legacy
-    rt,_=await setup(tmp_path);app=FastAPI();auth=UserAuth(tmp_path/'auth');auth.key()
-    from packages.plugins.lifecycle import io
-    app.state.automation=SimpleNamespace(job_runtime=rt,auth=auth,engine=SimpleNamespace(io=io))
-    server=SimpleNamespace(app=app,sess=SimpleNamespace(list_all=lambda **kw:[]))
-    install_auth(server);install_actions(server)
-    # Mount through the production installer: that is what applies the R5
-    # retirement boundary, so the assertions below describe the shipped app.
-    from packages.jobs import final_api
-    final_api.install(app, action_api.router, legacy.router)
-    monkeypatch.setattr('packages.actions.api.Store',lambda:rt.actions)
-    monkeypatch.setattr(legacy,'_job_root',lambda:rt.root)
-    monkeypatch.setattr('packages.jobs.pan_bridge.request',lambda *args:None)
-    try:
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://owned') as client:
-            retired=[
-                ('post','/api/jobs/action-jobs',{'config':config()}),
-                ('post','/api/jobs/job-templates',{'item':{'name':'x','config':config()},'expectedRevision':0}),
-                ('delete','/api/jobs/job-templates/jtpl_x',None),
-                ('post','/api/jobs/job-templates/jtpl_x/instantiate',{'expectedRevision':1,'idempotencyKey':'http-key'}),
-                ('post','/api/jobs/job_x/run-now',{'expectedRevision':1}),
-            ]
-            # ``/api/jobs/{id}`` is owned by the canonical object route now, so
-            # PATCH/DELETE there validate a canonical body instead of reaching
-            # the old facade handler.  They must never fall through to it.
-            canonical_owned=[
-                ('patch','/api/jobs/job_x',{'enabled':True}),
-                ('delete','/api/jobs/job_x',None),
-            ]
-            # Authentication precedes the retirement answer, so an anonymous
-            # caller cannot distinguish a retired path from a missing one.
-            # ``PATCH /api/jobs/{id}`` is now owned by the canonical object
-            # route, which answers 405: also impossible to mutate, and it
-            # reveals nothing about the retired legacy handler.
-            for method,path,body in retired+canonical_owned:
-                anonymous=await client.request(method,path,json=body)
-                assert anonymous.status_code in (401,405,400),(method,path,anonymous.text)
-                assert 'retired' not in anonymous.text
-            token=(await client.post('/api/automation/login',json={'key':auth.key()})).json()['token']
-            headers={'Authorization':'Bearer '+token}
-            before_jobs=list(rt.list());before_templates=rt.templates.list()
-            for method,path,body in retired:
-                refused=await client.request(method,path,json=body,headers=headers)
-                if path.startswith('/api/jobs/job-templates'):
-                    # P6 keeps the Template compatibility adapter mounted;
-                    # this intentionally unbound host fails before payload
-                    # validation with the canonical provider error.
-                    assert refused.status_code in {400, 503}, (method, path, refused.text)
-                    assert refused.json().get('error', {}).get('code') in {'provider_unavailable', 'invalid_schema'}
-                else:
-                    assert refused.status_code==410,(method,path,refused.text)
-                    assert refused.json()['detail']['code']=='retired',(method,path)
-            for method,path,body in canonical_owned:
-                refused=await client.request(method,path,json=body,headers=headers)
-                # Canonical owns this address and rejects the old shape; it
-                # must never fall through to the retired facade handler.
-                assert refused.status_code in (400,404,405,410),(method,path,refused.text)
-                if refused.status_code != 410:
-                    assert 'retired' not in refused.text,(method,path)
-            # Nothing was created, enabled, run or deleted by trying.
-            assert list(rt.list())==before_jobs
-            assert rt.templates.list()==before_templates
-            # The Action registry itself is not part of the Job retirement.
-            client.cookies.clear()  # anonymous, not a cookie-authenticated cross-origin write
-            assert (await client.delete('/api/actions/actions/pause')).status_code==401
-            assert (await client.delete('/api/actions/actions/pause?confirmReferences=true',headers=headers)).status_code==200
-            # Reads of the retired surface still work for existing records.
-            assert (await client.get('/api/jobs/action-jobs',headers=headers)).status_code==200
-    finally:await rt.close()
+def test_api_permissions_unknown_fields_legacy_aliases_and_repair(h):
+    from fastapi.testclient import TestClient
+    from tests.test_action_unification_p6_template_http_compat import _legacy_item
+    from tests.test_job_final_http_service import USER, control, launch
+    from tests.test_action_groups import canonical_state
+    from packages.jobs.final_service import definition
+    before = canonical_state(h.service)
+    with TestClient(h.app) as anonymous:
+        for method, path, body in [
+            ('GET','/api/jobs/job-templates',None),
+            ('POST','/api/jobs/job-templates',{'item':{},'expectedRevision':0}),
+            ('POST','/api/job-templates',{'definition':{},'expectedRevision':0,'requestKey':'anonymous-template'})]:
+            denied = anonymous.request(method, path, json=body)
+            assert denied.status_code == 401, denied.text
+            assert canonical_state(h.service) == before
+    for path in ('/api/legacy/jobs/action-jobs', '/api/legacy/jobs/job_missing/run-now'):
+        retired = h.client.post(path, json={})
+        assert retired.status_code == 410 and retired.json()['detail']['code'] == 'retired'
+        assert canonical_state(h.service) == before
+    item = _legacy_item(h.action['id'])
+    invalid = h.client.post('/api/jobs/job-templates', json={'item':{**item,'unknown':True}, 'expectedRevision':0})
+    assert invalid.status_code == 400 and invalid.json()['error']['code'] == 'invalid_schema'
+    assert canonical_state(h.service) == before
+    created = h.client.post('/api/jobs/job-templates', json={'item':item, 'expectedRevision':0})
+    assert created.status_code == 200, created.text
+    original = h.service.get('template', created.json()['canonical']['id'], actor=USER)
+    published = control(h, 'job-templates', original, 'publish', 'publish-http-template')
+    assert published.status_code == 200, published.text
+    original = published.json()['result']['object']
+    changed = {**item, 'name':'edited alias'}
+    updated = h.client.put('/api/jobs/job-templates/' + item['id'], json={'item':changed, 'expectedRevision':1})
+    assert updated.status_code == 200, updated.text
+    assert updated.json()['item']['revision'] == 2
+    assert updated.json()['canonical']['id'] != original['id']
+    assert h.service.get('template', original['id'], actor=USER) == original
+    admitted = h.client.post('/api/jobs/job-templates/' + item['id'] + '/instantiate', json={
+        'expectedRevision':2, 'idempotencyKey':'http-template-copy'})
+    assert admitted.status_code == 200, admitted.text
+    jid = admitted.json()['job']['jobId']
+    job = h.service.get('job', jid, actor=USER)
+    assert job['state'] == 'disabled' and h.service.final.runs(jid) == []
+    replay = h.client.post('/api/jobs/job-templates/' + item['id'] + '/instantiate', json={
+        'expectedRevision':2, 'idempotencyKey':'http-template-copy'})
+    assert replay.status_code == 200 and replay.json()['job']['jobId'] == jid
+    enabled = control(h, 'jobs', job, 'enable', 'enable-http-template-copy')
+    assert enabled.status_code == 200, enabled.text
+    job = enabled.json()['result']['object']
+    rid = launch(h, job, 'http-template-run')['runId']
+    asyncio.run(h.service.dispatch_once())
+    original_run = h.service.get_run(rid, actor=USER)
+    assert original_run['state'] == 'completed' and len(h.provider.calls) == 1
+    source = h.service.get('action', h.action['id'], actor=USER)
+    retired = h.client.request('DELETE', '/api/jobs/actions/' + source['id'], json={
+        'expectedRevision':source['revision'], 'expectedStateRevision':source['stateRevision'], 'requestKey':'retire-http-template-action'})
+    assert retired.status_code == 200, retired.text
+    before = canonical_state(h.service)
+    blocked = h.client.post('/api/jobs/job-templates/' + item['id'] + '/instantiate', json={
+        'expectedRevision':2, 'idempotencyKey':'blocked-http-template-copy'})
+    assert blocked.status_code == 409 and blocked.json()['error']['code'] == 'reference_conflict'
+    assert canonical_state(h.service) == before
+    replacement = h.service.publish_action('http_template_replacement', definition('action', source))
+    repaired = {**changed, 'config':{**item['config'],'actionId':replacement['id']}}
+    saved = h.client.put('/api/jobs/job-templates/' + item['id'], json={'item':repaired, 'expectedRevision':2})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()['item']['revision'] == 3
+    copied = h.client.post('/api/jobs/job-templates/' + item['id'] + '/instantiate', json={
+        'expectedRevision':3, 'idempotencyKey':'repaired-http-template-copy'})
+    assert copied.status_code == 200, copied.text
+    second = h.service.get('job', copied.json()['job']['jobId'], actor=USER)
+    assert second['state'] == 'disabled' and h.service.final.runs(second['id']) == []
+    assert h.service.get_run(rid, actor=USER) == original_run
+    assert h.service.get('action', source['id'], actor=USER)['state'] == 'retired'
+    assert len(h.service.list('job', actor=USER)['items']) == 2
 
 
 @async_test
