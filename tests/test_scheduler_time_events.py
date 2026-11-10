@@ -13,6 +13,7 @@ from packages.actions.store import Store
 from packages.jobs.action_templates import Conflict
 from tests.test_automation_core import async_test,action,trigger,settled
 from tests.test_job_action_chain import _action,_steps
+from tests.test_automation_canonical import canonical, enabled, job_def, subscription, fact, control, USER
 
 NOW=datetime(2026,10,25,10)
 
@@ -128,92 +129,155 @@ async def service(tmp_path,execute=None,with_runtime=True):
     return svc
 
 
-@async_test
-async def test_broadcast_independent_failure_skip_disable_unavailable_and_mutation(tmp_path,monkeypatch):
-    calls=[]
-    async def execute(action,args,event,progress):
-        calls.append(event['payload']['runningCount']);event['payload']['runningCount']=999
-        if len(calls)==1:raise RuntimeError('independent effect failure')
-        return {'ok':True}
-    svc=await service(tmp_path,execute)
-    for tid in ('first','second','skipped','disabled','unavailable','filtered'):
-        item=trigger(tid)
-        if tid=='disabled':item['enabled']=False
-        if tid=='unavailable':item['eventTypes'].append('missing.dependency')
-        if tid=='skipped':item['condition']={'field':'workers.runningCount','op':'gt','value':5}
-        if tid=='filtered':item['eventFilter']={'payload.runningCount':9}
-        svc.ledger.put(item,0,True)
-    try:
-        event=svc.bus.prepare(svc.core,'workers.all_idle',{'runningCount':0},'broadcast')
-        await svc.accept(event)
-        await svc.deliver(svc.events.pending()[0])
-        rows=await settled(svc.engine,4)
-        assert sorted(r['status'] for r in rows)==['admitted','admitted','skipped','skipped']
-        assert calls==[0,0] and event['payload']['runningCount']==0
-        jobs={j['name']:j['lastStatus'] for j in svc.job_runtime.list()}
-        # Independent admissions can execute in either order; the injected
-        # first effect fails and the other must still complete.
-        assert set(jobs) == {'first', 'second'}
-        assert sorted(jobs.values()) == ['completed', 'failed']
-        receipts=svc.events.subscription_receipts('broadcast')
-        assert len(receipts)==6 and receipts['trigger:disabled']['status']=='disabled'
-        assert receipts['trigger:unavailable']['status']=='unavailable'
-        assert receipts['trigger:skipped']['admissionResult']=='skipped'
-        await svc.deliver(svc.events.pending()[0])
-        assert calls==[0,0]
-        page=await svc.event_page(0,20,True)
-        assert page['events'][0]['subscriptions']['trigger:first']['execution']['status']=='admitted'
-    finally:
-        await svc.engine.close();await svc.bus.close()
+def test_broadcast_independent_failure_skip_disable_unavailable_and_mutation(canonical, monkeypatch):
+    h = canonical
+    targets, jobs = {}, {}
+    for key in ('first','second','skipped','disabled','unavailable','filtered'):
+        job = enabled(h, job_def(h), key=key + '-job')
+        fields = {}
+        if key == 'skipped': fields['condition'] = {'field':'workers.runningCount','op':'gt','value':5}
+        if key == 'unavailable': fields['condition'] = {'field':'plugin.ready','op':'eq','value':True}
+        if key == 'filtered': fields['eventFilter'] = {'payload.runningCount':9}
+        _, target = subscription(h, job, key=key, **fields)
+        if key == 'disabled':
+            response = control(h, 'triggers', target, 'disable', 'disable-broadcast-trigger')
+            assert response.status_code == 200, response.text
+        targets[key], jobs[key] = target, job
+    async def reader(key):
+        if key == 'workers.runningCount': return 0
+        raise ValueError('owned unavailable State provider')
+    h.service.state_reader = reader
+    h.provider.fail_once = '0'
+    original = h.service.admission.admit
+    observed = []
+    async def mutable(event, target):
+        observed.append(event['payload']['runningCount'])
+        try:
+            return await original(event, target)
+        finally:
+            event['payload']['runningCount'] = 999
+    monkeypatch.setattr(h.service.admission, 'admit', mutable)
+    async def scenario():
+        svc = h.automation
+        svc.started = True
+        event = fact(h, 'broadcast')
+        await svc.accept(event, svc.core)
+        row = svc.events.lookup('broadcast')
+        with pytest.raises(ValueError) as unavailable:
+            await svc.deliver(row)
+        assert 'trigger_temporarily_inactive' in str(unavailable.value)
+        assert 'owned unavailable State provider' in str(unavailable.value)
+        await h.service.dispatch_once()
+        assert observed == [0] * 6 and event['payload']['runningCount'] == 0
+        receipts = svc.events.subscription_receipts('broadcast')
+        assert len(receipts) == 6
+        assert sorted(h.service.final.runs(jobs[k]['id'])[0]['state'] for k in ('first','second')) == ['completed','failed']
+        for key in ('disabled','unavailable'):
+            assert receipts['trigger:' + targets[key]['id']]['status'] == 'error'
+            assert h.service.final.runs(jobs[key]['id']) == []
+        for key in ('skipped','filtered'):
+            assert receipts['trigger:' + targets[key]['id']]['admissionResult'] == 'skipped'
+            assert h.service.final.runs(jobs[key]['id']) == []
+        assert [text for text,_ in h.provider.calls] == ['0','0']
+        with pytest.raises(ValueError):
+            await svc.deliver(row)
+        await h.service.dispatch_once()
+        assert [text for text,_ in h.provider.calls] == ['0','0']
+        page = await svc.event_page(0,20,True)
+        by_id = {entry['event']['id']:entry for entry in page['events']}
+        for key in ('first','second'):
+            link = by_id['broadcast']['subscriptions']['trigger:' + targets[key]['id']]
+            assert link['status'] == 'admitted'
+            assert h.service.get_run(link['runId'], actor=USER)['jobId'] == jobs[key]['id']
+        assert svc.ledger.read()['runs'] == {}
+    asyncio.run(scenario())
 
 
-@async_test
-async def test_one_subscription_persistence_failure_does_not_block_another(tmp_path,monkeypatch):
-    calls=[]
-    async def execute(*args):calls.append(1);return {'ok':True}
-    svc=await service(tmp_path,execute)
-    for tid in ('broken','healthy'):svc.ledger.put(trigger(tid),0,True)
-    original=svc.ledger.append
-    def append(run):
-        if run['triggerId']=='broken':raise OSError('owned single subscription write fault')
-        return original(run)
-    monkeypatch.setattr(svc.ledger,'append',append)
-    try:
-        await svc.accept(svc.bus.prepare(svc.core,'workers.all_idle',{'runningCount':0},'partial'))
-        with pytest.raises(ValueError):await svc.deliver(svc.events.pending()[0])
-        await settled(svc.engine,1)
-        assert calls==[1]
-        assert svc.events.subscription_receipts('partial')['trigger:healthy']['status']=='admitted'
-        monkeypatch.setattr(svc.ledger,'append',original)
-        await svc.deliver(svc.events.pending()[0]);await settled(svc.engine,2)
-        assert calls==[1,1]
-        assert [j['lastStatus'] for j in svc.job_runtime.list()]==['completed','completed']
-    finally:
-        await svc.engine.close();await svc.bus.close()
+def test_one_subscription_persistence_failure_does_not_block_another(canonical, monkeypatch):
+    h = canonical
+    targets, jobs = {}, {}
+    for key in ('broken','healthy'):
+        jobs[key] = enabled(h, key=key + '-job')
+        _, targets[key] = subscription(h, jobs[key], key=key)
+    save = h.service._save
+    def fault(db, kind, identity, item):
+        save(db, kind, identity, item)
+        if kind == 'job' and identity == jobs['broken']['id'] and item.get('finalRuntime',{}).get('plans'):
+            raise OSError('owned single subscription write fault')
+    monkeypatch.setattr(h.service, '_save', fault)
+    async def scenario():
+        svc = h.automation
+        svc.started = True
+        await svc.accept(fact(h,'partial'), svc.core)
+        row = svc.events.lookup('partial')
+        with pytest.raises(ValueError, match='owned single subscription write fault'):
+            await svc.deliver(row)
+        await h.service.dispatch_once()
+        healthy = h.service.final.runs(jobs['healthy']['id'])
+        assert len(healthy) == 1 and healthy[0]['state'] == 'completed'
+        assert h.service.final.runs(jobs['broken']['id']) == [] and len(h.provider.calls) == 1
+        first = copy.deepcopy(h.service.final.get(jobs['healthy']['id']))
+        receipts = svc.events.subscription_receipts('partial')
+        assert receipts['trigger:' + targets['healthy']['id']]['status'] == 'admitted'
+        assert receipts['trigger:' + targets['broken']['id']]['status'] == 'error'
+        monkeypatch.setattr(h.service, '_save', save)
+        await svc.deliver(row)
+        await h.service.dispatch_once()
+        assert len(h.provider.calls) == 2
+        assert h.service.final.get(jobs['healthy']['id']) == first
+        assert h.service.final.runs(jobs['broken']['id'])[0]['state'] == 'completed'
+        await svc.deliver(row)
+        await h.service.dispatch_once()
+        assert len(h.provider.calls) == 2 and svc.ledger.read()['runs'] == {}
+    asyncio.run(scenario())
 
 
-@async_test
-async def test_time_event_to_frozen_chain_end_to_end_without_service(tmp_path):
-    calls=[]
-    async def execute(action,args,*unused):
-        calls.append((action['id'],args['value']));return {'ok':True,'structuredContent':{'answer':args['value']+'!'}}
-    svc=await service(tmp_path,execute);sources=Sources(tmp_path/'scheduler');item=source(sources)
-    for aid in ('one','two'):svc.engine.actions.put('actions',_action(aid))
-    steps=_steps();steps[0]['arguments']['value']={'from':'event','path':'payload.scheduleId'}
-    steps[1]['arguments']['value']={'from':'step','stepId':'first','path':'answer'}
-    t={**trigger(),'eventTypes':[EVENT_TYPE],'eventFilter':{'payload.scheduleId':item['id']},'actionId':'one','steps':steps}
-    svc.ledger.put(t,0,True)
-    try:
-        await Runtime(sources,svc.accept_time,[]).tick({},at=NOW+timedelta(seconds=60))
-        row=svc.events.pending()[0]
-        assert row['event']['id']==row['event']['payload']['eventId']
-        assert sources.list()[0]['publishCursor']['eventId']==row['event']['id']
-        await svc.deliver(row);runs=await settled(svc.engine,1)
-        jobs=svc.job_runtime.list()
-        assert runs[0]['status']=='admitted' and len(jobs)==1 and jobs[0]['lastStatus']=='completed'
-        assert calls==[('one',item['id']),('two',item['id']+'!')]
-    finally:
-        await svc.engine.close();await svc.bus.close()
+def test_time_event_to_frozen_chain_end_to_end_without_service(canonical):
+    h = canonical
+    from tests.test_retirement_rev16_behavior import instant
+    from packages.scheduler.providers import time_definition
+    from tests.test_job_final_creators import config
+    from tests.test_action_unification_p4 import plans
+    value = job_def(h, steps=2)
+    value['steps'][0]['arguments']['text'] = {'from':'event','path':'creatorId'}
+    value['steps'][1]['arguments']['text'] = {'from':'step','stepId':'s0','path':'messageId'}
+    job = enabled(h, value)
+    due = instant(30)
+    response = h.client.post('/api/event-creators', json={'definition':time_definition('timer',
+        config([{'ruleId':'original','type':'once','at':due}])), 'expectedRevision':0, 'requestKey':'canonical-time-source'})
+    assert response.status_code == 201, response.text
+    creator = response.json()['result']['object']
+    response = control(h, 'event-creators', creator, 'enable', 'enable-canonical-time-source')
+    assert response.status_code == 200, response.text
+    creator = response.json()['result']['object']
+    _, target = subscription(h, job, eventTypes=['scheduler.time.v2'],
+        creatorSelector={'mode':'ids','ids':[creator['id']]})
+    h.service.refresh_subscriptions()
+    asyncio.run(h.service.creator_runtime.tick(at=due))
+    assert h.service.final.runs(job['id']) == [] and h.provider.calls == []
+    published_event, = h.service.events.page()
+    h.service.admit_event(published_event, target)
+    runs = h.service.final.runs(job['id'])
+    assert len(runs) == 1 and runs[0]['state'] == 'queued' and h.provider.calls == []
+    rid = runs[0]['runId']
+    event_id = runs[0]['cause']['eventId']
+    event = h.service.events.get(event_id)['event']
+    assert event['creatorId'] == creator['id'] and event['payload']['scheduledAt'] == due
+    assert h.service.creators.get(creator['id'])['producedCount'] == 1
+    frozen = copy.deepcopy(plans(h,job['id'])[rid]['frozen'])
+    changed = h.client.put('/api/jobs/' + job['id'], json={'definition':job_def(h,steps=1),
+        'expectedRevision':job['configRevision'], 'requestKey':'edit-time-chain-after-admission'})
+    assert changed.status_code == 200, changed.text
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.get_run(rid, actor=USER)['state'] == 'completed'
+    assert [text for text,_ in h.provider.calls] == [creator['id'],'message_1']
+    state = h.service.final.get(job['id'])
+    assert len(state['attempts']) == len(state['effects']) == 2
+    assert plans(h,job['id'])[rid]['frozen'] == frozen
+    asyncio.run(h.service.creator_runtime.tick(at=due))
+    asyncio.run(h.service.tick())
+    assert h.service.final.get(job['id'])['effects'] == state['effects']
+    assert len(h.provider.calls) == 2 and h.automation.ledger.read()['runs'] == {}
 
 
 def test_source_revision_disable_and_identity_are_explicit(tmp_path):
@@ -235,28 +299,44 @@ def test_old_engine_cannot_drive_legacy_or_event_owner():
     assert exc.value.name == 'packages.scheduler.engine'
 
 
-@async_test
-async def test_unavailable_after_admission_retries_only_waiting_subscription(tmp_path):
-    calls=[]
-    async def execute(*args):calls.append(1);return {'ok':True}
-    svc=await service(tmp_path,execute)
-    plugin=svc.bus.activate('plugin','extra');svc.bus.register(plugin,'extra.ready',{'type':'object'})
-    for tid in ('healthy','waiting'):
-        t=trigger(tid)
-        if tid=='waiting':t['eventTypes'].append('extra.ready')
-        svc.ledger.put(t,0,True)
-    try:
-        await svc.accept(svc.bus.prepare(svc.core,'workers.all_idle',{'runningCount':0},'availability'))
-        svc.bus.definitions['extra.ready']['available']=False
-        with pytest.raises(ValueError):await svc.deliver(svc.events.pending()[0])
-        await settled(svc.engine,1);assert len(calls)==1
-        assert [j['lastStatus'] for j in svc.job_runtime.list()]==['completed']
-        svc.bus.definitions['extra.ready']['available']=True
-        await svc.deliver(svc.events.pending()[0]);await settled(svc.engine,2)
-        assert len(calls)==2
-        assert [j['lastStatus'] for j in svc.job_runtime.list()]==['completed','completed']
-    finally:
-        await svc.engine.close();await svc.bus.close()
+def test_unavailable_after_admission_retries_only_waiting_subscription(canonical):
+    h = canonical
+    jobs = {key:enabled(h,key=key + '-job') for key in ('healthy','waiting')}
+    _, healthy = subscription(h,jobs['healthy'],key='healthy')
+    _, waiting = subscription(h,jobs['waiting'],key='waiting',
+        condition={'field':'plugin.ready','op':'eq','value':True})
+    readiness = {'available':False}
+    async def reader(key):
+        assert key == 'plugin.ready'
+        if not readiness['available']:
+            raise ValueError('owned unavailable State provider')
+        return True
+    h.service.state_reader = reader
+    async def scenario():
+        svc = h.automation
+        svc.started = True
+        await svc.accept(fact(h,'availability'),svc.core)
+        row = svc.events.lookup('availability')
+        with pytest.raises(ValueError,match='owned unavailable State provider'):
+            await svc.deliver(row)
+        await h.service.dispatch_once()
+        original = copy.deepcopy(h.service.final.get(jobs['healthy']['id']))
+        assert len(original['runs']) == 1 and next(iter(original['runs'].values()))['state'] == 'completed'
+        assert h.service.final.runs(jobs['waiting']['id']) == [] and len(h.provider.calls) == 1
+        readiness['available'] = True
+        await svc.deliver(row)
+        await h.service.dispatch_once()
+        assert len(h.provider.calls) == 2
+        assert h.service.final.get(jobs['healthy']['id']) == original
+        waited = h.service.final.runs(jobs['waiting']['id'])
+        assert len(waited) == 1 and waited[0]['state'] == 'completed'
+        assert waited[0]['cause']['eventId'] == 'availability'
+        for target in (healthy,waiting):
+            assert svc.events.subscription_receipts('availability')['trigger:' + target['id']]['status'] == 'admitted'
+        await svc.deliver(row)
+        await h.service.dispatch_once()
+        assert len(h.provider.calls) == 2 and svc.ledger.read()['runs'] == {}
+    asyncio.run(scenario())
 
 
 @async_test
@@ -296,19 +376,31 @@ async def test_scheduler_storage_failure_does_not_escape_unified_pass(tmp_path,m
     assert diagnostics[0]['phase']=='scheduler-event-store'
 
 
-@async_test
-async def test_event_execution_results_require_existing_read_authorization(tmp_path):
+def test_event_execution_results_require_existing_read_authorization(canonical):
     import httpx
-    from fastapi import FastAPI
-    from packages.automation.api import install
-    svc=await service(tmp_path)
-    app=FastAPI();app.state.automation=svc
-    install(SimpleNamespace(app=app))
-    token=svc.auth.login(svc.auth.key())
-    try:
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://owned') as client:
-            assert (await client.get('/api/automation/events')).status_code==200
-            assert (await client.get('/api/automation/events?includeExecution=true')).status_code==401
-            assert (await client.get('/api/automation/events?includeExecution=true',headers={'Authorization':'Bearer '+token})).status_code==200
-    finally:
-        await svc.engine.close();await svc.bus.close()
+    h = canonical
+    job = enabled(h)
+    _, target = subscription(h,job)
+    async def scenario():
+        svc = h.automation
+        svc.started = True
+        await svc.accept(fact(h,'authorized-history'),svc.core)
+        await svc.deliver(svc.events.lookup('authorized-history'))
+        await h.service.dispatch_once()
+        receipt = svc.events.subscription_receipts('authorized-history')['trigger:' + target['id']]
+        rid = receipt['runId']
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(h.app),base_url='http://owned') as client:
+            public = await client.get('/api/automation/events')
+            assert public.status_code == 200
+            assert (await client.get('/api/automation/events?includeExecution=true')).status_code == 401
+            assert (await client.get('/api/job-runs/' + rid)).status_code == 401
+            headers = {'Authorization':'Bearer ' + h.token}
+            history = await client.get('/api/automation/events?includeExecution=true',headers=headers)
+            assert history.status_code == 200
+            rows = {row['event']['id']:row for row in history.json()['events']}
+            assert rows['authorized-history']['subscriptions']['trigger:' + target['id']]['runId'] == rid
+            run = await client.get('/api/job-runs/' + rid,headers=headers)
+            assert run.status_code == 200 and run.json()['state'] == 'completed'
+            assert run.json()['jobId'] == job['id']
+        assert len(h.provider.calls) == 1 and svc.ledger.read()['runs'] == {}
+    asyncio.run(scenario())
