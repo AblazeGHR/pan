@@ -439,10 +439,16 @@ def definition_routes(base, kind):
         value.update(operation="retire", parameters={"expectedReferences": value.pop("expectedReferences")} if "expectedReferences" in value else {})
         return write_result(await invoke(request, "retire", kind, object_id, value, actor=who))
 
-    for suffix, method, function in [("", "GET", listing), ("", "POST", create),
-                                     ("/{object_id}", "GET", detail), ("/{object_id}", "PUT", update),
-                                     ("/{object_id}", "DELETE", delete),
-                                     ("/{object_id}/operations", "POST", control)]:
+    routes = [("", "GET", listing), ("", "POST", create),
+              ("/{object_id}", "GET", detail), ("/{object_id}", "PUT", update),
+              ("/{object_id}", "DELETE", delete),
+              ("/{object_id}/operations", "POST", control)]
+    # Jobs retain the existing canonical-shaped compatibility DELETE handler
+    # below; registering the generic definition DELETE as well creates two
+    # identical production routes and makes dispatch order ambiguous.
+    if kind == "job":
+        routes = [row for row in routes if not (row[0] == "/{object_id}" and row[1] == "DELETE")]
+    for suffix, method, function in routes:
         router.add_api_route(base + suffix, function, methods=[method], name=f"canonical_{kind}_{function.__name__}")
 
 
