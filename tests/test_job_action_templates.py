@@ -119,24 +119,56 @@ def test_instantiate_copy_revision_display_only_and_idempotence(h):
     assert h.service.get('job', jid, actor=USER) == child
 
 
-@async_test
-async def test_reserved_creation_recovers_after_template_delete_and_write_failure(tmp_path,monkeypatch):
-    rt,_=await setup(tmp_path)
-    t=rt.templates.put({'name':'complete','config':config()},0,True)
-    original=jobs._create
-    def fail(*args,**kwargs):raise OSError('injected Job registry write failure')
-    monkeypatch.setattr(jobs,'_create',fail)
-    try:
-        with pytest.raises(CreationPending):rt.instantiate(t['id'],1,'durable-intent')
-        assert list(rt.actions.read()['jobInstantiations'].values())[0]['phase']=='reserved'
-        rt.templates.delete(t['id'],1)
-        monkeypatch.setattr(jobs,'_create',original)
-        rt.recover()
-        created=rt.instantiate(t['id'],1,'durable-intent')
-        assert created['templateRevision']==1 and len(jobs.list_jobs(rt.root))==1
-        receipt=list(rt.actions.read()['jobInstantiations'].values())[0]
-        assert receipt['phase']=='created' and 'config' not in receipt
-    finally:monkeypatch.setattr(jobs,'_create',original);await rt.close()
+def test_reserved_creation_recovers_after_template_delete_and_write_failure(h, monkeypatch):
+    from tests.test_job_final_http_service import create, control, job_def, USER
+    from packages.jobs.final_contracts import ContractError
+    value = {'name': 'atomic copy', 'jobDefinition': job_def(h), 'composition': {'creators': [], 'triggers': []}}
+    template = create(h, 'job-templates', value)
+    response = control(h, 'job-templates', template, 'publish', 'publish-atomic-copy')
+    assert response.status_code == 200, response.text
+    template = response.json()['result']['object']
+    body = {'expectedRevision': template['revision'], 'requestKey': 'durable-copy-intent'}
+    def snapshot():
+        with h.service.transaction(readonly=True) as db:
+            names = [row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+            return {name: sorted((tuple(row) for row in db.execute('SELECT * FROM "' + name.replace('"', '""') + '"')), key=repr)
+                    for name in names}
+    before = snapshot()
+    original = h.service._save
+    def fail_after_insert(db, kind, identity, document):
+        result = original(db, kind, identity, document)
+        if kind == 'job':
+            raise OSError('injected canonical Job publication failure')
+        return result
+    monkeypatch.setattr(h.service, '_save', fail_after_insert)
+    with pytest.raises(OSError, match='injected canonical Job publication failure'):
+        h.service.instantiate_template(template['id'], body, actor=USER)
+    monkeypatch.setattr(h.service, '_save', original)
+    assert snapshot() == before and h.provider.calls == []
+    with pytest.raises(KeyError):
+        h.service.operation_for_key('instantiate-template', body['requestKey'], actor=USER)
+    # Canonical creation is atomic: no legacy reserved intent survives a
+    # rolled-back write, so a retired source cannot manufacture a later copy.
+    assert control(h, 'job-templates', template, 'retire', 'retire-failed-source').status_code == 200
+    h.service.recover()
+    with pytest.raises(ContractError) as retired:
+        h.service.instantiate_template(template['id'], body, actor=USER)
+    assert retired.value.code == 'reference_conflict'
+    assert h.service.list('job', actor=USER)['items'] == []
+    # Once the canonical receipt has committed, source retirement cannot lose
+    # the original result or turn its key into another creation.
+    next_template = create(h, 'job-templates', value, key='next-template')
+    response = control(h, 'job-templates', next_template, 'publish', 'publish-next-template')
+    assert response.status_code == 200, response.text
+    next_template = response.json()['result']['object']
+    committed_body = {'expectedRevision': next_template['revision'], 'requestKey': 'committed-copy-intent'}
+    committed = h.service.instantiate_template(next_template['id'], committed_body, actor=USER)
+    assert control(h, 'job-templates', next_template, 'retire', 'retire-committed-source').status_code == 200
+    replay = h.service.instantiate_template(next_template['id'], committed_body, actor=USER)
+    assert replay['operationId'] == committed['operationId'] and replay['replayed'] is True
+    jid = committed['result']['objectIds']['job']
+    assert [j['id'] for j in h.service.list('job', actor=USER)['items']] == [jid]
+    assert h.provider.calls == []
 
 
 @async_test
@@ -157,52 +189,109 @@ async def test_template_edit_delete_while_job_write_blocked_uses_admitted_copy(t
     finally:release.set();await asyncio.gather(task,return_exceptions=True);await rt.close()
 
 
-@async_test
-async def test_delete_before_snapshot_atomic_admission_blocks_all_effects(tmp_path,monkeypatch):
-    rt,calls=await setup(tmp_path);job=rt.create(config(),True)
-    entered,release=threading.Event(),threading.Event();original=rt.templates.snapshot
-    def blocked(*args):entered.set();assert release.wait(3);return original(*args)
-    monkeypatch.setattr(rt.templates,'snapshot',blocked)
-    try:
-        await rt.launch(job['jobId'],1);assert await asyncio.to_thread(entered.wait,2)
-        with pytest.raises(PermissionError):rt.actions.delete('actions','pause')
-        rt.actions.delete('actions','pause',authorized=True,confirm_references=True)
-        view=rt.view(rt.get(job['jobId']))
-        assert view['status']=='running' and view['integrity']['status']=='incomplete'
-        assert view['integrity']['issues'][0]['position']=='/config/actionId'
-        release.set();await finished(rt,job['jobId'],'failed')
-        assert not calls and not rt.actions.read().get('jobExecutions')
-    finally:release.set();await rt.close()
+def test_delete_before_snapshot_atomic_admission_blocks_all_effects(h):
+    from tests.test_job_final_http_service import enabled, launch, USER
+    from tests.test_action_unification_p4 import plans
+    job = enabled(h)
+    rid = launch(h, job, 'retired-before-effect')['runId']
+    frozen = copy.deepcopy(plans(h, job['id'])[rid]['frozen'])
+    action = h.service.get('action', h.action['id'], actor=USER)
+    response = h.client.request('DELETE', '/api/jobs/actions/' + action['id'], json={
+        'expectedRevision': action['revision'], 'expectedStateRevision': action['stateRevision'],
+        'requestKey': 'retire-before-snapshot-effect'})
+    assert response.status_code == 200, response.text
+    retired = response.json()['result']['object']
+    assert retired['state'] == 'retired' and retired['enabled'] is False
+    assert plans(h, job['id'])[rid]['frozen'] == frozen
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'failed'
+    assert state['attempts'] == {} and state['effects'] == [] and h.provider.calls == []
+    blocked = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+        'expectedRevision': job['configRevision'], 'requestKey': 'retired-new-admission',
+        'input': {}, 'cause': {'type': 'manual'}})
+    assert blocked.status_code == 409 and blocked.json()['error']['code'] == 'reference_conflict'
+    assert h.service.final.get(job['id']) == state
+    assert h.service.get('action', action['id'], actor=USER) == retired
 
 
-@pytest.mark.parametrize('mutation',['edit','delete'])
-@async_test
-async def test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore(tmp_path,mutation):
-    entered,release=asyncio.Event(),asyncio.Event();calls=[]
-    async def pause(sid,args):calls.append(sid);entered.set();await release.wait();return {'ok':True}
-    rt,_=await setup(tmp_path,pause);job=rt.create(config(),True)
-    try:
-        source_revision=rt.actions.read()['revision']
-        await rt.launch(job['jobId'],1);await asyncio.wait_for(entered.wait(),2)
-        snap=next(iter(rt.actions.read()['jobExecutions'].values()))
-        assert snap['definition']['execution']['selector']['ids']==['selected']
-        assert rt.actions.read()['revision']==source_revision
-        if mutation=='delete':rt.actions.delete('actions','pause',authorized=True,confirm_references=True)
-        rt.actions.put('actions',action(['changed']))
-        release.set();done=await finished(rt,job['jobId'])
-        assert calls==['selected'] and not rt.actions.read().get('jobExecutions')
-        assert done['lastExecution']['digest']==snap['digest'] and 'definition' not in done['lastExecution']
-        if mutation=='delete':
-            view=rt.view(done);assert view['integrity']['status']=='complete' and view['integrity']['approvalRequired'] and not view['enabled']
-            with pytest.raises(Conflict):await rt.launch(job['jobId'],1)
-            with pytest.raises(PermissionError):rt.update(job['jobId'],config(),1)
-            repaired=rt.update(job['jobId'],config(),1,True)
-            assert not repaired['enabled'] and repaired['configRevision']==2
-            rt.update(job['jobId'],config(),2,True)
-        await rt.launch(job['jobId'],rt.get(job['jobId'])['configRevision'])
-        await until(lambda:asyncio.sleep(0,result=len(calls)==2))
-        assert calls==['selected','changed']
-    finally:release.set();await rt.close()
+@pytest.mark.parametrize('mutation', ['edit', 'delete'])
+def test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore(h, mutation):
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    from tests.test_action_unification_p4 import plans
+    from packages.jobs.final_service import definition, object_ref
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    async def scenario():
+        entered, release = asyncio.Event(), asyncio.Event()
+        calls = []
+        class Provider:
+            async def send_session(self, session_id, text, *, effect_key, source):
+                calls.append(text)
+                entered.set()
+                await release.wait()
+                return {'status': 'queued', 'messageId': 'accepted-original'}
+        h.service.executor = TypedExecutor(session_provider=Provider())
+        job = enabled(h)
+        rid = launch(h, job, 'stable-running-copy')['runId']
+        frozen = copy.deepcopy(plans(h, job['id'])[rid]['frozen'])
+        old_action = h.service.get('action', h.action['id'], actor=USER)
+        old_definition = definition('action', old_action)
+        dispatch = asyncio.create_task(h.service.dispatch_once())
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            if mutation == 'delete':
+                retired = h.client.request('DELETE', '/api/jobs/actions/' + old_action['id'], json={
+                    'expectedRevision': old_action['revision'], 'expectedStateRevision': old_action['stateRevision'],
+                    'requestKey': 'retire-running-source'})
+                assert retired.status_code == 200, retired.text
+            else:
+                edited = h.service.write('action', old_action['id'], {'definition': {**old_definition, 'name': 'changed'},
+                    'expectedRevision': old_action['revision'], 'requestKey': 'edit-running-source'}, actor=USER)['result']['object']
+                published = h.service.control('action', old_action['id'], {'operation': 'publish',
+                    'expectedRevision': edited['revision'], 'expectedStateRevision': edited['stateRevision'],
+                    'parameters': {}, 'requestKey': 'publish-running-source'}, actor=USER)['result']['object']
+                assert published['revision'] == old_action['revision'] + 1
+            assert plans(h, job['id'])[rid]['frozen'] == frozen
+            release.set()
+            await asyncio.wait_for(dispatch, 5)
+        finally:
+            release.set()
+            if not dispatch.done():
+                dispatch.cancel()
+                await asyncio.gather(dispatch, return_exceptions=True)
+        done = h.service.final.get(job['id'])
+        assert done['runs'][rid]['state'] == 'completed' and calls == ['0']
+        assert len(done['attempts']) == len(done['effects']) == 1
+        assert plans(h, job['id'])[rid]['frozen'] == frozen
+        public = h.client.get('/api/jobs/' + job['id']).json()
+        assert 'definition' not in public.get('lastExecution', {}) and 'jobExecutions' not in public
+        if mutation == 'delete':
+            blocked = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+                'expectedRevision': job['configRevision'], 'requestKey': 'no-automatic-restore',
+                'input': {}, 'cause': {'type': 'manual'}})
+            assert blocked.status_code == 409 and blocked.json()['error']['code'] == 'reference_conflict'
+            assert h.service.final.get(job['id']) == done and calls == ['0']
+            # Repair requires an explicit different canonical identity/ref;
+            # retired source identity is never recreated or auto-enabled.
+            ref = object_ref('action', h.service.publish_action('explicit_repaired_message', old_definition))
+            cfg = job_def(h)
+            cfg['steps'][0]['actionRef'] = ref
+            cfg['steps'][0]['arguments']['text']['value'] = 'changed'
+            update = h.client.put('/api/jobs/' + job['id'], json={'definition': cfg,
+                'expectedRevision': job['configRevision'], 'requestKey': 'user-explicit-repair'})
+            assert update.status_code == 200, update.text
+            repaired = update.json()['result']['object']
+            assert repaired['configRevision'] == 2
+            next_rid = launch(h, repaired, 'run-explicit-repair')['runId']
+            await h.service.dispatch_once()
+            assert h.service.final.get(job['id'])['runs'][next_rid]['state'] == 'completed'
+            assert calls == ['0', 'changed']
+            assert h.service.get('action', old_action['id'], actor=USER)['state'] == 'retired'
+        else:
+            current = h.service.get('job', job['id'], actor=USER)
+            assert current['steps'][0]['actionRef'] == h.action
+            assert h.service.action_ref(old_action['id'], actor=USER)['revision'] == 2
+    asyncio.run(scenario())
 
 
 @async_test
