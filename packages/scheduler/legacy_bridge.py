@@ -129,56 +129,11 @@ class LegacySchedulerBridge:
             background_jobs._write_job(background_jobs._job_path(job['jobId'], root), current)
             return current
 
-    @legacy_writer(lambda *a, **kw: data_root().resolve().parent)
     async def switch(self, task_id):
-        async with self.lock:
-            return await asyncio.to_thread(self._switch, task_id)
+        raise PermissionError('Legacy scheduler bridge retired; use canonical Creator/Trigger/Job APIs')
 
-    @legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
     def _switch(self, task_id):
-        job = self._job(task_id)
-        if not job: raise KeyError(task_id)
-        if job.get('legacySchedulerCompat') and job.get('schedulerMigration') == 'complete':
-            return job
-        if is_action_job(job) and not job.get('legacySchedulerCompat'):
-            raise Conflict('Job is owned by another Action path')
-        entry = self._entry(job)
-        args = self._action_args(job)
-        desired = bool(job.get('enabled')) and not bool(job.get('paused'))
-        task_id = job.get('taskId') or task_id
-        source_key = f'legacy-scheduler:{task_id}'
-        source = self.sources.put(self._source_config(job, entry, enabled=False), 0,
-                                  creation_key=source_key)
-        source_id = source['id']
-        trigger_id = self._trigger_id(job['jobId'], task_id)
-        config = self._config(job, args, enabled=False)
-        self._write_job(job, config, enabled=False, source_id=source_id,
-                        trigger_id=trigger_id, state='pending')
-        current_trigger = self.ledger.read()['triggers'].get(trigger_id)
-        raw_trigger = dict(id=trigger_id, name=f"{job.get('name') or task_id} · legacy Scheduler",
-                           description='Managed compatibility Trigger', eventTypes=[EVENT_TYPE],
-                           eventFilter={'payload.scheduleId': source_id}, actionId='system_scheduled_task',
-                           arguments={}, targetJobId=job['jobId'], ownerJobId=job['jobId'],
-                           ownerLinkId=task_id, enabled=False, executionMode='serial', maxConcurrency=1)
-        self.ledger.put(raw_trigger, current_trigger['revision'] if current_trigger else 0,
-                        True, authority={'type': 'user'}, managed=True)
-        self.sources.bind_link(source_id, trigger_id, job['jobId'])
-        # Preserve the exact legacy next-fire value; source calculation is still
-        # used for future occurrences, but the switch itself never re-times it.
-        if entry.get('nextFireAt') is not None:
-            self.sources.set_next_fire(source_id, entry.get('nextFireAt'))
-        if desired:
-            self._write_job(self._job(job['jobId']), config, enabled=True,
-                            source_id=source_id, trigger_id=trigger_id, state='complete')
-            self.sources.composition_enabled(source_id, True)
-            trig = self.ledger.read()['triggers'][trigger_id]
-            fields = {k: v for k, v in trig.items() if k not in {'revision','createdBy','createdAt','updatedAt','authorization'}}
-            fields['enabled'] = True
-            self.ledger.put(fields, trig['revision'], True, authority={'type': 'user'}, managed=True)
-        else:
-            self._write_job(self._job(job['jobId']), config, enabled=False,
-                            source_id=source_id, trigger_id=trigger_id, state='complete')
-        return background_jobs.get(job['jobId'], registry_root=data_root())
+        raise PermissionError('Legacy scheduler bridge retired; use canonical Creator/Trigger/Job APIs')
 
     def _task_view(self, job):
         return records.task_from_job(job)

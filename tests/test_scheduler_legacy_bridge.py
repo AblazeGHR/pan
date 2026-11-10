@@ -27,62 +27,31 @@ def payload(tmp_path, task_id='sch_phase4b'):
             'max_runs': None, 'misfire_policy': 'skip'}
 
 
-async def setup(tmp_path, monkeypatch):
-    monkeypatch.setattr(store, 'DEFAULT_ROOT', tmp_path / 'jobs')
-    monkeypatch.setattr(data_paths, 'DEFAULT_ROOT', tmp_path / 'jobs')
-    monkeypatch.setattr(store, 'LEGACY_TASKS_ROOT', tmp_path / 'legacy')
-    worker = SimpleNamespace(workers={})
-    svc = Service(tmp_path / 'automation', worker, None)
-    svc.engine.actions = Store(tmp_path / 'actions')
-    svc.engine.actions.put('actions', {'id': 'pause', 'name': 'pause', 'enabled': True,
-        'effect': 'write_local', 'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
-        'execution': {'kind': 'session_operation', 'operation': 'pause_everything',
-                       'selector': {'mode': 'explicit', 'ids': ['ses_target']}}})
-    svc.events.initialize(); svc.started = True
-    jobs = Runtime(tmp_path / 'jobs', svc.engine.actions, None); await jobs.start()
-    svc.job_runtime = jobs; svc.engine.job_runtime = jobs
-    svc.time_sources = Sources(tmp_path / 'jobs')
-    svc.scheduler_compat = LegacySchedulerBridge(svc)
-    return svc, jobs
-
-
-@async_test
-async def test_switch_preserves_task_and_job_ids_and_creates_one_owner(tmp_path, monkeypatch):
-    svc, jobs = await setup(tmp_path, monkeypatch)
-    try:
-        task = store.create_task(payload(tmp_path))
-        before = store._job_for_task(task['id'])
-        switched = await svc.scheduler_compat.switch(task['id'])
-        assert switched['jobId'] == before['jobId'] and switched['taskId'] == task['id']
-        assert switched['legacySchedulerCompat'] and switched['schedulerOwner'] == 'event'
-        source = svc.time_sources.get(switched['legacySourceId'])
-        trigger = svc.ledger.read()['triggers'][switched['legacyTriggerId']]
-        assert source['owner'] == 'scheduler-event-v1'
-        assert trigger['targetJobId'] == switched['jobId']
-        assert trigger['eventFilter']['payload.scheduleId'] == source['id']
-        assert len(svc.time_sources.references(source['id'])) == 1
-        again = await svc.scheduler_compat.switch(task['id'])
-        assert again['jobId'] == switched['jobId']
-        assert len(svc.time_sources.list()) == 1
-        assert len(svc.ledger.read()['triggers']) == 1
-    finally:
-        await jobs.close(); await svc.bus.close()
-
-
-@async_test
-async def test_unmappable_unknown_action_stays_legacy(tmp_path, monkeypatch):
-    svc, jobs = await setup(tmp_path, monkeypatch)
-    try:
-        task = store.create_task(payload(tmp_path, 'sch_unmappable'))
-        job = store._job_for_task(task['id'])
-        background = __import__('packages.core.background_jobs', fromlist=['_update'])
-        background._update(job['jobId'], {'action': {'api': 'future_action', 'x': 1}}, registry_root=store.data_root())
-        with pytest.raises(ValueError): await svc.scheduler_compat.switch(task['id'])
-        current = store._job_for_task(task['id'])
-        assert not current.get('legacySchedulerCompat')
-        assert not svc.time_sources.list()
-    finally:
-        await jobs.close(); await svc.bus.close()
+@pytest.mark.parametrize('shape', ['known', 'unknown'])
+def test_legacy_switch_is_read_only_and_cannot_create_an_owner(tmp_path, monkeypatch, shape):
+    import json
+    from packages.jobs.runtime_owner import OwnerFence
+    profile = tmp_path / 'owned-profile'
+    root = profile / 'background_jobs'
+    root.mkdir(parents=True)
+    original = payload(tmp_path)
+    if shape == 'unknown':
+        original['action'] = {'api': 'future_action', 'x': 1}
+    path = root / 'preserved.json'
+    path.write_text(json.dumps(original), encoding='utf8')
+    before = path.read_bytes()
+    monkeypatch.setattr(data_paths, 'DEFAULT_ROOT', root)
+    bridge = LegacySchedulerBridge(SimpleNamespace())
+    def forbidden(*args, **kwargs):
+        pytest.fail('Retired switch read or wrote an execution/owner path')
+    monkeypatch.setattr(bridge, '_job', forbidden)
+    monkeypatch.setattr(OwnerFence, '__init__', forbidden)
+    with pytest.raises(PermissionError, match='bridge retired'):
+        asyncio.run(bridge.switch(original['id']))
+    with pytest.raises(PermissionError, match='bridge retired'):
+        bridge._switch(original['id'])
+    assert path.read_bytes() == before
+    assert sorted(p.relative_to(profile).as_posix() for p in profile.rglob('*') if p.is_file()) == ['background_jobs/preserved.json']
 
 
 def test_run_now_does_not_move_periodic_next_fire(behavior_h):

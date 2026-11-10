@@ -36,7 +36,10 @@ def run(server, *args, **kwargs):
                 script = RUNTIME / ('command-' + str(index) + '.py')
                 script.write_text('from pathlib import Path\np=Path(' + repr(str(RUNTIME / 'effects')) + ')\np.write_text("effect")\nprint("owned")\n', 'utf-8')
                 scripts.append(script)
-            old = store.Store(root)
+            # Synthetic historical bytes only. Product Store remains retired;
+            # all new definitions and effects below use the canonical service.
+            from tests.support.legacy_action_source import LegacySource
+            old = LegacySource(root)
             old.put('actions', {'id': 'old_alias', 'name': 'Owned old series', 'enabled': True, 'effect': 'write_local',
                 'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False}, 'output_format': 'text',
                 'execution': {'kind': 'command', 'executable': sys.executable, 'args': [str(scripts[0])], 'cwd': str(RUNTIME)}})
