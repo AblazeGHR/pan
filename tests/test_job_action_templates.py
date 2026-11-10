@@ -622,21 +622,44 @@ async def test_cancel_while_snapshot_commit_inflight_settles_before_cleanup(tmp_
     finally:release.set();await rt.close()
 
 
-@async_test
-async def test_close_during_claim_never_starts_effect(tmp_path,monkeypatch):
-    rt,calls=await setup(tmp_path);entered=threading.Event();release=threading.Event();original=rt.claim
-    def blocked(*args):
-        value=original(*args);entered.set();assert release.wait(3);return value
-    monkeypatch.setattr(rt,'claim',blocked)
-    try:
-        job=rt.create(config(),True);launch=asyncio.create_task(rt.launch(job['jobId'],1))
-        assert await asyncio.to_thread(entered.wait,2)
-        close=asyncio.create_task(rt.close());await asyncio.sleep(0)
-        release.set();await close;await asyncio.gather(launch,return_exceptions=True)
-        assert not calls and not rt.actions.read().get('jobExecutions')
-        assert rt.get(job['jobId'])['lastExecution']['status']=='uncertain'
-        with pytest.raises(Conflict,match='closed'):await rt.launch(job['jobId'])
-    finally:release.set();await rt.close()
+def test_close_during_claim_never_starts_effect(h, monkeypatch):
+    from tests.test_job_final_http_service import enabled, launch, USER
+    from packages.jobs.final_contracts import ContractError
+    from tests.test_action_groups import canonical_state
+    job = enabled(h)
+    rid = launch(h, job, 'close-during-candidate')['runId']
+    entered, release = threading.Event(), threading.Event()
+    original = h.service._dispatch_candidates
+    def blocked():
+        candidates = original()
+        assert (job['id'], rid) in candidates
+        entered.set()
+        assert release.wait(5), 'candidate claim barrier timed out'
+        return candidates
+    monkeypatch.setattr(h.service, '_dispatch_candidates', blocked)
+    before = canonical_state(h.service)
+    async def scenario():
+        pending = asyncio.create_task(h.service.dispatch_once())
+        try:
+            assert await asyncio.to_thread(entered.wait, 3)
+            await h.service.close()
+        finally:
+            release.set()
+        with pytest.raises(ContractError) as stopped:
+            await asyncio.wait_for(pending, 5)
+        assert stopped.value.code == 'provider_unavailable'
+    asyncio.run(scenario())
+    state = h.service.final.get(job['id'])
+    # Selection is a detached candidate snapshot, not an Attempt admission.
+    # Closing before the writer fence commits keeps the original queued Run.
+    assert state['runs'][rid]['state'] == 'queued'
+    assert state['attempts'] == {} and state['effects'] == [] and h.provider.calls == []
+    assert canonical_state(h.service) == before
+    with pytest.raises(ContractError) as closed:
+        h.service.create_run(job['id'], {'expectedRevision': job['configRevision'],
+            'requestKey': 'closed-new-run', 'input': {}, 'cause': {'type': 'manual'}}, actor=USER)
+    assert closed.value.code == 'provider_unavailable'
+    assert canonical_state(h.service) == before
 
 
 def test_duplicate_profile_owner_cannot_recover_or_close_active_execution(h):
