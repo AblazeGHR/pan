@@ -270,21 +270,20 @@ def test_event_and_input_and_output_mapping(h):
 @pytest.mark.parametrize('binding', [
     {'from': 'input', 'path': 'missing'}, {'from': 'input', 'path': ''},
 ])
-@async_test
-async def test_mapping_missing_or_type_error_fails_before_effect(tmp_path, monkeypatch, binding):
-    runtime = await _runtime(tmp_path); calls = []
-    async def execute(*args):calls.append(1); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        steps = _steps(); steps[0]['arguments']['value'] = binding
-        job = runtime.create(_config(steps), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert done['status'] == 'failed' and not calls
-        assert done['lastExecution']['stepExecutions'][0]['error']
-        assert not done['lastExecution']['stepExecutions'][0]['attempts']
-    finally:
-        await runtime.close()
+def test_mapping_missing_or_type_error_fails_before_effect(h, binding):
+    from tests.test_job_final_http_service import job_def
+    from tests.test_action_groups import canonical_state
+    value = job_def(h, steps=2)
+    value['inputSchema'] = {'type': 'object', 'properties': {'input': {'type': 'string'}},
+                            'additionalProperties': False}
+    value['steps'][0]['arguments']['text'] = binding
+    before = canonical_state(h.service)
+    response = h.client.post('/api/jobs', json={
+        'definition': value, 'expectedRevision': 0, 'requestKey': 'invalid-mapping'})
+    assert response.status_code == 400, response.text
+    assert response.json()['error']['code'] == 'invalid_schema'
+    assert canonical_state(h.service) == before and h.provider.calls == []
+    assert h.client.get('/api/jobs').json()['items'] == []
 
 
 @async_test
@@ -471,28 +470,33 @@ def test_chain_monitoring_recovery_reuses_completed_step(tmp_path, monkeypatch):
     asyncio.run(run())
 
 
-@async_test
-async def test_known_failure_explicit_retry_preserves_completed_and_frozen_steps(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    calls = []
-    async def execute(action, args, *unused):
-        calls.append((action['id'], args['value']))
-        return {'ok': not (action['id'] == 'two' and len(calls) == 2)}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps()), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        assert runtime.get(job['jobId'])['lastStatus'] == 'failed'
-        changed = _steps(); changed[1]['arguments']['value'] = 'edited'
-        runtime.update(job['jobId'], _config(changed), 1, True)
-        await runtime.confirm_recovery(job['jobId'], 2, failed=True)
-        await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert calls == [('one', 'first'), ('two', 'second'), ('two', 'second')]
-        assert done['lastStatus'] == 'completed' and 'chainRecovery' not in done
-        assert [len(s['attempts']) for s in done['lastExecution']['stepExecutions']] == [1, 2]
-    finally:
-        await runtime.close()
+def test_known_failure_explicit_retry_preserves_completed_and_frozen_steps(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch, run_control
+    from tests.test_action_unification_p4 import plans
+    value = job_def(h, steps=2)
+    job = enabled(h, value)
+    h.provider.fail_once = '1'
+    rid = launch(h, job, 'failed-boundary')['runId']
+    asyncio.run(h.service.dispatch_once())
+    failed = h.service.final.get(job['id'])
+    assert failed['runs'][rid]['state'] == 'failed'
+    assert [text for text, _ in h.provider.calls] == ['0', '1']
+    original_plan = copy.deepcopy(plans(h, job['id'])[rid]['frozen'])
+    changed = copy.deepcopy(value)
+    changed['steps'][1]['arguments']['text']['value'] = 'edited'
+    response = h.client.put('/api/jobs/' + job['id'], json={
+        'definition': changed, 'expectedRevision': job['configRevision'], 'requestKey': 'edit-before-retry'})
+    assert response.status_code == 200, response.text
+    response = run_control(h, rid, 'retry', 'retry-original-boundary', stepId='s1')
+    assert response.status_code == 202, response.text
+    asyncio.run(h.service.dispatch_once())
+    done = h.service.final.get(job['id'])
+    assert [text for text, _ in h.provider.calls] == ['0', '1', '1']
+    assert set(done['runs']) == {rid} and done['runs'][rid]['state'] == 'completed'
+    assert [len([a for a in done['attempts'].values() if a['stepId'] == sid]) for sid in ('s0', 's1')] == [1, 2]
+    assert plans(h, job['id'])[rid]['frozen'] == original_plan
+    assert len(done['effects']) == 3
+    assert 'chainRecovery' not in h.client.get('/api/jobs/' + job['id']).json()
 
 
 @async_test
