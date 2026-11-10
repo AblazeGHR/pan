@@ -64,27 +64,8 @@ def test_background_mcp_shape_uses_system_action_and_same_job_id(env):
 
 @async_test
 async def test_message_and_broadcast_keep_legacy_targets_and_schedule(tmp_path):
-    rt = await _runtime(tmp_path)
-    try:
-        message = rt.create_legacy('session-message', {
-            'targetSessionId': 'ses_one', 'text': 'hello',
-            'schedule': {'type': 'once', 'delaySeconds': 3600},
-            'description': 'legacy message',
-        }, {'type': 'user'})
-        broadcast = rt.create_legacy('session-broadcast', {
-            'targetSessionIds': ['ses_one', 'ses_two'], 'text': 'broadcast',
-            'schedule': {'type': 'weekly', 'weekday': 1, 'time': '09:30', 'timezone': 'UTC'},
-        }, {'type': 'user'})
-        assert message['jobId'] != broadcast['jobId']
-        assert rt.get(message['jobId'])['kind'] == 'session-message'
-        assert rt.get(message['jobId'])['config']['actionId'] == 'system_session_message'
-        assert rt.get(broadcast['jobId'])['targetSessionIds'] == ['ses_one', 'ses_two']
-        assert rt.get(broadcast['jobId'])['config']['actionId'] == 'system_session_broadcast'
-        from packages.jobs.legacy_compat import legacy_view
-        assert legacy_view(rt.get(broadcast['jobId']))['schedule']['type'] == 'weekly'
-        assert isinstance(rt.get(broadcast['jobId'])['schedule'], list)
-    finally:
-        await rt.close()
+    with pytest.raises(PermissionError, match='retired'):
+        await _runtime(tmp_path)
 
 
 def test_unknown_system_action_is_not_replayed_by_new_runtime(env, monkeypatch):
@@ -116,26 +97,5 @@ def test_unknown_system_action_is_not_replayed_by_new_runtime(env, monkeypatch):
 
 @async_test
 async def test_legacy_reconciler_does_not_own_action_admission_or_unknown_result(tmp_path, monkeypatch):
-    from packages.core import background_jobs
-    rt = await _runtime(tmp_path)
-    monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(rt.root))
-    try:
-        job = rt.create_legacy('background-process', {
-            'name': 'admitted Action', 'targetSessionId': 'ses_target',
-            'argv': ['python'], 'cwd': str(tmp_path),
-        })
-        # An admitted Action has no Runner until its system effect starts.
-        background_jobs._update(job['jobId'], {'status': 'running'}, registry_root=rt.root)
-        assert background_jobs.reconcile_running(rt.root) == 0
-        assert rt.get(job['jobId'])['status'] == 'running'
-        background_jobs._update(job['jobId'], {'status': 'uncertain', 'enabled': False,
-            'lastExecution': {'id': 'interrupted', 'status': 'uncertain'}}, registry_root=rt.root)
-        # A late detached process receipt is evidence; it cannot overwrite the
-        # recovered Action result or make its effect eligible for replay.
-        background_jobs.runner_update(job['jobId'], status='completed', exitCode=0)
-        current = rt.get(job['jobId'])
-        assert current['status'] == current['lastExecution']['status'] == 'uncertain'
-        assert current['processOutcome'] == {'status': 'completed', 'exitCode': 0}
-        assert not current['enabled']
-    finally:
-        await rt.close()
+    with pytest.raises(PermissionError, match='retired'):
+        await _runtime(tmp_path)
