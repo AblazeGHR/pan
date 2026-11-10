@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from packages.core.host_server import PanServer
-from tests.test_job_final_http_service import h, job_def, USER
+from tests.test_job_final_http_service import h, USER
 
 
 def test_production_blank_name_uses_server_default_and_current_job_editor(h, tmp_path, monkeypatch):
@@ -68,14 +68,33 @@ def test_production_blank_name_uses_server_default_and_current_job_editor(h, tmp
                 editor.get_by_role("button", name="Close", exact=True).click()
                 expect(editor).to_have_count(0)
 
-                value = job_def(h)
-                value.pop("name")
-                response = h.client.post(
-                    "/api/jobs",
-                    json={"definition": value, "expectedRevision": 0, "requestKey": "browser-default-name"},
-                )
-                assert response.status_code == 201, response.text
-                receipt = response.json()
+                page.get_by_role("button", name="Definitions", exact=True).click()
+                page.get_by_role("button", name="Create Jobs", exact=True).click()
+                name = page.get_by_label("Name", exact=True)
+                expect(name).to_have_value("")
+                assert not name.evaluate("e => e.required")
+                page.get_by_label("Action for step 1", exact=True).select_option("test_message")
+                page.get_by_label("sessionId value", exact=True).fill("owned-test-session")
+                page.get_by_label("text value", exact=True).fill("Owned browser draft")
+                writes, receipts = [], []
+
+                def lose_reply(route):
+                    writes.append(route.request.post_data_json)
+                    response = route.fetch()
+                    assert response.status == 201, response.text()
+                    receipts.append(response.json())
+                    route.abort()
+
+                page.route("**/api/jobs", lose_reply)
+                page.get_by_role("button", name="Save definition", exact=True).click()
+                query = page.get_by_role("button", name="Query original operation", exact=True)
+                expect(query).to_be_visible()
+                expect(page.get_by_role("button", name="Save definition", exact=True)).to_be_disabled()
+                query.click()
+                expect(page.get_by_role("heading", name="job-1", exact=True)).to_be_visible()
+                assert len(writes) == len(receipts) == 1
+                assert "name" not in writes[0]["definition"]
+                receipt = receipts[0]
                 assert receipt["result"]["object"]["name"] == "job-1"
                 assert h.client.get(f"/api/operations/{receipt['operationId']}").status_code == 200
 
