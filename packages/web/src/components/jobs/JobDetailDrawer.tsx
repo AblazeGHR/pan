@@ -1,14 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
-import { Check, Copy, FileText, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
+import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
 import { scheduleEntries, type Job, type JobRunRecord, type JobSource, type JobTimestamp } from '@/types/jobs';
-import { fetchRunLogReferences, fetchRunLogText } from '@/services/legacyJobs';
+import { LegacyJobDetails } from './LegacyJobDetails';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/** epoch 秒 (number)或本地朴素 ISO (string)→ "YYYY-MM-DD HH:mm". */
+/** epoch 秒（number）或本地朴素 ISO（string）→ "YYYY-MM-DD HH:mm"。 */
 function formatDateTime(value?: JobTimestamp | null): string {
   if (value === null || value === undefined || value === '') return '—';
   const d = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
@@ -23,7 +22,7 @@ function formatDuration(sec: number): string {
   return `${Math.round(sec / 8640) / 10}d`;
 }
 
-/** 状态 → 徽标配色 (覆盖 job status 与 run status 两类字符串). */
+/** 状态 → 徽标配色（覆盖 job status 与 run status 两类字符串）。 */
 function statusColor(status: string): string {
   switch (status) {
     case 'running':
@@ -138,28 +137,6 @@ function scheduleKindLabel(kind: string): string {
 function RunRow({ run }: { run: JobRunRecord }) {
   const result = run.result;
   const hasDetails = result != null || !!run.log_path || run.exit_code != null;
-  // Canonical runs expose their original Attempt log here, inside the designed
-  // drawer. A summary or a `completed` badge is never presented as the output.
-  const [output, setOutput] = useState<string | null>(null);
-  const [attemptStatus, setAttemptStatus] = useState<string | null>(null);
-  const [logState, setLogState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [logError, setLogError] = useState('');
-  const loadOutput = async () => {
-    if (!run.run_id || logState === 'loading') return;
-    setLogState('loading');
-    setLogError('');
-    try {
-      const refs = await fetchRunLogReferences(run.run_id);
-      const ref = refs.find((item) => item.href) ?? refs[0];
-      if (!ref) throw new Error('No attempt log reference yet');
-      setAttemptStatus(ref.status);
-      setOutput(await fetchRunLogText(run.run_id, ref.attemptId));
-      setLogState('done');
-    } catch (caught) {
-      setLogError(caught instanceof Error ? caught.message : String(caught));
-      setLogState('error');
-    }
-  };
   return (
     <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary px-2 py-1.5 text-[11px]">
       <div className="flex items-center justify-between gap-2">
@@ -169,32 +146,6 @@ function RunRow({ run }: { run: JobRunRecord }) {
         </div>
         <StatusBadge status={run.status ?? 'unknown'} />
       </div>
-      {run.run_id && (
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={loadOutput}
-              disabled={logState === 'loading'}
-              aria-label={`View output for run ${run.run_id}`}
-              className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
-            >
-              <FileText size={11} />
-              {logState === 'loading' ? 'Loading…' : 'View output'}
-            </button>
-            {attemptStatus && <span className="text-text-tertiary">attempt {attemptStatus}</span>}
-          </div>
-          {logState === 'error' && <span className="text-danger">{logError}</span>}
-          {output !== null && (
-            <pre
-              aria-label={`Run output for ${run.run_id}`}
-              className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 font-mono text-text-secondary"
-            >
-              {output || '(no output yet)'}
-            </pre>
-          )}
-        </div>
-      )}
       {hasDetails && (
         <details className="text-text-tertiary">
           <summary className="cursor-pointer">Execution details</summary>
@@ -215,6 +166,7 @@ function RunRow({ run }: { run: JobRunRecord }) {
 }
 
 export function JobDetailDrawer({
+  inline = false,
   job,
   kindLabel,
   runs,
@@ -232,6 +184,7 @@ export function JobDetailDrawer({
   onRetry,
   onConfirmRecovery,
 }: {
+  inline?: boolean;
   job: Job;
   kindLabel: string;
   runs: JobRunRecord[];
@@ -273,12 +226,13 @@ export function JobDetailDrawer({
     (job.kind === 'session-message' || job.kind === 'session-broadcast')
     && ['completed', 'failed', 'cancelled'].includes(job.status)
   );
-  const canChangeTarget = !(job.unified && !job.unified.compatibility) && ((job.kind === 'scheduled-task'
+  const legacyReadOnly = Boolean(job.unified?.compatibility) || (!job.unified && job.kind === 'background-process');
+  const canChangeTarget = !legacyReadOnly && ((job.kind === 'scheduled-task'
     && job.action?.api !== 'resume_legal_running'
     && job.action?.api !== 'send_qq')
     || (job.kind === 'session-message' && !terminalMessage)
     || job.kind === 'background-process');
-  const canEdit = !terminalMessage;
+  const canEdit = !legacyReadOnly && !terminalMessage;
   const schedule = scheduleEntries(job.schedule);
   const legacyScheduleText = !Array.isArray(job.schedule) && job.schedule != null
     ? typeof job.schedule === 'string' ? job.schedule : JSON.stringify(job.schedule)
@@ -297,17 +251,19 @@ export function JobDetailDrawer({
 
   const delivery = job.lastDelivery;
 
-  return createPortal(
+  return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      {!inline && <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />}
 
       {/* Drawer panel */}
       <aside
         role="dialog"
         aria-modal="true"
         aria-label="Job detail"
-        className="fixed inset-y-0 right-0 z-50 flex w-full md:max-w-[28rem] flex-col border-l border-border-default bg-bg-secondary shadow-xl"
+        className={inline
+          ? 'flex w-full flex-col rounded-lg border border-border-default bg-bg-secondary shadow-sm'
+          : 'fixed inset-y-0 right-0 z-50 flex w-full md:max-w-[28rem] flex-col border-l border-border-default bg-bg-secondary shadow-xl'}
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-2 border-b border-border-default px-3 py-2.5">
@@ -344,7 +300,7 @@ export function JobDetailDrawer({
               {job.status === 'failed' && onRetry && <button className="rounded border border-warning/50 px-2 py-1 text-xs text-warning" onClick={onRetry}>Confirm failed Run retry</button>}
               {['unknown','uncertain'].includes(job.status) && onConfirmRecovery && <button className="rounded border border-warning/50 px-2 py-1 text-xs text-warning" onClick={onConfirmRecovery}>Confirm uncertain Run recovery</button>}
               {onCancel && (job.kind !== 'scheduled-task' || job.unified && !job.unified.compatibility) && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status) && <button type="button" onClick={onCancel} disabled={cancelling} className="rounded border border-warning/50 px-2 py-1 text-xs text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
-              {isScheduledTask && (
+              {isScheduledTask && !legacyReadOnly && (
                 <button
                   type="button"
                   onClick={onRunNow}
@@ -356,7 +312,7 @@ export function JobDetailDrawer({
                   Run now
                 </button>
               )}
-              {isScheduledTask && (
+              {isScheduledTask && !legacyReadOnly && (
                 <button
                   type="button"
                   onClick={onTogglePaused}
@@ -396,7 +352,7 @@ export function JobDetailDrawer({
               )}
             </div>
 
-            
+            {(!job.unified || job.unified.compatibility) && <LegacyJobDetails job={job} />}
             {job.unified && !job.unified.compatibility && <Section title="Unified execution">
               <KV label="Action reference">{job.unified.config.actionId}</KV>
               <KV label="Configuration revision">{job.configRevision ?? 'legacy adapter'}</KV>
@@ -430,7 +386,7 @@ export function JobDetailDrawer({
                       : job.target.sessionId ?? 'no target'}
                   </span>
                 </KV>
-                <KV label={job.retirementStatus ? 'Historical execution count' : 'Run count'}>{job.runCount ?? 0}</KV>
+                <KV label={job.unified && !job.unified.compatibility ? 'Run count' : 'Legacy execution count'}>{job.runCount ?? 0}</KV>
                 <KV label="Created">{formatDateTime(job.createdAt)}</KV>
                 <KV label="Updated">{formatDateTime(job.updatedAt)}</KV>
                 {job.paused && <KV label="Paused">Yes</KV>}
@@ -630,7 +586,7 @@ export function JobDetailDrawer({
             </Section>
 
             {/* 4. Runs history */}
-            <Section title={job.unified && !job.unified.compatibility ? 'Runs' : 'Execution history'}>
+            <Section title={job.unified && !job.unified.compatibility ? 'Runs' : 'Legacy execution history'}>
               {runs.length === 0 ? (
                 <div className="text-xs text-text-tertiary">
                   {runsLoading ? 'Loading…' : '—'}
@@ -699,8 +655,6 @@ export function JobDetailDrawer({
           </div>
         </div>
       </aside>
-    </>,
-    document.body,
+    </>
   );
 }
-

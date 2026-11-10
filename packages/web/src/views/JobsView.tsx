@@ -1,12 +1,9 @@
-import { canonicalJobs } from '@/services/canonicalJobs';
-import { useOperationIdentity } from '@/components/actions/useOperationIdentity';
-import { CanonicalCollection } from './CanonicalJobsView';
-import { PreservedDataPanel } from '@/components/jobs/JobMaintenanceGate';
 import { useAutomationAuth } from '@/stores/automationStore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
+  ListChecks,
   MoreHorizontal,
   Pause,
   Pin,
@@ -31,25 +28,23 @@ import { useJobStore } from '@/stores/jobStore';
 import { wsClient } from '@/services/ws';
 import { scheduleEntries } from '@/types/jobs';
 import {
-  cancelJob,
-  createJob,
-  deleteJob as deleteJobApi,
   fetchJob,
   fetchJobKinds,
   fetchJobRuns,
+  createActionJob,
+  updateActionJob,
+  fetchActionRegistry,
+  mutateActionJob,
+} from '@/services/api';
+import {
+  cancelJob,
+  deleteJob as deleteJobApi,
   patchJob,
   pinJob,
   runJobNow,
 } from '@/services/legacyJobs';
-import {
-  createActionJob,
-  fetchActionRegistry,
-  mutateActionJob,
-  updateActionJob,
-} from '@/services/api';
 import type {
   Job,
-  JobCreateInput,
   JobKind,
   JobKindMeta,
   JobPatchInput,
@@ -67,7 +62,7 @@ function timestampMs(value: unknown): number | null {
   return Number.isFinite(result) ? result : null;
 }
 
-type Tab = 'list' | 'legacy' | 'create' | 'settings' | 'definitions' | 'triggers' | 'event-creators' | 'job-templates';
+type Tab = 'list' | 'legacy' | 'create' | 'settings';
 
 type StatusFilter =
   'all' | 'active' | 'scheduled' | 'completed' | 'failed' | 'timed_out' | 'undeliverable';
@@ -97,7 +92,7 @@ const selectClass =
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Request failed');
 
-/** 状态 → 徽标配色 (沿用主题 token). */
+/** 状态 → 徽标配色（沿用主题 token）。 */
 function statusColor(status: string): string {
   switch (status) {
     case 'running':
@@ -147,7 +142,7 @@ function formatDateTime(value?: number | string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** 下次触发 = 各 enabled entry 中最早的 nextFireAt. */
+/** 下次触发 = 各 enabled entry 中最早的 nextFireAt。 */
 function nextFireAt(job: Job): string | null {
   let min: string | null = null;
   for (const e of scheduleEntries(job.schedule)) {
@@ -156,7 +151,7 @@ function nextFireAt(job: Job): string | null {
   return min;
 }
 
-/** Recent结果摘要: lastDelivery (含 partial)> lastError > lastStatus. */
+/** 最近结果摘要：lastDelivery（含 partial）> lastError > lastStatus。 */
 function lastResultSummary(job: Job): string {
   if (job.lastDelivery) {
     const { status, results, errors } = job.lastDelivery;
@@ -170,7 +165,7 @@ function lastResultSummary(job: Job): string {
     : job.kind === 'background-process' ? `legacy ${job.status}` : `deliveries ${job.runCount ?? 0}`;
 }
 
-/** 活跃优先排序档位: running → starting → scheduled → pending → completed → failed → timed_out → cancelled. */
+/** 活跃优先排序档位：running → starting → scheduled → pending → completed → failed → timed_out → cancelled。 */
 function activeRank(status: JobStatus): number {
   switch (status) {
     case 'running':
@@ -202,7 +197,7 @@ function updatedAtMs(job: Job): number {
   return timestampMs(job.updatedAt) ?? 0;
 }
 
-/** 置顶优先; 每组保留活跃优先和 updatedAt 倒序 (新在前). */
+/** 置顶优先；每组保留活跃优先和 updatedAt 倒序（新在前）。 */
 function compareJobs(a: Job, b: Job, usePins = true): number {
   if (usePins && !!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
   const ra = activeRank(a.status);
@@ -211,7 +206,7 @@ function compareJobs(a: Job, b: Job, usePins = true): number {
   return updatedAtMs(b) - updatedAtMs(a);
 }
 
-/** 状态 chips 匹配 (与 kind 下拉 AND 叠加). */
+/** 状态 chips 匹配（与 kind 下拉 AND 叠加）。 */
 function matchesStatusFilter(job: Job, filter: StatusFilter): boolean {
   switch (filter) {
     case 'active':
@@ -282,11 +277,11 @@ function JobRow({
   const backlog = job.undeliveredFires?.length ?? 0;
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
-  const canRunNow = !job.retirementStatus && (job.action?.api === 'shell'
+  const canRunNow = job.action?.api === 'shell'
     || Boolean(isUnifiedJob(job) && job.enabled)
     || job.action?.api === 'resume_legal_running'
     || job.action?.api === 'send_qq'
-    || hasTarget);
+    || hasTarget;
   return (
     <div
       onClick={onOpen}
@@ -414,7 +409,7 @@ function JobRow({
           {job.status}
         </span>
         <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1.5 py-px text-[10px] text-text-secondary">
-          {job.retirementStatus || kindLabel}
+          {isUnifiedJob(job) ? kindLabel : 'Retired'}
         </span>
 
         <span>
@@ -451,11 +446,11 @@ function JobRow({
 }
 
 /**
- * JobsView (GUI)— 真实 /api/jobs 数据.列表/Create/Edit/详情/run-now 全走后端
- * 契约; WS 订阅 5 类 job 事件驱动列表与 toast.客户端做排序与筛选.
+ * JobsView（GUI）— 真实 /api/jobs 数据。列表/创建/编辑/详情/run-now 全走后端
+ * 契约；WS 订阅 5 类 job 事件驱动列表与 toast。客户端做排序与筛选。
  */
 export default function JobsView() {
-  const authorizationToken = useAutomationAuth((state) => state.token || (state.authenticated ? 'cookie' : ''));
+  const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   const navigate = useNavigate();
   const showToast = useUIStore((s) => s.showToast);
   const toastRef = useRef(showToast); toastRef.current = showToast;
@@ -472,7 +467,6 @@ export default function JobsView() {
   const cancelRequests = useRef(new Set<string>());
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('list');
-  const [legacyCreateOpen, setLegacyCreateOpen] = useState(false);
   const dirtyEditor = useRef(false);
   const editorDirtyChange = useCallback((dirty: boolean) => { dirtyEditor.current = dirty; }, []);
   const requestTab = (next: Tab) => {
@@ -492,8 +486,8 @@ export default function JobsView() {
   const allJobs = useJobStore((s) => s.jobs);
   // /api/jobs is a mixed read facade. Compatibility projections never confer
   // Action execution ownership on a legacy record.
-  // One list: canonical rows and rows that still live in the old registry are
-  // both shown; their source is a row-level fact, not a separate product tab.
+  // Jobs is one product surface. Legacy records stay visible as read-only rows
+  // with their source/status facts; they never become canonical writers.
   const jobs = useMemo(() => allJobs, [allJobs]);
   const loading = useJobStore((s) => s.loading);
   const error = useJobStore((s) => s.error);
@@ -512,8 +506,6 @@ export default function JobsView() {
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [createPending, setCreatePending] = useOperationIdentity('job-create');
-  const createLock = useRef(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(() => new Set());
   const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
@@ -561,8 +553,8 @@ export default function JobsView() {
     void loadSessions();
   }, [loadSessions]);
 
-  // WS: job.created/updated/deleted 由 useWebSocket 统Mon写入 jobStore (导航徽标
-  // 共用同Mon份列表); 本页只保留 fired/partial_failed 的 toast 通知.
+  // WS：job.created/updated/deleted 由 useWebSocket 统一写入 jobStore（导航徽标
+  // 共用同一份列表）；本页只保留 fired/partial_failed 的 toast 通知。
   useEffect(() => {
     const offFired = wsClient.on('scheduler.task.fired', (ev) => {
       const e = ev as unknown as {
@@ -621,7 +613,7 @@ export default function JobsView() {
     }
   }, [allJobs]);
 
-  // 详情 runs: 随选中 job / limit 拉取.
+  // 详情 runs：随选中 job / limit 拉取。
   useEffect(() => {
     if (!selectedJobId) {
       setRuns([]);
@@ -722,7 +714,7 @@ export default function JobsView() {
   // An open draft and its CAS revision are one snapshot. A WS refresh may update
   // the list, but cannot promote the revision attached to unsaved input.
   const editJob = editSnapshot?.jobId === editJobId ? editSnapshot : null;
-  // 抽屉 z-50 会盖住 z-40 的居中 Modal → 有对话框时隐藏抽屉.
+  // 抽屉 z-50 会盖住 z-40 的居中 Modal → 有对话框时隐藏抽屉。
   const dialogOpen =
     changeTargetJobId !== null ||
     deleteJobId !== null ||
@@ -856,28 +848,11 @@ export default function JobsView() {
       upsertJob(job);
       dirtyEditor.current = false;
       setTab('list');
-      showToast(`Created Job "${job.name}"`);
+      showToast(`Created unified Job "${job.name}"`);
     } catch (e) { showToast(errMsg(e), 'error'); throw e; }
     finally { setSubmitting(false); }
   };
 
-  const handleLegacyCreate = async (input: JobCreateInput) => {
-    if (createLock.current || createPending) return;
-    createLock.current = true;
-    const requestKey = crypto.randomUUID();
-    setCreatePending({operation: 'create', requestKey}); setSubmitting(true);
-    try {
-      const job = await createJob(input, requestKey);
-      setCreatePending(null);
-      upsertJob(job); setLegacyCreateOpen(false); setTab('list');
-      showToast(`Created Job "${job.name}"`);
-    } catch (e) {
-      // Explicit rejections cannot have admitted a create; ambiguous results stay query-only.
-      const status = (e as {status?: number}).status;
-      if (status && status >= 400 && status < 500 && ![408, 429].includes(status)) setCreatePending(null);
-      showToast(errMsg(e), 'error');
-    } finally { createLock.current = false; setSubmitting(false); }
-  };
 
   const handleUpdate = async (jobId: string, patch: JobPatchInput) => {
     setSubmitting(true);
@@ -899,7 +874,7 @@ export default function JobsView() {
       if (job.configRevision == null) throw new Error('Configuration revision missing; reload before saving');
       const revision = job.configRevision;
       const updated = await updateActionJob(job.jobId, config, revision);
-      upsertJob(updated); dirtyEditor.current = false; setEditJobId(null); showToast(`Saved Job "${updated.name}"`);
+      upsertJob(updated); dirtyEditor.current = false; setEditJobId(null); showToast(`Saved unified Job "${updated.name}"`);
     } catch (e) { showToast(errMsg(e), 'error'); throw e; }
     finally { setSubmitting(false); }
   };
@@ -1039,15 +1014,40 @@ export default function JobsView() {
         <h1 className="text-sm font-semibold text-text-primary">Jobs</h1>
       </div>
 
-      <div className="shrink-0 px-3"><JobUserAuthorization /></div>
-      {/* In-page tabs */}
-      <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-border-muted bg-bg-secondary/30 shrink-0">
-        {([ ["list", "All Jobs"], ["definitions", "Definitions"], ["triggers", "Triggers"], ["event-creators", "Event creators"], ["job-templates", "Templates"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={tab === value} disabled={bulkAction !== null} onClick={() => requestTab(value)} className={`rounded border px-2.5 py-1 text-xs ${tab === value ? "border-accent/50 bg-accent/10 text-accent" : "border-border-default text-text-secondary hover:bg-bg-hover"}`}>{label}</button>)}
+      {/* One Jobs surface; configuration is reached from the selected Job. */}
+      <div className="flex gap-1 px-3 py-2 border-b border-border-muted bg-bg-secondary/30 shrink-0">
         <button
           type="button"
-          onClick={() => setLegacyCreateOpen(true)}
+          aria-pressed={tab === 'list'}
           disabled={bulkAction !== null}
-          className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent"
+          onClick={() => {
+            requestTab('list');
+            setSelectionMode(false);
+            clearSelectionForViewChange();
+          }}
+          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+            tab === 'list'
+              ? 'border-accent/50 bg-accent/10 text-accent'
+              : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+          }`}
+        >
+          <ListChecks size={12} />
+          All Jobs
+        </button>
+        <button
+          type="button"
+          aria-pressed={tab === 'create'}
+          disabled={bulkAction !== null}
+          onClick={() => {
+            requestTab('create');
+            setSelectionMode(false);
+            clearSelectionForViewChange();
+          }}
+          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+            tab === 'create'
+              ? 'border-accent/50 bg-accent/10 text-accent'
+              : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+          }`}
         >
           <Plus size={12} />
           New Job
@@ -1073,11 +1073,52 @@ export default function JobsView() {
       </div>
 
       {(tab === 'list' || tab === 'legacy') && <p className="shrink-0 px-4 py-2 text-xs text-text-secondary" role="note">
-        Jobs and preserved history. Retired records cannot execute.
+        Canonical Jobs use Action, receipt, CAS, and owner-fenced execution. Older records remain visible for history and are read-only.
       </p>}
-      {['definitions', 'triggers', 'event-creators', 'job-templates'].includes(tab) ? (
-        <div className="min-h-0 flex-1 overflow-y-auto"><div className="mx-auto w-full max-w-4xl p-4"><JobUserAuthorization /><CanonicalCollection key={`${tab}:${authorizationToken}`} kind={tab === 'definitions' ? 'jobs' : tab as 'triggers' | 'event-creators' | 'job-templates'} /></div></div>
-      ) : tab !== 'settings' && tab !== 'create' ? (
+      {editJobId !== null && editJob ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-4xl p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div><p className="text-xs uppercase tracking-wider text-text-tertiary">Job configuration</p><h2 className="text-xl font-semibold text-text-primary">Edit {editJob.name}</h2></div>
+              <Button variant="ghost" size="sm" onClick={() => { if (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?')) { dirtyEditor.current = false; setEditJobId(null); } }}>Cancel</Button>
+            </div>
+            {isUnifiedJob(editJob) && <JobUserAuthorization />}
+            {editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
+              key={editJob.jobId}
+              initial={editJob.unified.config}
+              actions={actions}
+              expectedRevision={editJob.configRevision}
+              onDirtyChange={editorDirtyChange}
+              submitting={submitting}
+              onSubmit={(config) => handleUnifiedUpdate(editJob, config)}
+              submitLabel="Save Job"
+            /> : <NewJobForm key={editJob.jobId} mode="edit" initialJob={editJob} kindMetas={kindMetas} submitting={submitting} onSave={(patch) => void handleUpdate(editJob.jobId, patch)} />}
+          </div>
+        </div>
+      ) : selectedJob && tab === 'list' && !dialogOpen ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-4xl p-4">
+            <JobDetailDrawer inline
+              job={selectedJob}
+              kindLabel={labelFor(selectedJob.kind)}
+              runs={runs}
+              runsLoading={runsLoading}
+              onLoadMoreRuns={() => setRunsLimit((n) => n + RUNS_PAGE)}
+              onClose={() => setSelectedJobId(null)}
+              onRunNow={() => void handleRunNow(selectedJob)}
+              onTogglePaused={() => void handleTogglePaused(selectedJob)}
+              onCancel={() => void handleCancel(selectedJob)}
+              cancelling={cancellingIds.has(selectedJob.jobId)}
+              onDelete={() => setDeleteJobId(selectedJob.jobId)}
+              onChangeTarget={() => openChangeTarget(selectedJob)}
+              onEdit={() => { setEditSnapshot(structuredClone(selectedJob)); setEditJobId(selectedJob.jobId); }}
+              onToggleEntryEnabled={(entryId) => void handleToggleEntry(selectedJob, entryId)}
+              onRetry={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'retry') : undefined}
+              onConfirmRecovery={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'confirm-recovery') : undefined}
+            />
+          </div>
+        </div>
+      ) : tab === 'list' || tab === 'legacy' ? (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Keep filters, search, selection actions, and counts visible while rows scroll. */}
           <div className="shrink-0 border-b border-border-muted bg-bg-primary">
@@ -1330,7 +1371,11 @@ export default function JobsView() {
         </div>
       ) : tab === 'create' ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-2xl p-4">
+          <div className="mx-auto w-full max-w-4xl p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div><p className="text-xs uppercase tracking-wider text-text-tertiary">Job configuration</p><h2 className="text-xl font-semibold text-text-primary">Create a Job</h2><p className="mt-1 text-sm text-text-secondary">A Job stores its Action reference, delivery target, schedule, and execution policy together.</p></div>
+              <Button variant="ghost" size="sm" onClick={() => requestTab('list')}>Cancel</Button>
+            </div>
             <JobUserAuthorization />
             <JobTemplateEditor actions={actions} submitting={submitting} onCreate={handleUnifiedCreate} onInstantiated={(job) => { dirtyEditor.current = false; upsertJob(job); setTab('list'); }} onDirtyChange={editorDirtyChange} />
           </div>
@@ -1338,30 +1383,9 @@ export default function JobsView() {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">
-            <JobUserAuthorization /><PreservedDataPanel authorization={authorizationToken} /><JobRetentionSettings />
+            <JobRetentionSettings />
           </div>
         </div>
-      )}
-
-      {selectedJob && !dialogOpen && (
-        <JobDetailDrawer
-          job={selectedJob}
-          kindLabel={labelFor(selectedJob.kind)}
-          runs={runs}
-          runsLoading={runsLoading}
-          onLoadMoreRuns={() => setRunsLimit((n) => n + RUNS_PAGE)}
-          onClose={() => setSelectedJobId(null)}
-          onRunNow={() => void handleRunNow(selectedJob)}
-          onTogglePaused={() => void handleTogglePaused(selectedJob)}
-          onCancel={() => void handleCancel(selectedJob)}
-          cancelling={cancellingIds.has(selectedJob.jobId)}
-          onDelete={() => setDeleteJobId(selectedJob.jobId)}
-          onChangeTarget={() => openChangeTarget(selectedJob)}
-          onEdit={() => { setEditSnapshot(structuredClone(selectedJob)); setEditJobId(selectedJob.jobId); }}
-          onToggleEntryEnabled={(entryId) => void handleToggleEntry(selectedJob, entryId)}
-          onRetry={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'retry') : undefined}
-          onConfirmRecovery={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'confirm-recovery') : undefined}
-        />
       )}
 
       {/* Change target dialog */}
@@ -1399,24 +1423,6 @@ export default function JobsView() {
         </div>
       </Modal>
 
-      <Modal open={legacyCreateOpen} onClose={() => { if (!submitting) setLegacyCreateOpen(false); }} title="New Job" size="lg">
-        <p className="mb-3 text-xs text-text-secondary">Create a Job with the shared execution service.</p>
-        {createPending && <div role="status" className="mb-3 space-y-2 text-sm"><p className="break-all">Original request {createPending.requestKey}. Unknown outcomes are query-only.</p><Button disabled={submitting} onClick={async () => {
-          setSubmitting(true);
-          try {
-            const receipt = await canonicalJobs.lookup('create', createPending.requestKey);
-            if (receipt.status === 'completed') {
-              const object = receipt.result?.object as {id?: string} | undefined;
-              const id = object?.id || String(receipt.result?.jobId || '');
-              if (id) upsertJob(await fetchJob(id));
-              setCreatePending(null); setLegacyCreateOpen(false);
-              await loadJobs(); showToast('Creation found. Inspect the current Job and Runs; execution was not repeated.');
-            } else if (['rejected', 'cancelled'].includes(receipt.status)) setCreatePending(null);
-          } catch (cause) { showToast(errMsg(cause), 'error'); }
-          finally { setSubmitting(false); }
-        }}>Query original operation</Button></div>}
-        {legacyCreateOpen && <NewJobForm kindMetas={kindMetas} submitting={submitting || !!createPending} onCreate={(input) => void handleLegacyCreate(input)} />}
-      </Modal>
 
       {/* Delete confirmation dialog */}
       <Modal
@@ -1479,31 +1485,6 @@ export default function JobsView() {
         </div>
       </Modal>
 
-      {/* Edit job dialog */}
-      <Modal
-        open={editJobId !== null}
-        onClose={() => { if (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?')) { dirtyEditor.current = false; setEditJobId(null); } }}
-        title="Edit job"
-        size="lg"
-      >
-        {editJob && isUnifiedJob(editJob) && <JobUserAuthorization />}
-        {editJob && (editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
-          key={editJob.jobId}
-          initial={editJob.unified.config}
-          actions={actions}
-          expectedRevision={editJob.configRevision}
-          onDirtyChange={editorDirtyChange}
-          submitting={submitting}
-          onSubmit={(config) => handleUnifiedUpdate(editJob, config)}
-        /> : <NewJobForm
-          key={editJob.jobId}
-          mode="edit"
-          initialJob={editJob}
-          kindMetas={kindMetas}
-          submitting={submitting}
-          onSave={(patch) => void handleUpdate(editJob.jobId, patch)}
-        />)}
-      </Modal>
     </div>
   );
 }

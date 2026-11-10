@@ -153,6 +153,22 @@ try {
   assert.equal(await fs.access(path.join(runtime, 'effects')).then(() => true, () => false), false);
   evidence.checks.push('old source bytes, Group release and effect side effects remain unchanged');
 
+  // Jobs now has one product entry. Detail and editors take over the main
+  // content panel while the application navigation shell stays mounted.
+  await page.goto(base + '/react/jobs');
+  await expect(page.getByRole('heading', { name: 'Jobs' })).toBeVisible();
+  await expect(page.getByText('All Jobs', { exact: true })).toBeVisible();
+  assert.equal(await page.getByText('Definitions', { exact: true }).count(), 0);
+  const newJob = page.getByRole('button', { name: 'New Job', exact: true });
+  await newJob.click();
+  await expect(page.getByRole('heading', { name: 'Create a Job' })).toBeVisible();
+  await expect(page.getByText('Job configuration', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).first().click();
+  await expect(page.getByRole('heading', { name: 'Jobs' })).toBeVisible();
+  evidence.checks.push('production Jobs flow uses one list and an in-panel structured editor');
+
+  await page.screenshot({ path: path.join(runtime, 'jobs-list.png'), fullPage: true });
+
   await page.goto(base + '/react/automation/canonical');
   await page.getByRole('button', { name: 'JobTemplates' }).click();
   await expect(page.getByRole('article', { name: 'JobTemplates Owned template', exact: true })).toBeVisible();
