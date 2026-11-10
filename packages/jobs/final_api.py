@@ -874,6 +874,11 @@ async def legacy_job_delete(job_id: str, request: Request):
     job = legacy_job_compat.get_canonical(service, job_id, who)
     if job is None:
         raise KeyError(job_id)
+    # Retirement observes the original external receipt before applying the
+    # active-Run fence. This is query-only reconciliation: it never submits a
+    # new effect or cleanup request, and it lets a proven terminal receipt
+    # settle the canonical Run/Attempt/effect identity first.
+    await service.recover_external_receipts(job_id=job_id)
     runs = await invoke(request, "runs", job_id, actor=who, cursor=None, limit=100)
     active = [row for row in runs.get("items", [])
               if row.get("state") in {"queued", "running", "retry_wait", "paused_at_boundary",

@@ -2980,11 +2980,13 @@ class FinalService:
             state["plans"][expected["runId"]].setdefault("outputs", {})[expected["stepId"]] = copy.deepcopy(receipt.get("receipt", {}))
         return outcome
 
-    async def recover_external_receipts(self):
+    async def recover_external_receipts(self, *, job_id=None):
         # Query only. Never submit execution or repeat a cleanup request here.
         with self.transaction(readonly=True) as db:
             pending = []
             for job in self._all(db, "job"):
+                if job_id is not None and job['jobId'] != job_id:
+                    continue
                 state = aggregate(job, self.root)
                 cancelled = state.get("cancellations", {})
                 for rid, intent in cancelled.items():
