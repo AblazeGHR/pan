@@ -16,6 +16,7 @@ from packages.jobs.action_templates import Conflict, config_value, references
 import packages.actions.executor as executor
 from tests.test_automation_core import async_test
 from tests.test_job_final_http_service import h
+from tests.test_job_automatic_recovery import env
 
 
 def _action(action_id, *, monitoring=False):
@@ -98,28 +99,37 @@ def _steps():
             {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': 'second'}}]
 
 
-@async_test
-async def test_legacy_single_step_equivalent_and_no_legacy_rewrite(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    calls = []
-    async def execute(action, args, event, progress, pause):
-        calls.append((action['id'], args)); return {'ok': True, 'structuredContent': {'accepted': True}}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        legacy = _config(_steps(), arguments={'value': 'same'})
-        legacy.pop('steps')
-        chain = _config([{'stepId': 'fixed', 'actionId': 'one', 'arguments': {'value': 'same'}}])
-        jobs = [runtime.create(cfg, True) for cfg in (legacy, chain)]
-        for job in jobs:
-            await runtime.launch(job['jobId'], 1)
-        await asyncio.gather(*runtime.tasks.values())
-        current = [runtime.get(j['jobId']) for j in jobs]
-        assert calls == [('one', {'value': 'same'})] * 2
-        assert [j['status'] for j in current] == ['completed'] * 2
-        assert 'steps' not in current[0]['config'] and 'stepExecutions' not in current[0]['lastExecution']
-        assert [n['status'] for n in current[0]['terminalOutbox'].values()] == [n['status'] for n in current[1]['terminalOutbox'].values()]
-    finally:
-        await runtime.close()
+def test_legacy_single_step_equivalent_and_no_legacy_rewrite(h, tmp_path):
+    from tests.test_job_final_http_service import enabled, job_def, launch
+    from packages.core import background_jobs
+    root = tmp_path / 'historical'
+    cfg = _config(_steps(), arguments={'value': 'same'})
+    cfg.pop('steps')
+    historical = {'jobId': 'job_old_single', 'kind': 'scheduled-task',
+                  'status': 'completed', 'config': cfg, 'lastExecution': {'result': {'accepted': True}}}
+    path = root / 'jobs' / 'job_old_single.json'
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(historical), encoding='utf-8')
+    before = path.read_bytes()
+    old = Runtime(root, Store(tmp_path / 'retired-actions'), None)
+    with pytest.raises(PermissionError, match='retired'):
+        old.create(cfg, True)
+    restored = background_jobs.get('job_old_single', root)
+    assert {key: restored[key] for key in historical} == historical
+    assert 'steps' not in background_jobs.get('job_old_single', root)['config']
+    # A fresh one-step Job executes through the same canonical chain machinery.
+    value = job_def(h)
+    value['steps'][0]['arguments']['text']['value'] = 'same'
+    job = enabled(h, value)
+    rid = launch(h, job, 'canonical-single')['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'completed'
+    assert [text for text, _ in h.provider.calls] == ['same']
+    assert len(state['attempts']) == len(state['effects']) == 1
+    assert state['steps'][rid]['s0']['state'] == 'completed'
+    asyncio.run(h.service.dispatch_once())
+    assert len(h.provider.calls) == 1 and path.read_bytes() == before
 
 
 def test_chain_is_serial_and_cancel_stops_next_step(h, tmp_path):
@@ -458,43 +468,34 @@ def test_chain_failure_and_uncertain_block_following_step(h, outcome, terminal):
     assert h.service.final.get(job['id']) == state and len(h.provider.calls) == 1
 
 
-def test_chain_monitoring_recovery_reuses_completed_step(tmp_path, monkeypatch):
-    async def run():
-        runtime = await _runtime(tmp_path)
-        # Replace the fixtures with monitoring-capable definitions before the Job
-        # is admitted; the action IDs and config remain stable.
-        runtime.actions.put('actions', _action('one', monitoring=True), expected=runtime.actions.read()['revision'])
-        runtime.actions.put('actions', _action('two', monitoring=True), expected=runtime.actions.read()['revision'])
-        calls = []
-
-        async def execute(action, args, event, progress, pause):
-            calls.append(action['id'])
-            if action['id'] == 'two' and calls.count('two') == 1:
-                return {'ok': True, 'processTreeEnded': False, 'panJobCompletion': {'type': 'done', 'completed': True}}
-            return {'ok': True, 'processTreeEnded': True, 'panJobCompletion': {'type': 'done', 'completed': True}}
-
-        monkeypatch.setattr(executor, 'execute_dynamic', execute)
-        cfg = _config([
-            {'stepId': 'first', 'actionId': 'one', 'arguments': {'value': 'literal'}},
-            {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': 'literal'}},
-        ], recovery={'enabled': True, 'monitoring': True, 'maxAttempts': 2,
-                     'backoffSec': [0, 0, 0], 'stableResetSec': 300},
-        completion={'kind': 'monitoring', 'signalType': 'done'})
-        try:
-            job = runtime.create(cfg, True)
-            await runtime.launch(job['jobId'], 1)
-            await asyncio.gather(*runtime.tasks.values())
-            assert runtime.get(job['jobId'])['status'] == 'restarting'
-            await runtime.tick({'enabled': True})
-            await asyncio.gather(*runtime.tasks.values())
-            current = runtime.get(job['jobId'])
-            assert calls == ['one', 'two', 'two']
-            assert current['status'] == 'completed'
-            assert current['lastExecution']['stepExecutions'][0]['attempts'][0]['status'] == 'completed'
-        finally:
-            await runtime.close()
-
-    asyncio.run(run())
+def test_chain_monitoring_recovery_reuses_completed_step(env):
+    from tests.test_job_automatic_recovery import create, drive_until, state
+    from tests.test_job_monitoring_completion import monitoring_definition
+    first, second = env.tmp / 'first-monitor', env.tmp / 'second-monitor'
+    second_code = (f'from pathlib import Path; import json; p=Path({str(second)!r}); '
+        'n=int(p.read_text()) if p.exists() else 0; p.write_text(str(n+1)); '
+        'print(json.dumps({"panJobCompletion":{"type":"owned.done","completed": n > 0}}))')
+    value = monitoring_definition(env, second_code)
+    monitor = copy.deepcopy(value['steps'][0])
+    monitor['stepId'] = 's1'
+    first_step = copy.deepcopy(monitor)
+    first_step['stepId'] = 's0'
+    first_step['arguments']['argv']['value'] = [sys.executable, '-c',
+        f'from pathlib import Path; import json; Path({str(first)!r}).open("a").write("first\\n"); '
+        'print(json.dumps({"panJobCompletion":{"type":"owned.done","completed":True}}))']
+    value['steps'] = [first_step, monitor]
+    jid, rid = create(env, value)
+    asyncio.run(drive_until(env, jid, rid, 'completed'))
+    done = state(env, jid)
+    assert first.read_text().splitlines() == ['first'] and second.read_text() == '2'
+    assert set(done['runs']) == {rid}
+    assert [done['steps'][rid][sid]['attemptCount'] for sid in ('s0', 's1')] == [1, 2]
+    assert len(done['effects']) == len(done['attempts']) == 3
+    original = next(a for a in done['attempts'].values() if a['stepId'] == 's0')
+    assert original['state'] == 'succeeded'
+    asyncio.run(env.service.dispatch_once())
+    assert state(env, jid)['effects'] == done['effects']
+    assert first.read_text().splitlines() == ['first'] and second.read_text() == '2'
 
 
 def test_known_failure_explicit_retry_preserves_completed_and_frozen_steps(h):
