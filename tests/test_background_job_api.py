@@ -73,7 +73,7 @@ def test_mcp_start_denies_unmanaged_target(monkeypatch):
     assert called == []
 
 
-def test_mcp_get_list_cancel_retry_use_managed_target(monkeypatch):
+def test_mcp_get_list_are_managed_and_retired_cancel_retry_never_write(monkeypatch):
     calls = []
     monkeypatch.setattr(mcp_server, "_caller_identity", lambda: {"id": "ses_self"})
     monkeypatch.setattr(mcp_server, "_check_access", lambda target, claim=False: None)
@@ -89,10 +89,14 @@ def test_mcp_get_list_cancel_retry_use_managed_target(monkeypatch):
     monkeypatch.setattr(mcp_server, "_api", api)
     assert mcp_server.agent_background_get("job_1")["jobId"] == "job_1"
     assert mcp_server.agent_background_list()["jobs"] == []
-    assert mcp_server.agent_background_cancel("job_1")["ok"]
-    assert mcp_server.agent_background_retry("job_1")["ok"]
-    assert any(path.endswith("/cancel") for _, path, _ in calls)
-    assert any(path.endswith("/retry") for _, path, _ in calls)
+    before = list(calls)
+    for name in ('agent_background_cancel','agent_message_job_cancel','agent_background_retry'):
+        response = asyncio.run(mcp_server.mcp.call_tool(name, {'job_id':'job_1'}))
+        assert response.isError is True
+        assert response.structuredContent['error']['code'] == 'capability_unsupported'
+        assert response.structuredContent['error']['tool'] == name
+    assert calls == before
+    assert all(method == 'GET' for method, _, _ in calls)
 
 
 def test_http_retry_rejects_running_job(env, monkeypatch):

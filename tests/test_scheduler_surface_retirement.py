@@ -18,10 +18,11 @@ from tests.test_scheduler_api import contents, scheduler_env  # noqa: F401
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REMOVED_TOOLS = ()
+REMOVED_TOOLS = tuple(mcp_server.RETIRED_MCP_TOOLS)
+assert REMOVED_TOOLS, 'Retired-tool safety coverage must never become an empty parametrization'
 COMPAT_TOOLS = {
     'scheduler_create', 'scheduler_update', 'scheduler_delete',
-    'scheduler_pause', 'scheduler_resume', 'scheduler_run_now',
+    'scheduler_pause', 'scheduler_resume', 'scheduler_run_now', 'scheduler_cancel',
 }
 READ_TOOLS = {'scheduler_list', 'scheduler_get', 'scheduler_runs'}
 
@@ -46,7 +47,9 @@ def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypat
         monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
     calls = []
     monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
-    assert name not in vars(mcp_server)
+    # Source functions may remain for historical inspection; only registration
+    # can authorize an MCP call. Retired names must be refused before transport.
+    assert name in mcp_server.LEGACY_MCP_COMPATIBILITY
     assert '_scheduler_task_call' not in vars(mcp_server)
     async def check():
         tools = {t.name for t in await mcp_server.mcp.list_tools()}
@@ -100,13 +103,21 @@ def test_production_owner_switch_is_not_a_catchall_or_an_alias(tmp_path):
     assert contents(tmp_path) == before
 
 
-def test_no_removed_function_can_register_during_import():
-    # Deleting a registry entry after import would leave a callable write body.
-    # Pin actual source deletion as well as runtime tools/list/call.
+def test_retired_cancel_source_is_a_pure_tombstone():
     tree = ast.parse((ROOT / 'packages/mcp/server.py').read_text(encoding='utf-8'))
-    definitions = {n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
-    assert not definitions & set(REMOVED_TOOLS)
+    definitions = {n.name: n for n in ast.walk(tree)
+                   if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
     assert '_scheduler_task_call' not in definitions
+    for name in ('agent_background_cancel', 'agent_message_job_cancel'):
+        body = definitions[name].body
+        assert len(body) == 2  # docstring followed by a pure refusal
+        assert isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)
+        assert isinstance(body[1], ast.Return)
+        call = body[1].value
+        assert isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+        assert call.func.id == 'legacy_mcp_compatibility'
+        assert isinstance(call.args[0], ast.Constant) and call.args[0].value == name
+        assert ast.unparse(call.args[1]) == "{'job_id': job_id}"
 
 
 @pytest.mark.parametrize('projection', ['core', 'native'])

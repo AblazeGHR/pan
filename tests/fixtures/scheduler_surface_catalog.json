@@ -137,7 +137,6 @@
     "agent_inbox",
     "agent_kill",
     "agent_list",
-    "agent_message_job_cancel",
     "agent_message_job_get",
     "agent_message_job_list",
     "agent_notify",
