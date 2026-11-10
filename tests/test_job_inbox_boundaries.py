@@ -7,15 +7,41 @@ from packages.actions.store import Store
 from packages.jobs.action_templates import Templates
 from packages.jobs.unified import project
 from tests.test_automation_core import action
+from tests.test_job_final_http_service import h
 
 
-def test_disabled_agent_template_cannot_smuggle_enabled_instance(tmp_path):
-    store=Store(tmp_path/'actions');store.put('actions',action())
-    config={'name':'fixed','actionId':'pause','arguments':{},'enabled':True,
-            'schedule':[],'trigger':{'kind':'immediate'}}
-    with pytest.raises(PermissionError):
-        Templates(store).put({'name':'agent draft','config':config},0,False)
-    assert not store.read().get('jobTemplates')
+def test_disabled_agent_template_cannot_smuggle_enabled_instance(h):
+    from tests.test_job_final_http_service import create, control, job_def, USER
+    from tests.test_action_unification_p4 import grant
+    from tests.test_action_groups import canonical_state
+    from packages.jobs.final_contracts import ContractError
+    store = Store()
+    before_legacy = store.read()
+    with pytest.raises(PermissionError, match='retired'):
+        store.put('actions', action())
+    assert store.read() == before_legacy
+    template = create(h, 'job-templates', {'name':'passive', 'jobDefinition':job_def(h),
+        'composition':{'creators':[], 'triggers':[]}}, 'passive-agent-template')
+    published = control(h, 'job-templates', template, 'publish', 'publish-passive-agent-template')
+    assert published.status_code == 200, published.text
+    template = published.json()['result']['object']
+    actor = grant(h, jobTemplate={'use':True,'read':True}, job={'create':True,'read':True})
+    before = canonical_state(h.service)
+    with pytest.raises(ContractError) as denied:
+        h.service.instantiate_template(template['id'], {'expectedRevision':template['revision'],
+            'requestKey':'smuggle-activation', 'activate':True}, actor=actor)
+    assert denied.value.code == 'authorization_denied' and canonical_state(h.service) == before
+    allowed = h.service.instantiate_template(template['id'], {'expectedRevision':template['revision'],
+        'requestKey':'passive-agent-copy', 'activate':False}, actor=actor)
+    jid = allowed['result']['objectIds']['job']
+    child = h.service.get('job', jid, actor=USER)
+    assert child['state'] == 'disabled' and h.service.final.runs(jid) == []
+    before = canonical_state(h.service)
+    with pytest.raises(ContractError) as blocked:
+        h.service.control('job', jid, {'operation':'enable', 'expectedRevision':child['configRevision'],
+            'expectedStateRevision':child['stateRevision'], 'parameters':{}, 'requestKey':'smuggle-enable'}, actor=actor)
+    assert blocked.value.code == 'authorization_denied' and canonical_state(h.service) == before
+    assert store.read() == before_legacy and h.provider.calls == []
 
 
 def test_legacy_message_projection_is_disabled_typed_and_does_not_mutate():
