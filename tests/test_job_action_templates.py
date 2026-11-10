@@ -523,21 +523,53 @@ async def test_close_during_claim_never_starts_effect(tmp_path,monkeypatch):
     finally:release.set();await rt.close()
 
 
-@async_test
-async def test_duplicate_profile_owner_cannot_recover_or_close_active_execution(tmp_path):
-    entered=asyncio.Event();release=asyncio.Event()
-    async def pause(*args):entered.set();await release.wait();return {'ok':True}
-    rt,_=await setup(tmp_path,pause)
-    duplicate=Runtime(rt.root,rt.actions,pause)
-    try:
-        job=rt.create(config(),True);await rt.launch(job['jobId'],1);await asyncio.wait_for(entered.wait(),2)
-        with pytest.raises(Conflict,match='owns'):await duplicate.start()
-        await duplicate.close()
-        assert RUNTIMES[str(rt.root)] is rt
-        assert rt.actions.read()['jobExecutions'] and rt.get(job['jobId'])['status']=='running'
-        release.set();await finished(rt,job['jobId'])
-        assert not rt.actions.read()['jobExecutions']
-    finally:release.set();await rt.close();await duplicate.close()
+def test_duplicate_profile_owner_cannot_recover_or_close_active_execution(h):
+    from tests.test_job_final_http_service import enabled, launch
+    from packages.jobs.final_service import FinalService
+    from packages.jobs.final_contracts import ContractError
+    from packages.jobs.runtime_owner import OwnershipConflict
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    h.service.owner.claim(0)
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+        calls = []
+        class Provider:
+            async def send_session(self, session_id, text, *, effect_key, source):
+                calls.append(dict(effect_key))
+                entered.set()
+                await release.wait()
+                return {'status': 'queued', 'messageId': 'owner-original'}
+        h.service.executor = TypedExecutor(session_provider=Provider())
+        job = enabled(h)
+        rid = launch(h, job, 'owner-original-run')['runId']
+        token = h.service.owner.token
+        duplicate = FinalService(h.root, h.automation.auth, executor=h.service.executor)
+        dispatch = asyncio.create_task(h.service.dispatch_once())
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            before = copy.deepcopy(h.service.final.get(job['id']))
+            with pytest.raises(OwnershipConflict) as busy:
+                duplicate.owner.claim(token[0])
+            assert busy.value.reason == 'owner_busy'
+            with pytest.raises(ContractError) as fenced:
+                duplicate.recover()
+            assert fenced.value.code == 'revision_conflict'
+            await duplicate.close()
+            assert h.service.owner.token == token and h.service.owner.lock.file is not None
+            assert h.service.final.get(job['id']) == before
+            assert before['runs'][rid]['state'] == 'running' and len(calls) == 1
+            release.set()
+            await asyncio.wait_for(dispatch, 5)
+            done = h.service.final.get(job['id'])
+            assert done['runs'][rid]['state'] == 'completed'
+            assert len(done['attempts']) == len(done['effects']) == len(calls) == 1
+        finally:
+            release.set()
+            if not dispatch.done():
+                dispatch.cancel()
+                await asyncio.gather(dispatch, return_exceptions=True)
+            await duplicate.close()
+    asyncio.run(run())
 
 
 def test_notification_retry_is_independent_of_effect_and_snapshot(h):
