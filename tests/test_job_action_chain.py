@@ -172,34 +172,64 @@ def test_unknown_step_blocks_and_never_replays(h, status):
     assert calls == ['s0'] and h.service.final.get(job['id']) == state
 
 
-@async_test
-async def test_admission_freezes_all_steps_inputs_and_definitions(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    entered, release = asyncio.Event(), asyncio.Event(); calls = []
-    async def execute(action, args, event, progress, pause):
-        calls.append((action['id'], action['name'], args['value']))
-        if action['id'] == 'one':entered.set(); await release.wait()
-        return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        steps = _steps(); steps[1]['arguments']['value'] = {'from': 'input', 'path': 'input'}
-        cfg = _config(steps)
-        job = runtime.create(cfg, True); await runtime.launch(job['jobId'], 1); await entered.wait()
-        # Neither a changed later definition nor a changed Job chain/input is
-        # allowed into the admitted Run, even before step two has started.
-        runtime.actions.put('actions', {**_action('two'), 'name': 'new definition'})
-        changed = _config(_steps(), arguments={'input': 'changed'})
-        runtime.update(job['jobId'], changed, 1, True)
-        release.set(); await asyncio.gather(*runtime.tasks.values())
-        current = runtime.get(job['jobId'])
-        assert calls == [('one', 'one', 'first'), ('two', 'two', 'seed')]
-        assert current['configRevision'] == 2 and current['lastExecution']['configRevision'] == 1
-        assert current['lastExecution']['stepExecutions'][1]['actionRevision'] == 1
-        assert not runtime.actions.read().get('jobExecutions')
-        public = runtime.view(current)
+def test_admission_freezes_all_steps_inputs_and_definitions(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    from tests.test_action_unification_p4 import plans, upgrade
+    from packages.jobs.final_runtime.executor import TypedExecutor
+
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+        calls = []
+        class Provider:
+            async def send_session(self, session_id, text, *, effect_key, source):
+                calls.append((effect_key['stepId'], text))
+                if effect_key['stepId'] == 's0':
+                    entered.set()
+                    await release.wait()
+                return {'status': 'queued', 'messageId': 'accepted'}
+        h.service.executor = TypedExecutor(session_provider=Provider())
+        value = job_def(h, steps=2)
+        value['steps'][1]['arguments']['text'] = {'from': 'input', 'path': 'input'}
+        value['inputSchema'] = {'type': 'object', 'properties': {'input': {'type': 'string'}},
+                                'required': ['input'], 'additionalProperties': False}
+        value['arguments'] = {'input': 'seed'}
+        job = enabled(h, value)
+        admitted = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+            'expectedRevision': job['configRevision'], 'requestKey': 'frozen-chain',
+            'input': {'input': 'seed'}, 'cause': {'type': 'manual'}})
+        assert admitted.status_code == 202, admitted.text
+        rid = admitted.json()['runId']
+        frozen = copy.deepcopy(plans(h, job['id'])[rid]['frozen'])
+        dispatch = asyncio.create_task(h.service.dispatch_once())
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            old_ref, new_ref = upgrade(h)
+            assert new_ref != old_ref
+            changed = copy.deepcopy(value)
+            changed['arguments']['input'] = 'changed'
+            changed['steps'][1]['actionRef'] = new_ref
+            response = h.client.put('/api/jobs/' + job['id'], json={
+                'definition': changed, 'expectedRevision': job['configRevision'], 'requestKey': 'edit-active-chain'})
+            assert response.status_code == 200, response.text
+            assert plans(h, job['id'])[rid]['frozen'] == frozen
+            release.set()
+            await asyncio.wait_for(dispatch, 5)
+        finally:
+            release.set()
+            if not dispatch.done():
+                dispatch.cancel()
+                await asyncio.gather(dispatch, return_exceptions=True)
+        state = h.service.final.get(job['id'])
+        current = h.service.get('job', job['id'], actor=USER)
+        assert calls == [('s0', '0'), ('s1', 'seed')]
+        assert current['configRevision'] == 2 and state['runs'][rid]['configRevision'] == 1
+        assert state['runs'][rid]['state'] == 'completed'
+        assert frozen['steps'][1]['actionRef'] == old_ref
+        assert len(state['attempts']) == len(state['effects']) == 2
+        public = h.client.get('/api/jobs/' + job['id']).json()
         assert 'chainSnapshot' not in json.dumps(public) and 'chainRecovery' not in json.dumps(public)
-    finally:
-        release.set(); await runtime.close()
+        assert 'frozen' not in public
+    asyncio.run(run())
 
 
 @async_test
