@@ -582,26 +582,45 @@ def test_public_projection_preserves_legacy_result_field_names():
 
 
 
-@async_test
-async def test_real_owned_commands_pass_structured_output_without_server(tmp_path):
-    runtime = await _runtime(tmp_path)
-    try:
-        for aid, code in (
-            ('one', 'import json;print(json.dumps(dict(answer="owned")))'),
-            ('two', 'import json,sys;from pathlib import Path;Path("effect.txt").write_text(sys.argv[1]);print(json.dumps(dict(written=sys.argv[1])))'),
-        ):
-            runtime.actions.put('actions', {**_action(aid), 'output_format': 'json',
-                'execution': {'kind': 'command', 'executable': sys.executable,
-                              'args': ['-c', code, '{value}'], 'cwd': str(tmp_path)}})
-        steps = _steps(); steps[1]['arguments']['value'] = {'from': 'step', 'stepId': 'first', 'path': 'answer'}
-        job = runtime.create(_config(steps), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert done['lastStatus'] == 'completed', done['lastExecution']
-        assert (tmp_path / 'effect.txt').read_text() == 'owned'
-        assert done['lastExecution']['stepExecutions'][1]['output'] == {'written': 'owned'}
-    finally:
-        await runtime.close()
+def test_real_owned_commands_pass_structured_output_without_server(h, tmp_path):
+    from packages.actions.command_execution import product_definition
+    from packages.jobs.final_service import object_ref
+    from tests.test_job_final_http_service import enabled, launch
+    refs = []
+    for aid, code in (
+        ('one', 'import json;print(json.dumps(dict(answer="owned")))'),
+        ('two', 'import ast,json,sys;from pathlib import Path;commands=ast.literal_eval(sys.argv[1]);value=json.loads(commands[0]["stdout"])["answer"];Path("effect.txt").write_text(value);print(json.dumps(dict(written=value)))'),
+    ):
+        raw = {**_action(aid), 'output_format': 'json',
+            'execution': {'kind': 'command', 'executable': sys.executable,
+                          'args': ['-c', code, '{value}'], 'cwd': str(tmp_path)}}
+        if aid == 'two':
+            raw['input_schema']['properties']['value'] = {'type': 'array', 'items': {'type': 'object'}}
+        action = product_definition('process.command')
+        action.update(system=False, name=aid, inputSchema=raw['input_schema'])
+        action['execution']['config'] = {key: val for key, val in raw['execution'].items() if key != 'kind'}
+        refs.append(object_ref('action', h.service.publish_action(aid, action)))
+    h.service.owner.claim(0)
+    cfg = {'name': 'owned serial commands', 'retention': {'policyRef': 'test'}, 'steps': [
+        {'stepId': 'first', 'actionRef': refs[0], 'arguments': {'value': {'from': 'literal', 'value': 'unused'}},
+         'completion': {'contract': 'process-exit'}},
+        {'stepId': 'second', 'actionRef': refs[1],
+         'arguments': {'value': {'from': 'step', 'stepId': 'first', 'path': 'commands'}},
+         'completion': {'contract': 'process-exit'}}]}
+    job = enabled(h, cfg)
+    rid = launch(h, job, 'owned-chain')['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'completed', json.dumps(state['effects'])
+    assert (tmp_path / 'effect.txt').read_text() == 'owned'
+    effects = {effect['effectKey']['stepId']: effect for effect in state['effects']}
+    assert set(effects) == {'first', 'second'} and len(state['attempts']) == 2
+    assert json.loads(effects['first']['receipt']['receipt']['commands'][0]['stdout']) == {'answer': 'owned'}
+    assert json.loads(effects['second']['receipt']['receipt']['commands'][0]['stdout']) == {'written': 'owned'}
+    assert all(effect['outcome'] == 'succeeded' for effect in effects.values())
+    before = copy.deepcopy(state)
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == before
 
 
 @async_test

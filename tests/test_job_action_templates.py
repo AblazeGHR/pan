@@ -575,20 +575,38 @@ def test_shared_scheduler_entry_and_misfire_do_not_replay_effects(canonical_h):
     assert len(session.get('ses_a').queue_pending) == 1
 
 
-@async_test
-async def test_disabled_and_high_risk_action_gates_block_job_effects(tmp_path):
-    rt,calls=await setup(tmp_path)
-    try:
-        job=rt.create(config(),True)
-        import sys
-        for patch in ({'enabled':False},{'effect':'high_risk','execution':{'kind':'command','executable':sys.executable,'args':['-c','raise RuntimeError("must never execute")'],'cwd':str(tmp_path)}}):
-            rt.actions.put('actions',{**action(),**patch})
-            if patch.get('enabled') is False:
-                before=len(rt.get(job['jobId']).get('attempts',[]))
-                with pytest.raises(Conflict,match='Action disabled'):
-                    await rt.launch(job['jobId'],1)
-                assert len(rt.get(job['jobId']).get('attempts',[]))==before
-            else:
-                await rt.launch(job['jobId'],1);await finished(rt,job['jobId'],'failed')
-            assert not calls and not rt.actions.read().get('jobExecutions')
-    finally:await rt.close()
+@pytest.mark.parametrize('gate', ['disabled', 'high_risk'])
+def test_disabled_and_high_risk_action_gates_block_job_effects(h, gate):
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    from packages.jobs.final_service import definition, object_ref
+    if gate == 'high_risk':
+        action = h.service.get('action', h.action['id'], actor=USER)
+        value = definition('action', action)
+        value['effectClass'] = 'high_risk'
+        ref = object_ref('action', h.service.publish_action('unapproved_high_risk', value))
+        cfg = job_def(h)
+        cfg['steps'][0]['actionRef'] = ref
+    else:
+        cfg = job_def(h)
+    job = enabled(h, cfg)
+    rid = launch(h, job, 'gated-run')['runId']
+    if gate == 'disabled':
+        action = h.service.get('action', h.action['id'], actor=USER)
+        response = h.client.post('/api/jobs/actions/' + action['id'] + '/operations', json={
+            'operation': 'disable', 'expectedRevision': action['revision'],
+            'expectedStateRevision': action['stateRevision'], 'requestKey': 'disable-before-effect', 'parameters': {}})
+        assert response.status_code == 200, response.text
+        before = copy.deepcopy(h.service.final.get(job['id']))
+        blocked = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+            'expectedRevision': job['configRevision'], 'requestKey': 'disabled-new-admission',
+            'input': {}, 'cause': {'type': 'manual'}})
+        assert blocked.status_code == 409, blocked.text
+        assert blocked.json()['error']['code'] == 'reference_conflict'
+        assert h.service.final.get(job['id']) == before
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'failed'
+    assert state['attempts'] == {} and state['effects'] == [] and h.provider.calls == []
+    assert state['steps'][rid]['s0']['attemptCount'] == 0
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == state and h.provider.calls == []
