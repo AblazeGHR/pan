@@ -111,7 +111,8 @@ asyncio.run(query())
             response=client.request('DELETE','/api/jobs/'+job['id'],json={'expectedRevision':current['configRevision'],
                 'expectedStateRevision':current['stateRevision'],'requestKey':'retire-after-proven-cleanup'})
             assert response.status_code==200,response.text
-            assert response.json()['result']['object']['state']=='retired'
+            payload = response.json()
+            assert payload['ok'] is True and payload['retired'] is True and payload['job']['retired'] is True
             # Retirement preserves the original canonical history/receipt. It
             # never purges unknown effects or fabricates a physical delete.
             assert client.get('/api/job-runs/'+rid).json()==final
