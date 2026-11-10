@@ -271,8 +271,13 @@ def test_failed_and_cancelled_real_output_survives_and_no_rerun(live, exit_code)
 
 def test_late_terminal_log_keeps_retired_parent_and_original_reference(live):
     c = live
-    start(c, "import os; os.write(1,'迟到terminal🙂'.encode()); open('effects','a').write('once\\n')\n")
-    doc = wait(lambda: c.store.get(c.eid), lambda d: d["result"] is not None)
+    # Hold the real process before its terminal receipt exists, so the first
+    # DELETE proves the active fence independently of host reconciliation timing.
+    start(c, "import os,time\nos.write(1,'迟到terminal🙂'.encode())\n"
+          "open('effects','a').write('once\\n'); open('ready','w').write('yes')\n"
+          "while not os.path.exists('release'): time.sleep(0.01)\n")
+    wait(lambda: (c.tmp / 'ready').exists(), bool)
+    assert c.store.get(c.eid)["result"] is None
     result = c.client.request("DELETE", "/api/jobs/" + c.job["id"], json={"expectedRevision": c.job["configRevision"],
         "expectedStateRevision": c.job["stateRevision"], "requestKey": "retire-before-terminal"})
     # Canonical retirement keeps the owner fence closed while the original
@@ -281,6 +286,8 @@ def test_late_terminal_log_keeps_retired_parent_and_original_reference(live):
     # state.
     assert result.status_code == 409, result.text
     assert result.json()["error"]["code"] == "reference_conflict"
+    (c.tmp / 'release').write_text('finish', encoding='utf-8')
+    doc = wait(lambda: c.store.get(c.eid), lambda d: d["result"] is not None)
     terminal(c)
     latest = c.client.get("/api/jobs/" + c.job["id"]).json()
     result = c.client.request("DELETE", "/api/jobs/" + c.job["id"], json={
