@@ -540,20 +540,36 @@ async def test_duplicate_profile_owner_cannot_recover_or_close_active_execution(
     finally:release.set();await rt.close();await duplicate.close()
 
 
-@async_test
-async def test_notification_retry_is_independent_of_effect_and_snapshot(tmp_path,monkeypatch):
-    rt,calls=await setup(tmp_path);seen=[];available=False
-    async def emit(event):seen.append(event['type']);return available
-    monkeypatch.setattr(jobs,'_scheduled_task_emit_strict',emit)
-    try:
-        job=rt.create(config(),True);await rt.launch(job['jobId'],1);done=await finished(rt,job['jobId'])
-        assert calls==['selected'] and not rt.actions.read()['jobExecutions']
-        assert done['creationEventPending'] and 'terminalEventEmittedFor' not in done
-        available=True;await rt.publish_events()
-        done=rt.get(job['jobId'])
-        assert not done['creationEventPending'] and done['terminalEventEmittedFor']==done['lastExecution']['id']
-        count=len(seen);await rt.publish_events();assert len(seen)==count and calls==['selected']
-    finally:await rt.close()
+def test_notification_retry_is_independent_of_effect_and_snapshot(h):
+    from tests.test_job_final_http_service import enabled, launch
+    from tests.test_action_unification_p4 import plans
+    job = enabled(h)
+    rid = launch(h, job, 'notification-independent')['runId']
+    asyncio.run(h.service.dispatch_once())
+    done = h.service.final.get(job['id'])
+    assert done['runs'][rid]['state'] == 'completed' and len(h.provider.calls) == 1
+    effects = copy.deepcopy(done['effects'])
+    frozen = copy.deepcopy(plans(h, job['id'])[rid]['frozen'])
+    original_ids = set(done['outbox'])
+    assert original_ids and all(row['status'] == 'pending' for row in done['outbox'].values())
+    # No transport is available: no sending reservation or effect retry.
+    asyncio.run(h.service.deliver_outbox())
+    assert h.service.final.get(job['id']) == done
+    seen = []
+    async def sender(row):
+        seen.append(copy.deepcopy(row))
+        return {'outcome': 'succeeded', 'receiptId': row['outboxId']}
+    h.service.outbox_sender = sender
+    asyncio.run(h.service.deliver_outbox())
+    current = h.service.final.get(job['id'])
+    assert {row['outboxId'] for row in seen} == original_ids
+    assert all(row['status'] == 'acked' for row in current['outbox'].values())
+    assert current['effects'] == effects and plans(h, job['id'])[rid]['frozen'] == frozen
+    assert len(current['attempts']) == len(h.provider.calls) == 1
+    asyncio.run(h.service.deliver_outbox())
+    asyncio.run(h.service.dispatch_once())
+    assert len(seen) == len(original_ids) and len(h.provider.calls) == 1
+    assert h.service.final.get(job['id']) == current
 
 
 def test_shared_scheduler_entry_and_misfire_do_not_replay_effects(canonical_h):
