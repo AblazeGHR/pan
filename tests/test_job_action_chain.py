@@ -326,22 +326,73 @@ def test_mapping_missing_or_type_error_fails_before_effect(h, binding):
     assert h.client.get('/api/jobs').json()['items'] == []
 
 
-@async_test
-async def test_all_action_references_generations_and_template_chain(tmp_path):
-    runtime = await _runtime(tmp_path)
-    try:
-        cfg = _config(_steps(), enabled=False)
-        template = runtime.templates.put({'name': 'all steps', 'config': cfg}, 0)
-        job = runtime.instantiate(template['id'], template['revision'], 'stable-key')
-        assert job['config']['steps'] == _steps()
-        assert references(runtime.actions.read(), 'two')
-        with pytest.raises(PermissionError):runtime.actions.delete('actions', 'two')
-        runtime.actions.delete('actions', 'two', authorized=True, confirm_references=True)
-        runtime.actions.put('actions', _action('two'))
-        assert runtime.view(runtime.get(job['jobId']))['integrity']['approvalRequired']
-        assert not runtime.templates.view(template, runtime.actions.read())['usable']
-    finally:
-        await runtime.close()
+@pytest.mark.parametrize('retired_step', [0, 1])
+def test_all_action_references_generations_and_template_chain(h, retired_step):
+    from tests.test_job_final_http_service import create, control, job_def, launch, USER
+    from packages.jobs.final_service import definition, object_ref
+    from packages.jobs.final_contracts import ContractError
+    from tests.test_action_groups import canonical_state
+    first = h.service.get('action', h.action['id'], actor=USER)
+    second = h.service.publish_action('second_chain_action', definition('action', first))
+    cfg = job_def(h, steps=2)
+    cfg['steps'][1]['actionRef'] = object_ref('action', second)
+    template_value = {'name':'all steps', 'jobDefinition':cfg, 'composition':{'creators':[], 'triggers':[]}}
+    template = create(h, 'job-templates', template_value, 'create-all-step-template')
+    published = control(h, 'job-templates', template, 'publish', 'publish-all-step-template')
+    assert published.status_code == 200, published.text
+    template = published.json()['result']['object']
+    copied = h.service.instantiate_template(template['id'], {'expectedRevision':template['revision'],
+        'requestKey':'copy-all-step-template'}, actor=USER)
+    jid = copied['result']['objectIds']['job']
+    job = h.service.get('job', jid, actor=USER)
+    assert job['steps'] == cfg['steps']
+    activated = control(h, 'jobs', job, 'enable', 'enable-all-step-copy')
+    assert activated.status_code == 200, activated.text
+    job = activated.json()['result']['object']
+    rid = launch(h, job, 'all-step-run')['runId']
+    asyncio.run(h.service.dispatch_once())
+    original = h.service.final.get(jid)
+    assert original['runs'][rid]['state'] == 'completed'
+    assert len(original['attempts']) == len(original['effects']) == 2
+    target = (first, second)[retired_step]
+    body = {'expectedRevision':target['revision'], 'expectedStateRevision':target['stateRevision'],
+            'requestKey':'retire-referenced-step'}
+    before = canonical_state(h.service)
+    anonymous = h.client.request('DELETE', '/api/jobs/actions/' + target['id'], json=body, headers={'Authorization':''})
+    assert anonymous.status_code == 401 and canonical_state(h.service) == before
+    removed = h.client.request('DELETE', '/api/jobs/actions/' + target['id'], json=body)
+    assert removed.status_code == 200, removed.text
+    retired = removed.json()['result']['object']
+    assert retired['state'] == 'retired' and retired['enabled'] is False
+    before = canonical_state(h.service)
+    for operation in ('instantiate', 'run', 'restore'):
+        with pytest.raises(ContractError) as blocked:
+            if operation == 'instantiate':
+                h.service.instantiate_template(template['id'], {'expectedRevision':template['revision'],
+                    'requestKey':'retired-source-copy'}, actor=USER)
+            elif operation == 'run':
+                h.service.create_run(jid, {'expectedRevision':job['configRevision'],
+                    'requestKey':'retired-source-run', 'input':{}, 'cause':{'type':'manual'}}, actor=USER)
+            else:
+                h.service.write('action', target['id'], {'definition':definition('action', target),
+                    'expectedRevision':retired['revision'], 'requestKey':'restore-old-identity'}, actor=USER)
+        assert blocked.value.code == 'reference_conflict'
+        assert canonical_state(h.service) == before
+    # A different explicit identity and Job CAS repair can restore capability;
+    # recreating a source never silently blesses the old reference generation.
+    replacement = h.service.publish_action('replacement_chain_action', definition('action', target))
+    repaired = copy.deepcopy(cfg)
+    repaired['steps'][retired_step]['actionRef'] = object_ref('action', replacement)
+    response = h.client.put('/api/jobs/' + jid, json={'definition':repaired,
+        'expectedRevision':job['configRevision'], 'requestKey':'explicit-chain-reference-repair'})
+    assert response.status_code == 200, response.text
+    current = response.json()['result']['object']
+    latest = launch(h, current, 'repaired-chain-run')['runId']
+    asyncio.run(h.service.dispatch_once())
+    done = h.service.final.get(jid)
+    assert done['runs'][latest]['state'] == 'completed' and done['runs'][rid] == original['runs'][rid]
+    assert len(done['attempts']) == len(done['effects']) == len(h.provider.calls) == 4
+    assert h.service.get('action', target['id'], actor=USER) == retired
 
 
 @pytest.mark.parametrize('mutation', ['duplicate', 'forward', 'extra', 'bad_literal'])
@@ -806,33 +857,92 @@ def test_real_owned_commands_pass_structured_output_without_server(h, tmp_path):
     assert h.service.final.get(job['id']) == before
 
 
-@async_test
-async def test_admitted_fixed_template_step_uses_original_template_revision(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    entered, release = asyncio.Event(), asyncio.Event()
-    original = executor.execute_dynamic
-    async def execute(action, *args):
-        if action['id'] == 'one':
-            entered.set(); await release.wait(); return {'ok': True}
-        return await original(action, *args)
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    child_config = {**_config(_steps()), 'enabled': False, 'actionId': 'one', 'arguments': {'value': 'original'}}
-    child_config.pop('steps')
-    try:
-        template = runtime.templates.put({'name': 'fixed', 'config': child_config}, 0, True)
-        runtime.actions.put('actions', {**_action('two'), 'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
-            'execution': {'kind': 'job_template', 'templateId': template['id'], 'templateRevision': 1}}, authorized=True)
-        steps = _steps(); steps[1]['arguments'] = {}
-        parent = runtime.create(_config(steps), True)
-        await runtime.launch(parent['jobId'], 1); await entered.wait()
-        runtime.templates.put({'name': 'fixed edited', 'config': {**child_config, 'arguments': {'value': 'edited'}}}, 1, True, template['id'])
-        release.set(); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(parent['jobId'])
-        assert done['lastStatus'] == 'completed', done['lastExecution']
-        child = next(j for j in runtime.list() if j['jobId'] != parent['jobId'])
-        assert child['templateRevision'] == 1 and child['config']['arguments'] == {'value': 'original'}
-    finally:
-        release.set(); await runtime.close()
+def test_admitted_fixed_template_step_uses_original_template_revision(h, monkeypatch):
+    from tests.test_job_final_http_service import create, control, enabled, job_def, launch, USER
+    from packages.jobs.final_service import object_ref
+    from packages.actions.legacy_families import template_successor
+    from tests.test_action_unification_p4 import plans
+    from packages.jobs.final_contracts import ContractError
+    from packages.actions import invocation
+    original_execute = invocation.template_job_execute
+    errors = []
+    async def observe(*args, **kwargs):
+        try:
+            return await original_execute(*args, **kwargs)
+        except Exception as exc:
+            errors.append((type(exc).__name__, str(exc)))
+            raise
+    monkeypatch.setattr(invocation, 'template_job_execute', observe)
+    child = job_def(h)
+    child['name'] = 'original child'
+    template_value = {'name':'fixed original', 'jobDefinition':child, 'composition':{'creators':[], 'triggers':[]}}
+    template = create(h, 'job-templates', template_value, 'create-fixed-original')
+    response = control(h, 'job-templates', template, 'publish', 'publish-fixed-original')
+    assert response.status_code == 200, response.text
+    template = response.json()['result']['object']
+    raw = _action('fixed')
+    raw['input_schema'] = {'type':'object', 'properties':{}, 'additionalProperties':False}
+    raw['execution'] = {'kind':'job_template', 'templateId':'jtpl_original', 'templateRevision':1}
+    canonical = template_successor(raw, object_ref('template', template))
+    action = h.service.publish_action('fixed_child_creator', canonical)
+    value = job_def(h, steps=2)
+    value['steps'][1] = {'stepId':'s1', 'actionRef':object_ref('action', action),
+        'arguments':{}, 'completion':{'contract':'job-created'}}
+    parent = enabled(h, value)
+    h.service.owner.claim(0)
+    async def scenario():
+        entered, release = asyncio.Event(), asyncio.Event()
+        send = h.provider.send_session
+        async def wait_first(session_id, text, **kwargs):
+            entered.set()
+            await release.wait()
+            return await send(session_id, text, **kwargs)
+        h.provider.send_session = wait_first
+        rid = launch(h, parent, 'fixed-template-run')['runId']
+        frozen = copy.deepcopy(plans(h, parent['id'])[rid]['frozen'])
+        task = asyncio.create_task(h.service.dispatch_once())
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            # Published canonical templates are immutable. A successor has a
+            # new identity; changing the Action head cannot change this Run.
+            with pytest.raises(ContractError) as immutable:
+                h.service.write('template', template['id'], {'definition':{**template_value,'name':'edited'},
+                    'expectedRevision':template['revision'], 'requestKey':'edit-original-template'}, actor=USER)
+            assert immutable.value.code == 'reference_conflict'
+            changed = copy.deepcopy(template_value)
+            changed['jobDefinition']['name'] = 'edited child'
+            successor = create(h, 'job-templates', changed, 'create-successor-template')
+            published = control(h, 'job-templates', successor, 'publish', 'publish-successor-template')
+            assert published.status_code == 200, published.text
+            successor = published.json()['result']['object']
+            next_action = template_successor(raw, object_ref('template', successor))
+            edited = h.service.write('action', action['id'], {'definition':next_action,
+                'expectedRevision':action['revision'], 'requestKey':'edit-fixed-action'}, actor=USER)['result']['object']
+            published_action = h.service.control('action', action['id'], {'operation':'publish',
+                'expectedRevision':edited['revision'], 'expectedStateRevision':edited['stateRevision'],
+                'parameters':{}, 'requestKey':'publish-fixed-action'}, actor=USER)
+            assert published_action['result']['version']['revision'] > action['revision']
+            release.set()
+            await asyncio.wait_for(task, 5)
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        state = h.service.final.get(parent['id'])
+        assert state['runs'][rid]['state'] == 'completed', errors
+        assert len(state['attempts']) == len(state['effects']) == 2
+        children = [j for j in h.service.list('job', actor=USER)['items'] if j['id'] != parent['id']]
+        assert len(children) == 1 and children[0]['name'] == 'original child'
+        assert children[0]['steps'] == child['steps']
+        assert plans(h, parent['id'])[rid]['frozen'] == frozen
+        effect = next(e for e in state['effects'] if e['effectKey']['stepId'] == 's1')
+        assert effect['receipt']['receipt']['output']['templateRevision'] == 1
+        assert effect['receipt']['receipt']['output']['jobId'] == children[0]['id']
+        await h.service.dispatch_once()
+        assert len(h.service.list('job', actor=USER)['items']) == 2
+        assert len(h.provider.calls) == 1
+    asyncio.run(scenario())
 
 
 def test_recovering_run_uses_frozen_chain_when_next_config_is_unavailable(env):
