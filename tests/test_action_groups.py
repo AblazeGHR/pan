@@ -682,31 +682,43 @@ def test_api_response_has_streaming_output_bound(monkeypatch):
 
 def test_escaped_output_error_does_not_poison_real_provider(setup, tmp_path):
     async def run():
+        from packages.plugins.ipc import Bridge, request, MAX_FRAME
         service, manifest = setup
         action = command_action(tmp_path)
         action['output_format'] = 'text'
+        marker = tmp_path / 'calls'
         Path(action['execution']['args'][0]).write_text(
-            'import sys\nsys.stdout.write(chr(0)*400000 if sys.argv[1] == "large" else "ok")', encoding='utf-8')
+            'import sys\nfrom pathlib import Path\np=Path(' + repr(str(marker)) + ')\n'
+            'p.write_text((p.read_text() if p.exists() else "") + "x")\n'
+            'sys.stdout.write(chr(0)*400000 if sys.argv[1] == "large" else "ok")', encoding='utf-8')
         release = command_group(service, action)
         owner = sess.create(name='Escaped output', adapter='codex')
         srv._set_plugin_config(owner.adapter_config, [binding(plugin_id(release))])
         runtime = canonical_runtime(service, manifest)
+        bridge = Bridge(runtime, tmp_path)
+        async def call(value, key):
+            return await asyncio.to_thread(request, {'operation': 'call', 'session_id': owner.id,
+                'view': 'gateway', 'name': plugin_id(release) + '.echo',
+                'arguments': {'arguments': {'value': value}, 'requestKey': key}}, bridge.address)
         try:
-            large = await runtime.invoke(owner.id, 'gateway', plugin_id(release) + '.echo',
-                {'arguments': {'value': 'large'}, 'requestKey': 'large'})
-            receipt = large['structuredContent']
+            failed = await call('large', 'large')
+            assert failed['isError']
+            assert json.loads(failed['content'][0]['text'])['error']['code'] == 'result_too_large'
+            receipt = service.operation_for_key('invoke', 'large', actor={'type': 'agent', 'id': 'agent', 'revision': 1})
             assert receipt['result']['status'] == 'completed'
             assert receipt['result']['commands'][0]['stdout'] == chr(0) * 400000
             assert receipt['result']['commands'][0]['stdoutTruncated'] is False
-            # Canonical transport returns structured durable receipts and is
-            # not constrained by the retired provider's JSON-lines envelope.
-            assert len(json.dumps(receipt)) > 2 * 1024 * 1024
-            small = await runtime.invoke(owner.id, 'gateway', plugin_id(release) + '.echo',
-                {'arguments': {'value': 'small'}, 'requestKey': 'small'})
-            assert small['structuredContent']['result']['commands'][0]['stdout'] == 'ok'
+            assert len(json.dumps(receipt).encode()) > MAX_FRAME
+            repeated = await call('large', 'large')
+            assert json.loads(repeated['content'][0]['text'])['error']['code'] == 'result_too_large'
+            assert marker.read_text() == 'x'
+            small = await call('small', 'small')
             assert small['isError'] is False
+            assert small['structuredContent']['result']['commands'][0]['stdout'] == 'ok'
+            assert marker.read_text() == 'xx'
+            assert service.operation_for_key('invoke', 'large', actor={'type': 'agent', 'id': 'agent', 'revision': 1})['operationId'] == receipt['operationId']
         finally:
-            await runtime.close()
+            await bridge.close()
     asyncio.run(run())
 
 
