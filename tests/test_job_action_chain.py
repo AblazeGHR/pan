@@ -555,23 +555,37 @@ async def test_chain_write_failure_never_advances_or_replays(tmp_path, monkeypat
         await runtime.close()
 
 
-@async_test
-async def test_running_step_restart_is_uncertain_and_never_replayed(tmp_path):
-    runtime = await _runtime(tmp_path)
+def test_running_step_restart_is_uncertain_and_never_replayed(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    from packages.jobs.final_service import FinalService
+    job = enabled(h, job_def(h, steps=2))
+    admission = launch(h, job, 'host-loss-chain')
+    rid = admission['runId']
+    # Durable admission and running Attempt exist, but host loss occurs before
+    # any receipt. Recovery may only preserve unknown, never send again.
+    with h.service.transaction() as db:
+        stored = h.service._get(db, 'job', job['id'])
+        ledger = h.service.final.ledger
+        ledger.start(stored, h.root, rid)
+        attempt = ledger.begin_attempt(stored, h.root, rid, 's0')
+        key = ledger.admit_effect(stored, h.root, attempt['attemptId'], h.action['id'])
+        h.service._save(db, 'job', job['id'], stored)
+    restored = FinalService(h.root, h.automation.auth, executor=h.service.executor)
     try:
-        job = runtime.create(_config(_steps()), True)
-        claimed = runtime.claim(job['jobId'], 'owned_interrupted', 1)
-        steps = claimed['execution']['stepExecutions']; chains.start_step(steps[0])
-        runtime.chain_save(job['jobId'], 'owned_interrupted', steps, 'step_running')
-        runtime.recover()
-        current = runtime.get(job['jobId'])
-        assert current['lastStatus'] == 'uncertain'
-        assert [s['status'] for s in current['lastExecution']['stepExecutions']] == ['uncertain', 'pending']
-        assert current['lastExecution']['stepExecutions'][0]['attempts'][0]['status'] == 'uncertain'
-        await runtime.tick({'enabled': True})
-        assert not runtime.tasks and not runtime.actions.read().get('jobExecutions')
+        restored.recover()
+        state = restored.final.get(job['id'])
+        assert state['runs'][rid]['state'] == 'uncertain'
+        assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['uncertain', 'pending']
+        assert state['attempts'][attempt['attemptId']]['state'] == 'uncertain'
+        effect, = state['effects']
+        assert effect['attemptId'] == attempt['attemptId'] and effect['outcome'] == 'unknown'
+        assert effect['receipt'] == {'code': 'host_restarted'}
+        assert restored.operation(admission['operationId'], actor=USER)['status'] == 'unknown'
+        for _ in range(2):
+            asyncio.run(restored.dispatch_once())
+        assert restored.final.get(job['id']) == state and h.provider.calls == []
     finally:
-        await runtime.close()
+        asyncio.run(restored.close())
 
 
 @pytest.mark.parametrize('revoke', ['action', 'authorization'])
