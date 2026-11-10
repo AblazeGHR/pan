@@ -107,7 +107,7 @@ function jobRetentionResponse(rules = defaultJobRetentionRules) {
   };
   return {
     revision: 0,
-    cleanupScope: 'run_history',
+    cleanupScope: 'run_history', requestScope: 'scope-a',
     rules,
     configValidity,
     lastRuns,
@@ -314,7 +314,7 @@ describe('AppSettingsModal', () => {
     fetchCompletedJobRetentionSettingsMock.mockReset();
     fetchCompletedJobRetentionSettingsMock.mockResolvedValue(jobRetentionResponse());
     updateCompletedJobRetentionSettingsMock.mockReset();
-    updateCompletedJobRetentionSettingsMock.mockImplementation(async (body) => ({ status: 'completed', result: { settings: { ...jobRetentionResponse(body.rules), revision: 1 } } }));
+    updateCompletedJobRetentionSettingsMock.mockImplementation(async (body) => ({ status: 'completed', requestKey: body.requestKey, result: { settings: { ...jobRetentionResponse(body.rules), revision: 1 } } }));
   });
 
   it('renders nothing when closed', () => {
@@ -1110,7 +1110,7 @@ describe('AppSettingsModal', () => {
     fireEvent.click(Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
       .find((button) => button.textContent?.trim() === 'Save settings')!);
 
-    await waitFor(() => expect(updateCompletedJobRetentionSettingsMock).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: 0, requestKey: expect.any(String), rules: expect.objectContaining({ failed: { enabled: false, days: 21 } }) })));
+    await waitFor(() => expect(updateCompletedJobRetentionSettingsMock).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: 0, expectedRequestScope: 'scope-a', requestKey: expect.any(String), rules: expect.objectContaining({ failed: { enabled: false, days: 21 } }) })));
     expect(await screen.findByText('Settings saved.')).toBeTruthy();
     expect(updateDataRetentionMock).not.toHaveBeenCalled();
   });

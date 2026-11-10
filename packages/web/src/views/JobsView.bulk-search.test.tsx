@@ -143,6 +143,7 @@ function retentionResponse(
   return {
     revision: 0,
     cleanupScope: 'run_history',
+    requestScope: 'scope-a',
     rules,
     configValidity: {
       completed: true,
@@ -338,8 +339,8 @@ describe('JobsView search, status filters, and bulk actions', () => {
         protected: 1,
         errors: [],
       };
-    api.updateCompletedJobRetentionSettings.mockResolvedValue(
-      { status: 'completed', result: { settings: { ...retentionResponse(savedRules, savedRuns), revision: 1 } } },
+    api.updateCompletedJobRetentionSettings.mockImplementation(async (body) =>
+      ({ status: 'completed', requestKey: body.requestKey, result: { settings: { ...retentionResponse(savedRules, savedRuns), revision: 1 } } }),
     );
     renderView();
     expect(api.fetchCompletedJobRetentionSettings).not.toHaveBeenCalled();
@@ -353,7 +354,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
 
     fireEvent.change(daysInput, { target: { value: '14' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
-    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({ expectedRevision: 0, requestKey: expect.any(String), rules: savedRules }));
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({ expectedRevision: 0, expectedRequestScope: 'scope-a', requestKey: expect.any(String), rules: savedRules }));
     expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
   });
 
@@ -401,7 +402,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
       timed_out: { enabled: true, days: 12 },
       logs: { enabled: false, days: 21 },
     };
-    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({ expectedRevision: 0, requestKey: expect.any(String), rules: expected }));
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({ expectedRevision: 0, expectedRequestScope: 'scope-a', requestKey: expect.any(String), rules: expected }));
     expect((await screen.findByRole('status')).textContent).toContain('Settings saved');
   });
 
@@ -410,7 +411,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
     rules.completed = { enabled: true, days: 14 };
     api.fetchCompletedJobRetentionSettings.mockResolvedValue(retentionResponse(rules));
     api.updateCompletedJobRetentionSettings.mockImplementation(async (body) =>
-      ({ status: 'completed', result: { settings: { ...retentionResponse(body.rules), revision: 1 } } }),
+      ({ status: 'completed', requestKey: body.requestKey, result: { settings: { ...retentionResponse(body.rules), revision: 1 } } }),
     );
     renderView();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
@@ -422,7 +423,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect((daysInput as HTMLInputElement).value).toBe('');
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
 
-    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({ expectedRevision: 0, requestKey: expect.any(String), rules: {
+    await waitFor(() => expect(api.updateCompletedJobRetentionSettings).toHaveBeenCalledWith({ expectedRevision: 0, expectedRequestScope: 'scope-a', requestKey: expect.any(String), rules: {
       ...rules,
       completed: { enabled: true, days: null },
     } }));
@@ -474,6 +475,78 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect((screen.getByRole('button', { name: 'Save settings' }) as HTMLButtonElement).disabled).toBe(true);
     expect(api.updateCompletedJobRetentionSettings).not.toHaveBeenCalled();
     expect(JSON.parse(sessionStorage.getItem('pan:job-retention-pending')!)).toEqual(original);
+  });
+
+  it.each(['other-principal', 'other-profile', undefined])('preserves pending and blocks lookup for a different or missing scope: %s', async (scope) => {
+    const original = { expectedRevision: 0, requestKey: 'original-key', rules: defaultRetentionRules(), ...(scope ? { requestScope: scope } : {}) };
+    sessionStorage.setItem('pan:job-retention-pending', JSON.stringify(original));
+    renderView(); fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const button = await screen.findByRole('button', { name: 'Query original operation' });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Save settings' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/cannot be verified; lookup is unavailable/)).toBeTruthy();
+    expect(JSON.parse(sessionStorage.getItem('pan:job-retention-pending')!)).toEqual(original);
+    expect(api.canonicalRequest).not.toHaveBeenCalled();
+    expect(api.updateCompletedJobRetentionSettings).not.toHaveBeenCalled();
+  });
+
+  it('does not query when the authenticated scope changes after the page opens', async () => {
+    const original = { expectedRevision: 0, requestKey: 'original-key', rules: defaultRetentionRules(), requestScope: 'scope-a' };
+    sessionStorage.setItem('pan:job-retention-pending', JSON.stringify(original));
+    renderView(); fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const button = await screen.findByRole('button', { name: 'Query original operation' });
+    api.fetchCompletedJobRetentionSettings.mockResolvedValueOnce({ ...retentionResponse(), requestScope: 'other-profile' });
+    fireEvent.click(button);
+    expect((await screen.findByRole('alert')).textContent).toContain('Account or profile changed');
+    expect(api.canonicalRequest).not.toHaveBeenCalled();
+    expect(JSON.parse(sessionStorage.getItem('pan:job-retention-pending')!)).toEqual(original);
+  });
+
+  it('keeps the original request unresolved if a receipt has a different request key', async () => {
+    api.updateCompletedJobRetentionSettings.mockImplementationOnce(async (body) => ({ status: 'completed', requestKey: 'wrong-key', result: { settings: retentionResponse(body.rules) } }));
+    renderView(); fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    await screen.findByRole('spinbutton', { name: 'Keep Completed Runs for days' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('request key does not match');
+    expect(JSON.parse(sessionStorage.getItem('pan:job-retention-pending')!).requestKey).not.toBe('wrong-key');
+    expect((screen.getByRole('button', { name: 'Save settings' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('rejects a lookup receipt with a different key and preserves the original', async () => {
+    const original = { expectedRevision: 0, requestKey: 'original-key', rules: defaultRetentionRules(), requestScope: 'scope-a' };
+    sessionStorage.setItem('pan:job-retention-pending', JSON.stringify(original));
+    api.canonicalRequest.mockResolvedValueOnce({ status: 'completed', requestKey: 'wrong-key', result: { settings: retentionResponse() } });
+    renderView(); fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Query original operation' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('request key does not match');
+    expect(JSON.parse(sessionStorage.getItem('pan:job-retention-pending')!)).toEqual(original);
+    expect(api.updateCompletedJobRetentionSettings).not.toHaveBeenCalled();
+  });
+
+  it('preserves the request if the scope changes while the lookup is in flight', async () => {
+    const original = { expectedRevision: 0, requestKey: 'original-key', rules: defaultRetentionRules(), requestScope: 'scope-a' };
+    sessionStorage.setItem('pan:job-retention-pending', JSON.stringify(original));
+    api.canonicalRequest.mockResolvedValueOnce({ status: 'completed', requestKey: original.requestKey, result: { settings: retentionResponse() } });
+    renderView(); fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const button = await screen.findByRole('button', { name: 'Query original operation' });
+    api.fetchCompletedJobRetentionSettings.mockResolvedValueOnce(retentionResponse()).mockResolvedValueOnce({ ...retentionResponse(), requestScope: 'other-principal' });
+    fireEvent.click(button);
+    expect((await screen.findByRole('alert')).textContent).toContain('Account or profile changed');
+    expect(JSON.parse(sessionStorage.getItem('pan:job-retention-pending')!)).toEqual(original);
+    expect(api.updateCompletedJobRetentionSettings).not.toHaveBeenCalled();
+  });
+
+  it('keeps the draft on a definite scope conflict without treating it as a saved write', async () => {
+    api.updateCompletedJobRetentionSettings.mockRejectedValueOnce(Object.assign(new Error('request_scope_conflict'), { status: 409 }));
+    renderView(); fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const input = await screen.findByRole('spinbutton', { name: 'Keep Completed Runs for days' });
+    fireEvent.change(input, { target: { value: '21' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('request_scope_conflict');
+    expect((input as HTMLInputElement).value).toBe('21');
+    expect(sessionStorage.getItem('pan:job-retention-pending')).toBeNull();
+    expect(screen.queryByText('Settings saved.')).toBeNull();
+    expect(api.canonicalRequest).not.toHaveBeenCalled();
   });
 
   it('shows invalid persisted rule feedback and keeps that switch off', async () => {

@@ -2475,11 +2475,12 @@ export type JobRetentionRules = Record<JobRetentionRule, CompletedJobRetentionSe
 export interface CanonicalRetentionSettings {
   revision: number;
   cleanupScope: 'run_history';
+  requestScope?: string;
   rules: JobRetentionRules;
   configValidity: Record<JobRetentionRule, boolean>;
   lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
 }
-export type RetentionUpdate = { expectedRevision: number; requestKey: string; rules: JobRetentionRules };
+export type RetentionUpdate = { expectedRevision: number; expectedRequestScope: string; requestKey: string; rules: JobRetentionRules };
 export function fetchCompletedJobRetentionSettings(): Promise<CanonicalRetentionSettings> {
   return canonicalRequest('job-maintenance/retention-settings');
 }

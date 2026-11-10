@@ -10,6 +10,7 @@ import type {
 import type { CanonicalReceipt } from '@/types/canonicalJobs';
 
 const pendingStorage = 'pan:job-retention-pending';
+type PendingRetention = Omit<RetentionUpdate, 'expectedRequestScope'> & { expectedRequestScope?: string; requestScope?: string };
 const RETENTION_RULE_META: Array<{
   key: JobRetentionRule;
   label: string;
@@ -76,18 +77,20 @@ export function JobRetentionSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [revision, setRevision] = useState<number | null>(null);
-  const [pending, setPendingState] = useState<RetentionUpdate | null>(() => {
-    try { return JSON.parse(sessionStorage.getItem(pendingStorage) ?? 'null') as RetentionUpdate | null; } catch { return null; }
+  const [requestScope, setRequestScope] = useState<string | null>(null);
+  const [pending, setPendingState] = useState<PendingRetention | null>(() => {
+    try { return JSON.parse(sessionStorage.getItem(pendingStorage) ?? 'null') as PendingRetention | null; } catch { return null; }
   });
   const lock = useRef(false);
   const pendingRef = useRef(pending);
-  const setPending = (value: RetentionUpdate | null) => {
+  const setPending = (value: PendingRetention | null) => {
     if (value) sessionStorage.setItem(pendingStorage, JSON.stringify(value));
     else sessionStorage.removeItem(pendingStorage);
     pendingRef.current = value;
     setPendingState(value);
   };
   const applySettings = (result: CanonicalRetentionSettings) => {
+    setRequestScope(typeof result.requestScope === 'string' && result.requestScope ? result.requestScope : null);
     setRevision(result.revision); setRules(result.rules); setDraft(cloneRules(result.rules)); setLastRuns(result.lastRuns);
     const invalidRules = RETENTION_RULE_META.filter(({ key }) => !result.configValidity[key]).map(({ label }) => label);
     if (invalidRules.length) setError(`Invalid saved values for ${invalidRules.join(', ')}. Those rules remain disabled until valid values are saved.`);
@@ -113,8 +116,16 @@ export function JobRetentionSettings() {
     void loadSettings();
   }, [loadSettings]);
 
-  const settle = (receipt: CanonicalReceipt) => {
+  const settle = (receipt: CanonicalReceipt, expectedKey: string, expectedScope: string) => {
+    if (receipt.requestKey !== expectedKey) {
+      setError('The response request key does not match the original request. Its outcome remains unresolved.');
+      return;
+    }
     if (receipt.status === 'completed' && receipt.result?.settings) {
+      if ((receipt.result.settings as CanonicalRetentionSettings).requestScope !== expectedScope) {
+        setError('The response account or profile does not match the original request. Its outcome remains unresolved.');
+        return;
+      }
       applySettings(receipt.result.settings as CanonicalRetentionSettings);
       setPending(null); setFeedback('Settings saved.');
     } else if (receipt.status === 'rejected' || receipt.status === 'cancelled') {
@@ -129,23 +140,39 @@ export function JobRetentionSettings() {
         setError(`${label} keep days must be blank or a whole number from 1 to 36500.`); setFeedback(null); return;
       }
     }
-    const body: RetentionUpdate = { expectedRevision: revision, requestKey: crypto.randomUUID(), rules: cloneRules(draft) };
-    try { setPending(body); } catch { setError('Cannot preserve the request identity; settings were not submitted.'); return; }
+    if (!requestScope) { setError('Cannot verify the current account and profile; settings were not submitted.'); return; }
+    const body: RetentionUpdate = { expectedRevision: revision, expectedRequestScope: requestScope, requestKey: crypto.randomUUID(), rules: cloneRules(draft) };
     lock.current = true; setSaving(true); setError(null); setFeedback(null);
-    try { settle(await updateCompletedJobRetentionSettings(body)); }
-    catch (reason) {
-      const status = (reason as { status?: number })?.status;
-      if (status === 400 || status === 401 || status === 403 || status === 409) setPending(null);
-      setError(errMsg(reason));
-    } finally { lock.current = false; setSaving(false); }
-  };
-  const queryOriginal = async () => {
-    if (!pending || lock.current) return;
-    lock.current = true; setSaving(true); setError(null);
-    try { settle(await canonicalRequest<CanonicalReceipt>(`operations?operation=update&requestKey=${encodeURIComponent(pending.requestKey)}`)); }
-    catch (reason) { setError(`${errMsg(reason)}. The original request remains unresolved.`); }
+    try {
+      const current = await fetchCompletedJobRetentionSettings();
+      if (current.requestScope !== requestScope) throw new Error('Account or profile changed; settings were not submitted.');
+      try { setPending({ ...body, requestScope }); }
+      catch { throw new Error('Cannot preserve the request identity; settings were not submitted.'); }
+      try { settle(await updateCompletedJobRetentionSettings(body), body.requestKey, requestScope); }
+      catch (reason) {
+        const status = (reason as { status?: number })?.status;
+        if (status === 400 || status === 401 || status === 403 || status === 409) setPending(null);
+        throw reason;
+      }
+    } catch (reason) { setError(errMsg(reason)); }
     finally { lock.current = false; setSaving(false); }
   };
+
+
+  const queryOriginal = async () => {
+    if (!pending?.requestScope || pending.requestScope !== requestScope || lock.current) return;
+    lock.current = true; setSaving(true); setError(null);
+    try {
+      const before = await fetchCompletedJobRetentionSettings();
+      if (before.requestScope !== pending.requestScope) throw new Error('Account or profile changed; the original request remains unresolved');
+      const receipt = await canonicalRequest<CanonicalReceipt>(`operations?operation=update&requestKey=${encodeURIComponent(pending.requestKey)}`);
+      const after = await fetchCompletedJobRetentionSettings();
+      if (after.requestScope !== pending.requestScope) throw new Error('Account or profile changed; the original request remains unresolved');
+      settle(receipt, pending.requestKey, pending.requestScope);
+    } catch (reason) { setError(`${errMsg(reason)}. The original request remains unresolved.`); }
+    finally { lock.current = false; setSaving(false); }
+  };
+
 
   return (
     <div className="flex flex-col gap-4">
@@ -275,9 +302,9 @@ export function JobRetentionSettings() {
             >
               {saving ? 'Saving…' : 'Save settings'}
             </button>
-            {pending && <div className="text-xs text-warning" role="status">Unresolved request {pending.requestKey}. Query using the same account and profile.
+            {pending && <div className="text-xs text-warning" role="status">Unresolved request {pending.requestKey}. {pending.requestScope && pending.requestScope === requestScope ? 'The original account and profile match.' : 'The original account and profile cannot be verified; lookup is unavailable.'} The original request is preserved.
               <details><summary>Original request</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(pending, null, 2)}</pre></details>
-              <button type="button" disabled={saving} onClick={() => void queryOriginal()} className="underline">Query original operation</button>
+              <button type="button" disabled={saving || !pending.requestScope || pending.requestScope !== requestScope} onClick={() => void queryOriginal()} className="underline disabled:opacity-50">Query original operation</button>
             </div>}
             {feedback && <span className="text-xs text-warning" role="status">{feedback}</span>}
             {error && (
