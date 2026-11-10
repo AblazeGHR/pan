@@ -1075,9 +1075,12 @@ def test_fc04_legacy_event_wire_names_are_rejected():
 
 
 def test_fc04_error_codes_are_a_closed_set_with_http_mapping():
-    assert len(fc.ERROR_CODES) == len(set(fc.ERROR_CODES)) == 18
+    assert len(fc.ERROR_CODES) == len(set(fc.ERROR_CODES)) == 21
     assert set(fc.ERROR_HTTP_STATUS) == set(fc.ERROR_CODES)
-    assert set(fc.ERROR_HTTP_STATUS.values()) <= {400, 401, 403, 404, 409, 422, 429, 503}
+    assert set(fc.ERROR_HTTP_STATUS.values()) <= {400, 401, 403, 404, 409, 410, 422, 429, 503}
+    assert fc.ERROR_HTTP_STATUS['history_expired'] == 410
+    assert fc.ERROR_HTTP_STATUS['log_expired'] == 410
+    assert fc.ERROR_HTTP_STATUS['request_scope_conflict'] == 409
     assert fc.ERROR_HTTP_STATUS["reconciliation_required"] == 409
     assert fc.ERROR_HTTP_STATUS["capability_unsupported"] == 422
     assert fc.ERROR_HTTP_STATUS["capacity_exceeded"] == 429

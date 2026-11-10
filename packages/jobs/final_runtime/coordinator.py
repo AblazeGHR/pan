@@ -317,7 +317,23 @@ class FinalRuntime:
             metadata = job.get("runtimeMetadata", {})
             full = original_id == job["jobId"] or original_id in metadata.get("originals", {})
             run_ids = {rid for rid in state["runs"] if rid == original_id}
-            run_ids.update(a["runId"] for a in state["admissions"].values()
+            expired_matches = []
+            for rid, tomb in state.get('expiredRuns', {}).items():
+                identities = {rid, tomb['run']['admissionId'], tomb['run'].get('cause', {}).get('eventId'),
+                              *tomb.get('originalIds', [])}
+                for record in tomb['logRecords']:
+                    identities.add(record['attempt']['attemptId'])
+                    for row in record['rows']:
+                        digest = contracts.digest(row['effectKey'])
+                        identities.update({digest, 'effect_' + digest, 'effect_' + digest[:40]})
+                if full or original_id in identities:
+                    run_ids.add(rid)
+                    expired_matches.append({'runId': rid, 'status': 'history_expired',
+                        'expiredAt': tomb['expiredAt'], 'historyDigest': tomb['historyDigest']})
+            run_ids.update(r['runId'] for r in [*state['runs'].values(),
+                           *(t['run'] for t in state.get('expiredRuns', {}).values())]
+                           if original_id in {r.get('admissionId'), r.get('cause', {}).get('eventId')})
+            run_ids.update(a["runId"] for a in state["admissions"].values() if 'runId' in a
                            if original_id in {a.get("admissionId"), a.get("cause", {}).get("eventId")})
             run_ids.update(a["runId"] for a in state["attempts"].values() if a["attemptId"] == original_id)
             run_ids.update(row["runId"] for row in state["outbox"].values()
@@ -373,7 +389,8 @@ class FinalRuntime:
                 matches.append({"jobId": job["jobId"], "originalId": original_id,
                     "provenance": copy.deepcopy(metadata.get("originals", {})), "archived": metadata.get("archived", False),
                     "runs": [copy.deepcopy(r) for r in state["runs"].values() if full or r["runId"] in run_ids],
-                    "effects": effects, "pendingEffects": pending})
+                    "effects": effects, "pendingEffects": pending,
+                    **({'expiredRuns': expired_matches} if expired_matches else {})})
         return matches
 
     def history(self, job_id):

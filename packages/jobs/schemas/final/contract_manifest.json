@@ -772,9 +772,21 @@
       "http": 404,
       "detailsRequired": false
     },
+    "history_expired": {
+      "http": 410,
+      "detailsRequired": false
+    },
+    "log_expired": {
+      "http": 410,
+      "detailsRequired": false
+    },
     "revision_conflict": {
       "http": 409,
       "detailsRequired": true
+    },
+    "request_scope_conflict": {
+      "http": 409,
+      "detailsRequired": false
     },
     "idempotency_conflict": {
       "http": 409,

@@ -348,7 +348,7 @@ class FinalService:
     #: to a public surface; anything outside both sets stays an error.
     _INTERNAL_KINDS = frozenset({
         "json_scheduler_handoff", "legacy_template_alias", "migration_receipt",
-        "trigger_receipt_handoff", "runtime_activation", "runtime_archive",
+        "trigger_receipt_handoff", "runtime_activation", "runtime_archive", "retention_settings",
     })
 
     def _public(self, kind, item):
@@ -1391,6 +1391,15 @@ class FinalService:
         if not jsonschema.Draft202012Validator(cfg["inputSchema"]).is_valid(input_value):
             error("invalid_schema", "Input does not match Job schema")
         state = aggregate(job, self.root)
+        from .final_runtime.ledger import admission_for_cause
+        previous = admission_for_cause(state, cause or {"type": "manual"})
+        if previous is not None:
+            prior_run = next((r for r in [*state['runs'].values(),
+                *(t['run'] for t in state.get('expiredRuns', {}).values())]
+                if r['admissionId'] == previous['admissionId']), None)
+            if prior_run is not None:
+                return {'runId': prior_run['runId'], 'admissionId': previous['admissionId'],
+                        'configRevision': prior_run['configRevision']}
         active = [run for run in state["runs"].values() if run["state"] in ACTIVE]
         overlap = cfg["overlap"]
         if overlap["mode"] == "forbid" and active:
@@ -1400,10 +1409,12 @@ class FinalService:
             return {"admissionId": admission["admissionId"], "configRevision": item["configRevision"], "skipped": True}
         if len(active) >= overlap["maxActive"] + overlap["maxPending"]:
             error("capacity_exceeded", "Job pending capacity reached")
-        if cfg.get("runLimit") and len(state["runs"]) >= cfg["runLimit"]["maxRuns"]:
+        if cfg.get("runLimit") and len(state["runs"]) + len(state.get('expiredRuns', {})) >= cfg["runLimit"]["maxRuns"]:
             error("capacity_exceeded", "Job Run limit reached")
         rerun = value.get("rerunOf")
         if rerun:
+            if rerun in state.get('expiredRuns', {}):
+                error('history_expired', 'Original Run history expired; operation identity is retained')
             self.final.ledger.run(job, self.root, rerun)
         frozen = {"steps": copy.deepcopy(cfg["steps"]), "actions": {a["id"]: a for a in actions if a.get("definition")},
                   "stepActions": {step["stepId"]: copy.deepcopy(actions[index]) for index, step in enumerate(cfg["steps"])},
@@ -1448,6 +1459,11 @@ class FinalService:
         for job in self._all(db, "job"):
             if run_id in aggregate(job, self.root)["runs"]:
                 return job, job["finalRuntime"]["runs"][run_id]
+            if run_id in job['finalRuntime'].get('expiredRuns', {}):
+                error('history_expired', 'Original Run history expired; operation identity is retained')
+        for job in self._all(db, 'runtime_archive'):
+            if run_id in job.get('finalRuntime', {}).get('expiredRuns', {}):
+                error('history_expired', 'Original Run history expired; operation identity is retained')
         raise KeyError(run_id)
 
     def get_run(self, run_id, *, actor):
@@ -1485,17 +1501,23 @@ class FinalService:
         """One trusted live/archive locator for both authorized log queries."""
         with self.transaction(readonly=True) as db:
             job = next((j for kind in ("job", "runtime_archive") for j in self._all(db, kind)
-                        if run_id in j.get("finalRuntime", {}).get("runs", {})), None)
+                        if run_id in j.get("finalRuntime", {}).get("runs", {})
+                        or run_id in j.get('finalRuntime', {}).get('expiredRuns', {})), None)
             if job is None:
                 raise KeyError(run_id)
             state = job["finalRuntime"]
+            tombstone = state.get('expiredRuns', {}).get(run_id)
+            if tombstone:
+                return job['jobId'], copy.deepcopy(tombstone['logRecords'])
             records = []
             for attempt in state["attempts"].values():
                 if attempt["runId"] != run_id:
                     continue
                 rows = [row for row in state["effects"] if row["attemptId"] == attempt["attemptId"]]
                 rows += [row for row in state["effectAdmissions"].values() if row["attemptId"] == attempt["attemptId"]]
-                records.append({"attempt": copy.deepcopy(attempt), "rows": copy.deepcopy(rows)})
+                records.append({"attempt": copy.deepcopy(attempt), "rows": copy.deepcopy(rows),
+                    **({'logExpired': copy.deepcopy(state['expiredLogs'][attempt['attemptId']])}
+                       if attempt['attemptId'] in state.get('expiredLogs', {}) else {})})
             return job["jobId"], sorted(records, key=lambda r: (r["attempt"]["stepId"], r["attempt"]["generation"], r["attempt"]["attemptId"]))
 
     async def process_log_references(self, run_id, *, actor, cursor=None, limit=100):
@@ -1534,6 +1556,8 @@ class FinalService:
                     if ref == expected:
                         item.update(status="pending" if pending else "available", logRef=copy.deepcopy(ref),
                                     href=f"/api/job-runs/{run_id}/attempts/{attempt['attemptId']}/log")
+                        if record.get('logExpired'):
+                            item.update(status='expired', reason='log_expired')
                     else:
                         item["reason"] = "original_reference_inconsistent"
             if item["status"] == "unavailable":
@@ -3022,6 +3046,11 @@ class FinalService:
                         continue
                     for target, doc in zip(targets, documents):
                         self._apply_original_receipt(job, target, doc["result"])
+                        plan = state['plans'][rid]
+                        if plan.get('pendingProcessAttempt') == target['attempt']['attemptId']:
+                            # The cancellation owner has just proven and
+                            # consumed this exact original process receipt.
+                            plan.pop('pendingProcessAttempt')
                     current["status"] = "confirmed"
                     self.final.ledger.transition_run(job, self.root, rid, "cancelled",
                         operation="reconcile" if state["runs"][rid]["state"] == "uncertain" else "cancel")
@@ -3412,6 +3441,8 @@ class FinalService:
         await deliver(self)
         await self.dispatch_once()
         await self.deliver_outbox()
+        from packages.jobs.retention import pulse
+        await asyncio.to_thread(pulse, self)
 
     def _pending_outbox_snapshot(self):
         # Reservation below re-reads the original row under the writer fence.
