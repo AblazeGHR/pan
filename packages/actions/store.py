@@ -334,8 +334,12 @@ def extend_catalog(catalog):
 def inactive_plugin(pid):
     if not isinstance(pid, str) or not pid.startswith('action-group-'):
         return False
-    from .group_catalog import owns
+    from .group_catalog import owns, inactive
     gid = pid.removeprefix('action-group-').replace('-', '_')
+    if pid != 'action-group-' + gid.replace('_', '-'):
+        return False
+    if inactive(gid):
+        return True
     state = Store().read()
     legacy_ids = {'action-group-' + str(identity).replace('_', '-') for identity in state.get('groups', {})}
     return (pid in legacy_ids or pid in state.get('retired_plugins', [])) and not owns(gid)

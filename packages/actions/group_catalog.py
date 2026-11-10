@@ -20,6 +20,22 @@ def owns(identity):
         return bool(db.execute("SELECT 1 FROM final_documents WHERE kind IN ('action_group','action_group_handoff') AND id=?", (identity,)).fetchone())
 
 
+def inactive(identity):
+    """Recognize an unpublished canonical Group during Session admission.
+
+    A queued Session write can validate before unbuild and compile afterwards.
+    Keep the same read-only projection so it drops the now unavailable binding.
+    """
+    path = canonical_path()
+    if not path.exists():
+        return False
+    with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True) as db:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE name='final_documents'").fetchone():
+            return False
+        row = db.execute("SELECT document FROM final_documents WHERE kind='action_group' AND id=?", (identity,)).fetchone()
+        return row is not None and not json.loads(row[0]).get('release')
+
+
 def extend(catalog, service=None):
     from packages.plugins.catalog import Plugin
     if service is not None:
