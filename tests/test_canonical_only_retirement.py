@@ -187,4 +187,9 @@ def test_manifest_and_skill_do_not_advertise_retired_cancel_as_available():
     assert 'job_run_cancel' in advertised and 'job_operation_find' in advertised
     policy = next(line for line in prompts if '持久后台 Job（canonical-only）' in line)
     assert 'capability_unsupported' in policy and 'job_run_cancel' in policy and '只读' in policy
+    client_policy = next(line for line in prompts if 'Canonical Job 客户端' in line)
+    assert '仅保留查询与取消' not in '\n'.join(prompts)
+    assert '仅保留只读查询' in client_policy
+    assert 'canonical 原 Run 的 job_run_cancel' in client_policy
+    assert '不调用旧 scheduler writer' in client_policy
     assert main() == 0
