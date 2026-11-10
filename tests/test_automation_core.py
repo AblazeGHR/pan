@@ -125,20 +125,10 @@ async def test_bus_plugin_identity_fanout_full_and_deactivate():
 
 @async_test
 async def test_session_targets_checkpoint_partial_and_event_selector():
-    results, frozen = [], []
-    async def pause(sid, args):
-        return {'ok': sid != 'deleted'}
-    async def progress(**kw):
-        frozen.append(copy.deepcopy(kw))
-    a = action()
-    a['execution']['selector'] = {'mode': 'event', 'path': 'payload.ids'}
-    result = await execute_dynamic(a, {}, {'payload': {'ids': ['a', 'deleted', 'a']}}, progress, pause)
-    assert result['matched'] == 2 and result['failed'] == 1
-    assert frozen[0] == {'targetIds': ['a', 'deleted'], 'targetResults': []}
-    assert len(frozen[-1]['targetResults']) == 2
-    from packages.actions.provider import execute
-    with pytest.raises(ValueError):
-        await execute(a, {})  # Legacy provider cannot gain Session Operation privileges.
+    # The former dynamic executor is retired. Session targeting is exercised by
+    # canonical Job Run/Attempt tests; this boundary must fail closed.
+    with pytest.raises(PermissionError, match='retired'):
+        await execute_dynamic(action(), {}, {'payload': {'ids': ['a']}}, lambda **_: None, lambda *_: None)
 
 
 @async_test
