@@ -75,7 +75,8 @@ def test_legacy_locker_choice_never_reenters_retired_execution(tmp_path, monkeyp
     target = session.create('target', workdir=str(tmp_path))
     svc = Service(tmp_path / 'automation', SimpleNamespace(workers={}, set_running_observer=lambda cb: None),
                   lambda *a: pytest.fail('Legacy Pause effect must never execute'))
-    svc.engine.actions = Store(tmp_path / 'actions')
+    from tests.support.legacy_action_source import LegacySource
+    svc.engine.actions = LegacySource(tmp_path / 'actions')
     svc.engine.actions.put('actions', action([target.id]))
     svc.ledger.put({**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}, 0, True)
     store = InteractionStore(tmp_path / 'cards.sqlite')
@@ -175,7 +176,7 @@ def test_legacy_time_source_write_retired_canonical_creator_owns_revision(canoni
 
 
 def test_query_snapshot_executor_survives_without_trigger_execution_host():
-    from packages.actions.executor import execute_dynamic
+    from packages.actions.executor import canonical_session_pause
     from packages.actions import session_query as query
     from packages.automation.engine import Engine
     from tests.test_session_query import query_action, row
@@ -189,7 +190,7 @@ def test_query_snapshot_executor_survives_without_trigger_execution_host():
         async def pause(sid, args):
             calls.append(sid)
             return {'ok': True}
-        result = await execute_dynamic(query_action(), {}, {}, progress, pause, select)
+        result = await canonical_session_pause(query_action(), {}, {}, progress, pause, select)
         assert result['ok'] and saved['targetIds'] == ['a', 'b'] and calls == ['a', 'b']
         assert len(reads) == 1
         async def forbidden(*a):
@@ -197,7 +198,7 @@ def test_query_snapshot_executor_survives_without_trigger_execution_host():
         calls.clear()
         progress.checkpoint = {'targetIds': saved['targetIds'], 'targetResults': [
             {'sessionId': 'a', 'ok': True}]}
-        await execute_dynamic(query_action(), {}, {}, progress, pause, forbidden)
+        await canonical_session_pause(query_action(), {}, {}, progress, pause, forbidden)
         assert calls == ['b']
     assert not hasattr(Engine, 'execute')
     asyncio.run(check())
