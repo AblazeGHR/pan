@@ -9,12 +9,13 @@ import jsonschema
 import pytest
 
 from packages.actions import session_query as q
-from packages.actions.executor import execute_dynamic
+from packages.actions.executor import canonical_session_pause
 from packages.actions.provider import execute as legacy_execute
 from packages.actions.store import Store, validate_action
 from packages.core import session
 from packages.automation.engine import Engine
 from tests.test_automation_core import action, trigger, event, setup, settled, async_test
+from tests.test_job_final_http_service import h, USER
 
 
 def leaf(field='name', op='eq', value='Alpha'):
@@ -133,7 +134,7 @@ async def test_freezes_once_before_effect_and_reports_partial_failure():
         assert checkpoints[0]['targetIds'] == ['a', 'b']
         calls.append(sid)
         return {'ok': sid != 'b', **({'error': 'Session removed'} if sid == 'b' else {})}
-    result = await execute_dynamic(query_action(), {}, {}, progress, pause, query)
+    result = await canonical_session_pause(query_action(), {}, {}, progress, pause, query)
     assert len(reads) == 1 and calls == ['a', 'b']
     assert result['matched'] == 2 and result['failed'] == 1 and not result['ok']
     assert checkpoints[0]['selection']['candidateCount'] == 2
@@ -149,50 +150,60 @@ async def test_zero_results_diagnostic_and_invalid_never_queries():
         checkpoints.append(kw)
     async def pause(*args):
         raise AssertionError('no targets')
-    result = await execute_dynamic(query_action(), {}, {}, progress, pause, query)
+    result = await canonical_session_pause(query_action(), {}, {}, progress, pause, query)
     assert result['ok'] and result['matched'] == 0
     assert checkpoints[0]['targetIds'] == [] and checkpoints[0]['selection']['candidateCount'] == 0
     async def forbidden(*args):
         raise AssertionError('invalid must fail before querying')
     with pytest.raises(ValueError):
-        await execute_dynamic(query_action(leaf('unknown')), {}, {}, progress, pause, forbidden)
+        await canonical_session_pause(query_action(leaf('unknown')), {}, {}, progress, pause, forbidden)
 
 
 
 
 @async_test
-async def test_legacy_and_draft_authority_gates(tmp_path, monkeypatch):
+async def test_legacy_and_draft_authority_gates(h, monkeypatch):
     from packages.web import server
-    from types import SimpleNamespace
-    class Auth:
-        def authorized(self, header): return header == 'Bearer test'
-        def permission_allowed(self, kind, capability): return True, 0
-    monkeypatch.setattr(server.app.state, 'automation', SimpleNamespace(auth=Auth()), raising=False)
+    from packages.actions.groups import Groups
+    from packages.jobs.final_contracts import ContractError
+    from packages.jobs.final_service import object_ref
+    from tests.test_action_groups import canonical_state
+    monkeypatch.setattr(server.app.state, 'automation', h.automation, raising=False)
+    monkeypatch.setattr(server.app.state, 'job_final_service', h.service, raising=False)
     a = query_action()
     store = Store()
-    item = store.put('actions', a, draft=True)
-    assert not item['enabled']
-    store.put('actions', a)
-    store.put('groups', {'id': 'g', 'name': 'Group', 'action_ids': ['pause']})
-    with pytest.raises(ValueError):
+    before = store.read()
+    for kwargs in ({'draft': True}, {}):
+        with pytest.raises(PermissionError, match='retired'):
+            store.put('actions', a, **kwargs)
+    with pytest.raises(PermissionError, match='retired'):
         store.build('g')
-    assert not store.read()['groups']['g'].get('build')
-    with pytest.raises(ValueError):
+    assert store.read() == before
+    with pytest.raises(PermissionError, match='retired'):
         await legacy_execute(a, {})
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url='http://test', headers={'Authorization':'Bearer test'}) as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url='http://test',
+                                 headers={'Authorization': 'Bearer ' + h.token}) as client:
         response = await client.get('/api/actions/session-operation-template')
-        assert response.status_code == 200
-        template = response.json()
-        assert not template['item']['enabled']
-        draft = await client.post('/api/action-drafts/actions/put', json={'item': a})
-        assert draft.status_code == 200 and not draft.json()['item']['enabled']
-        invalid = await client.post('/api/action-drafts/actions/put', json={'item': query_action(leaf('history'))})
-        assert invalid.status_code == 400
-
-
-
-
-
+        assert response.status_code == 200 and response.json()['item']['enabled'] is False
+        for raw in (a, query_action(leaf('history'))):
+            retired = await client.post('/api/action-drafts/actions/put', json={'item': raw})
+            assert retired.status_code == 410 and retired.json()['detail']['code'] == 'retired'
+        preview = await client.post('/api/jobs/actions/definition-preview', json={'draft': a})
+        assert preview.status_code == 200, preview.text
+        definition = preview.json()['definition']
+        draft = await client.post('/api/jobs/actions', json={
+            'definition': definition, 'expectedRevision': 0, 'requestKey': 'canonical-query-draft'})
+        assert draft.status_code == 201, draft.text
+        item = draft.json()['result']['object']
+        assert item['state'] == 'draft' and item['enabled'] is False
+        invalid = await client.post('/api/jobs/actions/definition-preview', json={'draft': query_action(leaf('history'))})
+        assert invalid.status_code == 400 and invalid.json()['error']['code'] == 'invalid_schema'
+    durable = canonical_state(h.service)
+    with pytest.raises(ContractError) as blocked:
+        Groups(h.service).put({'id': 'query_draft_group', 'name': 'Draft Group',
+            'tools': [{'alias': 'pause', 'actionRef': object_ref('action', item)}]}, 0, 'query-draft-group', actor=USER)
+    assert blocked.value.code == 'reference_conflict'
+    assert canonical_state(h.service) == durable
 
 
 
@@ -202,7 +213,7 @@ def test_extreme_depth_is_rejected_before_draft_deepcopy():
         predicate = {'not': predicate}
     a = action()
     a['execution']['selector'] = {'mode': 'query', 'query': predicate}
-    with pytest.raises(ValueError, match='depth/node'):
+    with pytest.raises(PermissionError, match='retired'):
         Store().put('actions', a, draft=True)
     with pytest.raises(ValueError, match='depth/node'):
         validate_action(a)
@@ -215,7 +226,7 @@ async def test_disabled_query_draft_never_enumerates_other_sessions():
     async def forbidden(*args, **kwargs):
         raise AssertionError('disabled drafts cannot enumerate or operate across caller scope')
     with pytest.raises(ValueError, match='disabled'):
-        await execute_dynamic(draft, {}, {}, forbidden, forbidden, forbidden)
+        await canonical_session_pause(draft, {}, {}, forbidden, forbidden, forbidden)
     for predicate in [leaf('scope'), {**leaf(), 'agentId': 'agent-a'}, leaf('managedBy.id')]:
         with pytest.raises(ValueError):
             validate_action(query_action(predicate))
@@ -252,7 +263,7 @@ async def test_real_session_mutations_after_checkpoint_do_not_reselect(monkeypat
     async def pause(sid, args):
         calls.append(sid)
         return {'ok': True}
-    result = await execute_dynamic(query_action(predicate), {}, {}, progress, pause)
+    result = await canonical_session_pause(query_action(predicate), {}, {}, progress, pause)
     assert len(snapshots) == 1
     assert checkpoints[0]['targetIds'] == calls == sorted([first.id, second.id])
     assert not set(created) & set(calls)
