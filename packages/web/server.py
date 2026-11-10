@@ -97,6 +97,7 @@ from packages.core.adapters.opencode import sessions as opencode_sessions
 from packages.core.config import (
     DEFAULT_PLUGIN_MANIFESTS,
     load_config,
+    illegal_queue_lock_behavior,
     read_config_file,
     resolve_pan_python_info,
     save_config,
@@ -2267,6 +2268,12 @@ def _session_to_api(
     a = get_adapter(s.adapter)
     config = (load_config() if app_config is None else app_config).get(s.adapter, {})
     ac = s.adapter_config
+    behavior_override = getattr(s, "behavior_override", None)
+    behavior_sync = not (isinstance(behavior_override, dict)
+                         and type(behavior_override.get("auto_lock_illegal_queue")) is bool)
+    global_auto_lock = illegal_queue_lock_behavior()
+    effective_auto_lock = (global_auto_lock if behavior_sync
+                           else bool(behavior_override["auto_lock_illegal_queue"]))
     last_result = s.last_result if include_last_result else None
     if project_links and include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
         last_result = {
@@ -2319,6 +2326,11 @@ def _session_to_api(
         "queueAllLocked": queue_all_locked,
         "queueRevision": int(getattr(s, "queue_revision", 0) or 0),
         "queuePaused": bool(getattr(s, "queue_paused", False)),
+        "behavior": {
+            "syncWithGlobal": behavior_sync,
+            "autoLockIllegalQueue": effective_auto_lock,
+            "globalAutoLockIllegalQueue": global_auto_lock,
+        },
         **({"history": _api_history(
             s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
         )} if include_history else {}),
@@ -3659,6 +3671,16 @@ def _apply_session_updates(s: sess.Session, data: dict, *, plugin_config=_PLUGIN
     AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
     """
     _normalize_context_setting_keys(data)
+    behavior_update = None
+    if "behavior" in data:
+        behavior = data["behavior"]
+        if not isinstance(behavior, dict) or set(behavior) - {"syncWithGlobal", "autoLockIllegalQueue"}:
+            raise ValueError("behavior must contain only syncWithGlobal and autoLockIllegalQueue")
+        if type(behavior.get("syncWithGlobal")) is not bool:
+            raise ValueError("behavior.syncWithGlobal must be boolean")
+        if not behavior["syncWithGlobal"] and type(behavior.get("autoLockIllegalQueue")) is not bool:
+            raise ValueError("behavior.autoLockIllegalQueue must be boolean when syncWithGlobal is false")
+        behavior_update = behavior
     prepared_plugins = plugin_config is not _PLUGIN_CONFIG_UNSET
     if not prepared_plugins:
         plugin_config = _validate_plugin_update(s, data)
@@ -3728,6 +3750,11 @@ def _apply_session_updates(s: sess.Session, data: dict, *, plugin_config=_PLUGIN
         s.original_prompt = data["originalPrompt"]
     if "handoffPrompt" in data:
         s.handoff_prompt = data["handoffPrompt"]
+    if behavior_update is not None:
+        s.behavior_override = (
+            None if behavior_update["syncWithGlobal"]
+            else {"auto_lock_illegal_queue": behavior_update["autoLockIllegalQueue"]}
+        )
 
 
 _PAN_ACCESS_FIELDS = (
@@ -11493,6 +11520,19 @@ async def api_put_settings_ui(data: dict, request: Request = None):
         data = {**data, "autoForceSend": {
             name: merged_auto_force.get(name) is True
             for name in worker.AUTO_FORCE_SOURCE_CLASSES
+        }}
+    if "behavior" in data:
+        raw_behavior = data["behavior"]
+        if not isinstance(raw_behavior, dict):
+            raise HTTPException(status_code=422, detail="behavior must be an object")
+        if set(raw_behavior) - {"autoLockIllegalQueue"}:
+            raise HTTPException(status_code=422, detail="behavior accepts only autoLockIllegalQueue")
+        if type(raw_behavior.get("autoLockIllegalQueue")) is not bool:
+            raise HTTPException(status_code=422, detail="behavior.autoLockIllegalQueue must be boolean")
+        current_behavior = ui.get("behavior") if isinstance(ui.get("behavior"), dict) else {}
+        data = {**data, "behavior": {
+            "autoLockIllegalQueue": raw_behavior.get(
+                "autoLockIllegalQueue", current_behavior.get("autoLockIllegalQueue", True))
         }}
     # A save that carries the unread-recording key is a global "apply": it
     # clears per-Session overrides and re-aligns every Session, even when the

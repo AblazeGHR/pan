@@ -491,6 +491,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showCodexTerminalInput,
     reportWorkerKillErrors,
     autoForceSend,
+    behavior,
     mergeConsecutiveNonBodyBlocks,
     keepScrollOnSessionSwitch,
     showMessageNavigationRail,
@@ -517,6 +518,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setConfirmAgentSystemQueueEdit,
     saveReportWorkerKillErrors,
     saveAutoForceSend,
+    saveBehavior,
     resetSettings,
     setViewEntryOrder,
   } = useAppSettingsStore();
@@ -661,6 +663,14 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       setAutoForceSaving(null);
     }
   }, [autoForceSend, autoForceSaving, saveAutoForceSend]);
+  const [behaviorSaving, setBehaviorSaving] = useState(false);
+  const toggleIllegalAutoLock = useCallback(async (value: boolean) => {
+    if (behaviorSaving) return;
+    setBehaviorSaving(true);
+    try { await saveBehavior({ autoLockIllegalQueue: value }); }
+    catch (error) { useUIStore.getState().showToast(error instanceof Error ? error.message : 'Behavior save failed', 'error'); }
+    finally { setBehaviorSaving(false); }
+  }, [behaviorSaving, saveBehavior]);
 
   // Worker config edit dialog — opened from the "Edit worker config" row.
   // Prefills current values (reloadConfig('worker').before — idempotent),
@@ -2052,6 +2062,21 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     {autoForceError}
                   </div>
                 )}
+              </section>
+
+              <section data-testid="illegal-queue-behavior-section">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Illegal queue safety
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Automatically lock new messages while Illegal"
+                    hint="Keeps the historical safety lock for newly queued messages; existing incident locks remain authoritative."
+                    checked={behavior.autoLockIllegalQueue}
+                    disabled={behaviorSaving}
+                    onChange={(v) => void toggleIllegalAutoLock(v)}
+                  />
+                </div>
               </section>
 
               <section>

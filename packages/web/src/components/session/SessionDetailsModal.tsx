@@ -7,6 +7,7 @@ import {
   fetchSessionUsage,
   markSessionIllegal,
   markSessionSafelyOffline,
+  patchSession,
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -132,6 +133,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     kind: 'success' | 'error';
     message: string;
   } | null>(null);
+  const [behaviorSaving, setBehaviorSaving] = useState(false);
 
   useEffect(() => {
     usageRequestId.current += 1;
@@ -151,6 +153,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     setDetailError(null);
     setLegalStateBusy(false);
     setLegalSyncFeedback(null);
+    setBehaviorSaving(false);
   }, [sessionId]);
 
   useEffect(() => {
@@ -351,6 +354,22 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     () => markSessionIllegal(sessionId!),
     (state) => `Session marked: ${state}`,
   );
+  const sessionBehavior = displayedSession.behavior ?? {
+    syncWithGlobal: true,
+    autoLockIllegalQueue: true,
+  };
+  const saveSessionBehavior = async (syncWithGlobal: boolean, autoLockIllegalQueue: boolean) => {
+    if (!sessionId || behaviorSaving) return;
+    setBehaviorSaving(true);
+    try {
+      const updated = await patchSession(sessionId, { behavior: { syncWithGlobal, autoLockIllegalQueue } });
+      detailCache.current.set(sessionId, updated);
+      setDetailSession(updated);
+      useSessionStore.getState().updateSession(sessionId, { behavior: updated.behavior }, true);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Behavior save failed', 'error');
+    } finally { setBehaviorSaving(false); }
+  };
   const copyValue = (label: string, value: string | undefined) => {
     if (!value) {
       showToast(`${label} 暂无可复制内容`, 'error');
@@ -429,6 +448,21 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             </div>
           );
         })}
+        <section className="rounded border border-border-default overflow-hidden" aria-label="Behavior">
+          <div className="px-3 py-2 text-sm font-medium text-text-primary border-b border-border-default">Behavior</div>
+          <div className="space-y-3 px-3 py-3">
+            <label className="flex items-start gap-2 text-sm text-text-primary">
+              <input type="checkbox" checked={sessionBehavior.syncWithGlobal} disabled={behaviorSaving || !currentDetailSession}
+                onChange={(event) => void saveSessionBehavior(event.target.checked, sessionBehavior.autoLockIllegalQueue)} />
+              <span><span className="block">Sync with global behavior</span><span className="block text-xs text-text-tertiary">When enabled, this Session follows App Settings.</span></span>
+            </label>
+            <label className="flex items-start gap-2 text-sm text-text-primary">
+              <input type="checkbox" checked={sessionBehavior.autoLockIllegalQueue} disabled={behaviorSaving || sessionBehavior.syncWithGlobal || !currentDetailSession}
+                onChange={(event) => void saveSessionBehavior(false, event.target.checked)} />
+              <span><span className="block">Automatically lock new messages while Illegal</span><span className="block text-xs text-text-tertiary">Session override; existing safety locks and recovery gates remain unchanged.</span></span>
+            </label>
+          </div>
+        </section>
         <section aria-label="Execution legality" className="rounded border border-border-default px-3 py-2">
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
             <div className="min-w-0">

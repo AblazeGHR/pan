@@ -52,6 +52,12 @@ export interface AutoForceSendSettings {
   ma: boolean;
   report: boolean;
 }
+export interface BehaviorSettings { autoLockIllegalQueue: boolean }
+export const DEFAULT_BEHAVIOR: BehaviorSettings = { autoLockIllegalQueue: true };
+export function sanitizeBehavior(value: unknown): BehaviorSettings {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return { autoLockIllegalQueue: raw.autoLockIllegalQueue !== false };
+}
 
 /** Default: every automatic Force source stays off (legacy queue behavior). */
 export const DEFAULT_AUTO_FORCE_SEND: AutoForceSendSettings = {
@@ -225,6 +231,7 @@ export interface AppSettings {
    * messages, `report` = completion reports. All off by default.
    */
   autoForceSend: AutoForceSendSettings;
+  behavior: BehaviorSettings;
   /** Show the Codex terminal input popup when a process is waiting for stdin. */
   showCodexTerminalInput: boolean;
   /** Combine adjacent tool and thinking display blocks under one disclosure. */
@@ -293,6 +300,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sessionErrorBridge: true,
   errorNotificationExclusions: { enabled: false, types: [] },
   autoForceSend: DEFAULT_AUTO_FORCE_SEND,
+  behavior: DEFAULT_BEHAVIOR,
   showCodexTerminalInput: false,
   mergeConsecutiveNonBodyBlocks: false,
   keepScrollOnSessionSwitch: false,
@@ -390,6 +398,7 @@ export function sanitizeSettings(
     sessionErrorBridge: typeof parsed.sessionErrorBridge === 'boolean' ? parsed.sessionErrorBridge : true,
     errorNotificationExclusions: sanitizeErrorExclusions(parsed.errorNotificationExclusions),
     autoForceSend: sanitizeAutoForceSend(parsed.autoForceSend),
+    behavior: sanitizeBehavior(parsed.behavior),
     showCodexTerminalInput:
       typeof parsed.showCodexTerminalInput === 'boolean'
         ? parsed.showCodexTerminalInput
@@ -482,6 +491,7 @@ interface AppSettingsStore extends AppSettings {
    * last saved value.
    */
   saveAutoForceSend: (v: AutoForceSendSettings) => Promise<void>;
+  saveBehavior: (v: BehaviorSettings) => Promise<void>;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   setConfirmAgentSystemQueueEdit: (v: boolean) => void;
   /** Reset every field to its default and persist. */
@@ -730,6 +740,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
         autoForceSend: sanitizeAutoForceSend(value),
       });
       set({ autoForceSend: sanitizeSettings(response).autoForceSend });
+    },
+    saveBehavior: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({ behavior: sanitizeBehavior(value) });
+      set({ behavior: sanitizeBehavior(response.behavior) });
     },
 
     setCodexWarningToast: (v) => {

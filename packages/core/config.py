@@ -254,6 +254,16 @@ DEFAULT_CONFIG: dict = {
     },
 }
 
+
+def illegal_queue_lock_behavior(config: dict | None = None) -> bool:
+    """Return the global Illegal auto-lock policy with a safe legacy default."""
+    if config is None:
+        config = load_config()
+    ui = config.get("ui") if isinstance(config, dict) else None
+    behavior = ui.get("behavior") if isinstance(ui, dict) else None
+    value = behavior.get("autoLockIllegalQueue") if isinstance(behavior, dict) else None
+    return value is not False
+
 COMPLETED_JOB_RETENTION_MIN_DAYS = 1
 COMPLETED_JOB_RETENTION_MAX_DAYS = 36500
 COMPLETED_JOB_RETENTION_DEFAULT = {"enabled": False, "days": None}

@@ -56,7 +56,7 @@ from .adapters import (
     resolve_execution_mode,
 )
 from .adapters.base import SYSTEM_PROMPT_ARG_MAX_CHARS
-from .config import load_config
+from .config import load_config, illegal_queue_lock_behavior
 from .cli_diagnostics import format_cli_spawn_error
 from .attachment_projection import project_message_parts, public_message_parts
 
@@ -6184,7 +6184,14 @@ def _error_report_diagnostic(
 
 def _stage_new_queue_item(s, item: dict, *, wake: bool = False) -> None:
     """Inside an ordered writer candidate; never use for retry/requeue/edit."""
-    _offline.lock_new_message(s, item)
+    override = getattr(s, "behavior_override", None)
+    auto_lock = (
+        bool(override["auto_lock_illegal_queue"])
+        if isinstance(override, dict) and type(override.get("auto_lock_illegal_queue")) is bool
+        else illegal_queue_lock_behavior()
+    )
+    if auto_lock:
+        _offline.lock_new_message(s, item)
     if wake:
         # This newly created message has no user Manual lock. Release only
         # the Illegal lock, leaving Pause/leases/owner gates untouched.
