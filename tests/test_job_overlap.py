@@ -100,47 +100,144 @@ def test_close_while_admission_waits_for_writer_is_zero_write(h, monkeypatch):
     assert h.service.final.get(job['id'])['runs'] == {} and h.provider.calls == []
 
 
-def test_queue_is_persistent_bounded_and_disable_cancels_waiting(tmp_path):
+def test_queue_is_persistent_bounded_and_disable_with_explicit_cancel_preserves_active(h):
+    from packages.jobs.final_service import FinalService
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    from tests.test_job_final_http_service import enabled, job_def, launch, control, run_control, USER
     async def run():
-        release=asyncio.Event();entered=asyncio.Event()
-        async def pause(*_):entered.set();await release.wait();return {'ok':True}
-        store=Store(tmp_path/'actions');store.put('actions',action())
-        rt=Runtime(tmp_path/'jobs',store,pause);await rt.start()
-        cfg={'name':'queued','actionId':'pause','arguments':{},'enabled':True,'schedule':[{'kind':'interval','intervalSec':60}],
-             'overlap':{'mode':'queue','parallelLimit':3}}
-        job=rt.create(cfg,True)
+        release, entered = asyncio.Event(), asyncio.Event()
+        calls = []
+        class Provider:
+            async def send_session(self, session_id, text, *, effect_key, source):
+                calls.append(copy.deepcopy(effect_key))
+                entered.set()
+                await release.wait()
+                return {'status':'queued', 'messageId':'original'}
+        h.service.executor = TypedExecutor(session_provider=Provider())
+        job = enabled(h, job_def(h, overlap={'mode':'queue', 'maxActive':1, 'maxPending':1}))
+        first = launch(h, job, 'queue-active')['runId']
+        task = asyncio.create_task(h.service.dispatch_once())
         try:
-            await rt.launch(job['jobId'],1);await asyncio.wait_for(entered.wait(),2)
-            await rt.launch(job['jobId'],1)
-            current=rt.get(job['jobId']);assert len(current['pendingRuns'])==1
-            disabled=rt.update(job['jobId'],{**cfg,'enabled':False},1,True)
-            assert not disabled['pendingRuns']
-            assert len(rt.active(rt.get(job['jobId'])))==1
-            release.set();await asyncio.gather(*list(rt.tasks.values()))
-            await rt.tick({'enabled':True})
-            assert len(rt.get(job['jobId'])['attempts'])==1
-        finally:release.set();await rt.close()
+            await asyncio.wait_for(entered.wait(), 3)
+            second = launch(h, job, 'queue-pending')['runId']
+            full = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+                'expectedRevision':job['configRevision'], 'requestKey':'queue-full',
+                'input':{}, 'cause':{'type':'manual'}})
+            assert full.status_code == 429 and full.json()['error']['code'] == 'capacity_exceeded'
+            cold = FinalService(h.root, h.automation.auth)
+            try:
+                assert cold.get_run(first, actor=USER)['state'] == 'running'
+                assert cold.get_run(second, actor=USER)['state'] == 'queued'
+                assert len(cold.final.get(job['id'])['runs']) == 2
+            finally:
+                await cold.close()
+            disabled = control(h, 'jobs', job, 'disable', 'disable-queue')
+            assert disabled.status_code == 200, disabled.text
+            denied = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+                'expectedRevision':job['configRevision'], 'requestKey':'disabled-queue',
+                'input':{}, 'cause':{'type':'manual'}})
+            assert denied.status_code == 409 and denied.json()['error']['code'] == 'reference_conflict'
+            # Definition disable only changes admission. Cancelling a frozen
+            # pending Run is an explicit canonical lifecycle operation.
+            cancelled = run_control(h, second, 'cancel', 'cancel-waiting')
+            assert cancelled.status_code == 202, cancelled.text
+            await h.service._drive_run(job['id'], second)
+            state = h.service.final.get(job['id'])
+            assert state['runs'][second]['state'] == 'cancelled'
+            assert state['runs'][first]['state'] == 'running'
+            assert not any(a['runId'] == second for a in state['attempts'].values())
+            release.set()
+            await asyncio.wait_for(task, 5)
+            await h.service.dispatch_once()
+            done = h.service.final.get(job['id'])
+            assert done['runs'][first]['state'] == 'completed'
+            assert done['runs'][second]['state'] == 'cancelled'
+            assert len(calls) == len(done['attempts']) == len(done['effects']) == 1
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
     asyncio.run(run())
 
 
-def test_reduce_parallel_limit_rechecks_claim_after_reference_validation(tmp_path,monkeypatch):
-    store=Store(tmp_path/'actions');store.put('actions',action())
-    rt=Runtime(tmp_path/'jobs',store,None)
-    cfg={'name':'race','actionId':'pause','arguments':{},'enabled':True,
-         'schedule':[{'kind':'interval','intervalSec':60}], 'overlap':{'mode':'parallel','parallelLimit':3}}
-    job=rt.create(cfg,True)
-    rt.claim(job['jobId'],'first',1);rt.claim(job['jobId'],'second',1)
-    original=rt.templates.transaction
-    def interleave(change):
-        result=original(change)
-        rt.claim(job['jobId'],'third',1)
-        return result
-    monkeypatch.setattr(rt.templates,'transaction',interleave)
-    with pytest.raises(Conflict,match='Active execution count'):
-        rt.update(job['jobId'],{**cfg,'overlap':{'mode':'parallel','parallelLimit':2}},1,True)
-    current=rt.get(job['jobId'])
-    assert current['configRevision']==1 and len(rt.active(current))==3
-    assert current['config']['overlap']['parallelLimit']==3
+def test_reduce_parallel_limit_rechecks_claim_after_reference_validation(h, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import contextmanager
+    import threading
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    from packages.jobs.final_contracts import ContractError
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    from tests.test_action_groups import canonical_state
+    async def run():
+        release, started = asyncio.Event(), asyncio.Event()
+        calls = []
+        class Provider:
+            async def send_session(self, session_id, text, *, effect_key, source):
+                calls.append(effect_key['runId'])
+                started.set()
+                await release.wait()
+                return {'status':'queued', 'messageId':effect_key['runId']}
+        h.service.executor = TypedExecutor(session_provider=Provider())
+        cfg = job_def(h, overlap={'mode':'parallel', 'maxActive':3, 'maxPending':0})
+        job = enabled(h, cfg)
+        ids = [launch(h, job, 'limit-' + str(i))['runId'] for i in range(2)]
+        tasks = [asyncio.create_task(h.service._drive_run(job['id'], rid)) for rid in ids]
+        gate, proceed = threading.Event(), threading.Event()
+        writer_thread = []
+        original = h.service.owner.writer
+        @contextmanager
+        def writer(*args, **kwargs):
+            if writer_thread and threading.get_ident() == writer_thread[0]:
+                gate.set()
+                assert proceed.wait(4), 'limit update writer barrier timed out'
+            with original(*args, **kwargs):
+                yield
+        monkeypatch.setattr(h.service.owner, 'writer', writer)
+        changed = copy.deepcopy(cfg)
+        changed['overlap']['maxActive'] = 2
+        def update():
+            writer_thread.append(threading.get_ident())
+            return h.service.write('job', job['id'], {'definition':changed,
+                'expectedRevision':job['configRevision'], 'requestKey':'reduce-concurrent-limit'}, actor=USER)
+        try:
+            while len(calls) < 2:
+                started.clear()
+                await asyncio.wait_for(started.wait(), 3)
+            # A preflight reference observation is not authority to commit.
+            with h.service.transaction(readonly=True) as db:
+                h.service._references(db, 'job', changed, object_id=job['id'])
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pending = pool.submit(update)
+                assert await asyncio.to_thread(gate.wait, 3)
+                third = launch(h, job, 'limit-third')['runId']
+                ids.append(third)
+                tasks.append(asyncio.create_task(h.service._drive_run(job['id'], third)))
+                while len(calls) < 3:
+                    started.clear()
+                    await asyncio.wait_for(started.wait(), 3)
+                before = canonical_state(h.service)
+                proceed.set()
+                with pytest.raises(ContractError) as denied:
+                    await asyncio.wait_for(asyncio.wrap_future(pending), 4)
+                assert denied.value.code == 'reference_conflict'
+            assert canonical_state(h.service) == before
+            current = h.service.get('job', job['id'], actor=USER)
+            assert current['configRevision'] == 1 and current['overlap']['maxActive'] == 3
+            state = h.service.final.get(job['id'])
+            assert all(state['runs'][rid]['state'] == 'running' for rid in ids)
+            assert len(state['attempts']) == len(calls) == 3
+            release.set()
+            await asyncio.wait_for(asyncio.gather(*tasks), 5)
+            assert all(r['state'] == 'completed' for r in h.service.final.get(job['id'])['runs'].values())
+        finally:
+            proceed.set()
+            release.set()
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+    asyncio.run(run())
 
 
 def test_parallel_out_of_order_failure_confirmation_preserves_selected_run(h):

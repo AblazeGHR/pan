@@ -1286,6 +1286,12 @@ class FinalService:
                     if old["state"] == "retired" or (kind == "template" and old["state"] == "published"):
                         error("reference_conflict", "Immutable or retired definition")
                 self._references(db, kind, value["definition"], object_id=object_id)
+                if kind == "job" and old and value["definition"]["overlap"]["maxActive"] < old["overlap"]["maxActive"]:
+                    stored = self._get(db, "job", object_id)
+                    occupied = sum(run["state"] in {"running", "uncertain", "settling", "cancelling"}
+                        for run in aggregate(stored, self.root)["runs"].values())
+                    if occupied > value["definition"]["overlap"]["maxActive"]:
+                        error("reference_conflict", "Active Run count exceeds the requested concurrency limit")
                 if kind == "event_creator":
                     if old is None:
                         item = self.creators.create(value["definition"], request_key=operation_id,
