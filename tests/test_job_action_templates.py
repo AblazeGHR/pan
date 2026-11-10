@@ -15,6 +15,7 @@ from packages.jobs.action_templates import Templates, Conflict, CreationPending,
 from packages.jobs.action_runtime import Runtime, RUNTIMES
 from tests.test_automation_core import async_test, action, until
 from tests.test_job_final_http_service import h
+from tests.test_job_automatic_recovery import env
 from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
 from tests.test_retirement_rev16_behavior import h as canonical_h  # noqa: F401
 
@@ -378,48 +379,192 @@ def test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore(h, mutatio
     asyncio.run(scenario())
 
 
-@async_test
-async def test_cancel_exception_shutdown_and_recovery_remove_snapshots(tmp_path):
-    for mode in ('cancel','error','shutdown','crash'):
-        entered=asyncio.Event();calls=[]
-        async def pause(*args):
-            calls.append(1);entered.set()
-            if mode=='error':raise ValueError('owned failure')
-            await asyncio.Event().wait()
-        rt,_=await setup(tmp_path/mode,pause);job=rt.create(config(),True)
-        try:
-            if mode=='crash':
-                admitted=rt.claim(job['jobId'],'jexec_crash',1)
-                rt.templates.snapshot(admitted,admitted['execution'])
-                rt.closed=True;RUNTIMES.pop(str(rt.root));rt.ownership.release();rt.owned=False
-                rt=Runtime(rt.root,rt.actions,pause);await rt.start()
-                expected='uncertain'
-            else:
-                await rt.launch(job['jobId'],1);await asyncio.wait_for(entered.wait(),2)
-                if mode=='cancel':await rt.cancel(job['jobId'],1);expected='cancelled'
-                elif mode=='shutdown':await rt.close();expected='uncertain'
-                else:expected='failed'
-            await finished(rt,job['jobId'],expected)
-            assert not rt.actions.read().get('jobExecutions')
-            record=jobs.list_run_records(registry_root=rt.root)[0]
-            assert record['status']==expected and 'definition' not in record['result']
-        finally:await rt.close()
-
-
-@async_test
-async def test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only(tmp_path,monkeypatch):
-    rt,calls=await setup(tmp_path);job=rt.create(config(),True);original=rt.templates.clear_snapshot
-    def fail(*args):raise OSError('injected snapshot cleanup failure')
-    monkeypatch.setattr(rt.templates,'clear_snapshot',fail)
+@pytest.mark.parametrize('mode', ['cancel', 'error', 'exception', 'shutdown', 'crash'])
+def test_cancel_exception_shutdown_and_recovery_remove_snapshots(h, tmp_path, mode):
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    from tests.test_action_unification_p4 import plans
+    from packages.jobs.final_service import FinalService
+    from packages.jobs.final_contracts import ContractError
+    cfg = job_def(h)
+    marker = tmp_path / 'cancelled-effect'
+    if mode == 'cancel':
+        from tests.test_action_unification_p2 import install, py
+        install(h)
+        args = py(tmp_path, "from pathlib import Path;import time;Path('cancelled-effect').open('a').write('once\\n');time.sleep(30)")
+        cfg['steps'] = [{'stepId':'owned', 'actionRef':h.action,
+            'arguments':{key:{'from':'literal','value':value} for key,value in args.items()},
+            'completion':{'contract':'process-exit'}}]
+    job = enabled(h, cfg)
+    rid = launch(h, job, 'terminal-mode-' + mode)['runId']
+    frozen = copy.deepcopy(plans(h, job['id'])[rid]['frozen'])
+    if mode in {'error', 'exception'}:
+        class DeclaredRejection(Exception):
+            outcome = 'rejected'
+            code = 'owned_provider_rejected'
+        async def reject(session_id, text, **kwargs):
+            h.provider.calls.append((text, copy.deepcopy(kwargs['effect_key'])))
+            if mode == 'error':
+                raise DeclaredRejection('owned explicit rejection')
+            raise ValueError('owned ambiguous provider failure')
+        h.provider.send_session = reject
+        asyncio.run(h.service.dispatch_once())
+        expected = 'failed' if mode == 'error' else 'uncertain'
+        current_service = h.service
+    elif mode == 'cancel':
+        async def cancel_owned():
+            task = asyncio.create_task(h.service.dispatch_once())
+            try:
+                async with asyncio.timeout(5):
+                    while not marker.exists():
+                        await asyncio.sleep(.01)
+                run = h.service.get_run(rid, actor=USER)
+                receipt = await h.service.control_run_postcommit(rid, {'operation':'cancel',
+                    'expectedStateRevision':run['stateRevision'], 'requestKey':'cancel-owned-mode'}, actor=USER)
+                await asyncio.wait_for(task, 5)
+                assert h.service.operation(receipt['operationId'], actor=USER)['status'] == 'completed'
+            finally:
+                if not task.done():
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+        asyncio.run(cancel_owned())
+        assert marker.read_text().splitlines() == ['once']
+        expected, current_service = 'cancelled', h.service
+    else:
+        if mode == 'crash':
+            with h.service.transaction() as db:
+                stored = h.service._get(db, 'job', job['id'])
+                ledger = h.service.final.ledger
+                ledger.start(stored, h.root, rid)
+                attempt = ledger.begin_attempt(stored, h.root, rid, 's0')
+                ledger.admit_effect(stored, h.root, attempt['attemptId'], h.action['id'])
+                h.service._save(db, 'job', job['id'], stored)
+            asyncio.run(h.service.close())
+        else:
+            async def shutdown():
+                entered = asyncio.Event()
+                async def waiting(session_id, text, **kwargs):
+                    h.provider.calls.append((text, copy.deepcopy(kwargs['effect_key'])))
+                    entered.set()
+                    await asyncio.Event().wait()
+                h.provider.send_session = waiting
+                task = asyncio.create_task(h.service.dispatch_once())
+                try:
+                    await asyncio.wait_for(entered.wait(), 3)
+                    await h.service.close()
+                    task.cancel()
+                    with pytest.raises(ContractError) as stopped:
+                        await task
+                    assert stopped.value.code == 'provider_unavailable'
+                finally:
+                    if not task.done():
+                        task.cancel()
+                        await asyncio.gather(task, return_exceptions=True)
+            asyncio.run(shutdown())
+        current_service = FinalService(h.root, h.automation.auth, executor=h.service.executor)
+        owner = current_service.owner.status()
+        if owner is not None:
+            current_service.owner.claim(owner['epoch'])
+        current_service.recover()
+        expected = 'uncertain'
     try:
-        await rt.launch(job['jobId'],1);await rt.tasks[job['jobId']]
-        pending=rt.get(job['jobId'])
-        assert pending['status']=='cleaning' and pending['executionFinalization']['status']=='completed'
-        assert rt.actions.read()['jobExecutions'] and rt.diagnostics[-1]['phase']=='cleanup'
-        monkeypatch.setattr(rt.templates,'clear_snapshot',original)
-        await rt.tick({'enabled':False});done=await finished(rt,job['jobId'])
-        assert calls==['selected'] and not rt.actions.read()['jobExecutions'] and done['runCount']==1
-    finally:monkeypatch.setattr(rt.templates,'clear_snapshot',original);await rt.close()
+        state = current_service.final.get(job['id'])
+        assert state['runs'][rid]['state'] == expected
+        assert len(state['attempts']) == len(state['effects']) == 1
+        assert not Store().read().get('jobExecutions')
+        # Canonical frozen history remains private audit evidence until explicit
+        # retention. No retired ephemeral snapshot writer is reintroduced.
+        with current_service.transaction(readonly=True) as db:
+            from packages.jobs.final_runtime.ledger import aggregate
+            private = aggregate(current_service._get(db, 'job', job['id']), h.root)
+            assert private['plans'][rid]['frozen'] == frozen
+        public = current_service.get_run(rid, actor=USER)
+        assert not {'plans','frozen','definition'} & set(public)
+        if mode == 'cancel':
+            assert state['effects'][0]['receipt']['cleanupProof']['confirmed'] is True
+        if mode == 'exception':
+            assert state['effects'][0]['outcome'] == 'unknown'
+            assert state['effects'][0]['receipt']['receipt']['code'] == 'provider_exception'
+        calls = copy.deepcopy(h.provider.calls)
+        for _ in range(2):
+            asyncio.run(current_service.dispatch_once())
+        assert current_service.final.get(job['id']) == state and h.provider.calls == calls
+    finally:
+        if current_service is not h.service:
+            asyncio.run(current_service.close())
+
+
+def test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only(env, monkeypatch):
+    import time
+    from tests.test_job_automatic_recovery import create, job_definition, state, USER
+    from packages.jobs.independent_executor import ExecutionStore, fence
+    marker = env.tmp / 'cleanup-effect'
+    value = job_definition(env, recovery={'automatic':False}, code=
+        f'from pathlib import Path; import time; Path({str(marker)!r}).open("a").write("once\\n"); time.sleep(30)')
+    jid, rid = create(env, value)
+    asyncio.run(env.service.dispatch_once())
+    deadline = time.monotonic() + 12
+    while not marker.exists():
+        assert time.monotonic() < deadline
+        time.sleep(.025)
+    before = state(env, jid)
+    original_attempt, = before['attempts'].values()
+    store = ExecutionStore(env.root / 'executions')
+    with store.connect() as db:
+        import json
+        native, = [json.loads(row[0]) for row in db.execute('SELECT document FROM executions')]
+    assert fence(native['attempt']) == fence(original_attempt) and native['result'] is None
+    factory = env.service._external_adapter
+    failed_calls, cleanup_calls = [], []
+    def unavailable(identity):
+        adapter = factory(identity)
+        async def fail(**kwargs):
+            failed_calls.append(copy.deepcopy(kwargs))
+            raise OSError('owned cleanup response unknown')
+        adapter.cleanup_execution = fail
+        return adapter
+    monkeypatch.setattr(env.service, '_external_adapter', unavailable)
+    body = {'operation':'cancel', 'expectedStateRevision':before['runs'][rid]['stateRevision'], 'requestKey':'cleanup-unknown'}
+    response = env.client.post('/api/job-runs/' + rid + '/operations', json=body)
+    assert response.status_code == 202, response.text
+    operation = response.json()['operationId']
+    receipt = env.service.operation(operation, actor=USER)
+    assert receipt['status'] == 'unknown' and receipt['error']['code'] == 'reconciliation_required'
+    assert state(env, jid)['runs'][rid]['state'] == 'cancelling'
+    for _ in range(2):
+        asyncio.run(env.service.dispatch_once())
+    replay = env.client.post('/api/job-runs/' + rid + '/operations', json=body)
+    assert replay.status_code == 202 and replay.json()['operationId'] == operation
+    assert len(failed_calls) == 1
+    assert store.get(native['effectId']) == native and marker.read_text().splitlines() == ['once']
+    def available(identity):
+        adapter = factory(identity)
+        cleanup = adapter.cleanup_execution
+        async def confirmed(**kwargs):
+            cleanup_calls.append(copy.deepcopy(kwargs))
+            return await cleanup(**kwargs)
+        adapter.cleanup_execution = confirmed
+        return adapter
+    monkeypatch.setattr(env.service, '_external_adapter', available)
+    current = state(env, jid)['runs'][rid]
+    retried = env.client.post('/api/job-runs/' + rid + '/operations', json={
+        'operation':'cancel', 'expectedStateRevision':current['stateRevision'], 'requestKey':'explicit-cleanup-recheck'})
+    assert retried.status_code == 202, retried.text
+    deadline = time.monotonic() + 15
+    while state(env, jid)['runs'][rid]['state'] != 'cancelled':
+        assert time.monotonic() < deadline
+        asyncio.run(env.service.dispatch_once())
+        time.sleep(.025)
+    done = state(env, jid)
+    final_attempt, = done['attempts'].values()
+    effect, = done['effects']
+    assert fence(final_attempt) == fence(original_attempt)
+    assert effect['effectKey'] == native['effectKey'] and effect['attemptId'] == original_attempt['attemptId']
+    assert effect['receipt']['cleanupProof']['confirmed'] is True
+    assert len(cleanup_calls) == 1 and marker.read_text().splitlines() == ['once']
+    assert env.service.operation(retried.json()['operationId'], actor=USER)['status'] == 'completed'
+    for _ in range(2):
+        asyncio.run(env.service.dispatch_once())
+    assert state(env, jid)['effects'] == [effect] and marker.read_text().splitlines() == ['once']
 
 
 def test_snapshot_io_does_not_hold_job_registry_or_block_event_loop(h, monkeypatch, tmp_path):
@@ -469,41 +614,132 @@ def test_snapshot_io_does_not_hold_job_registry_or_block_event_loop(h, monkeypat
 
 
 
-@async_test
-async def test_snapshot_write_or_post_effect_checkpoint_failure_never_replays(tmp_path,monkeypatch):
-    import packages.actions.store as module
-    original=module.atomic
-    for mode in ('snapshot','checkpoint'):
-        rt,calls=await setup(tmp_path/mode);job=rt.create(config(),True)
-        def atomic(path,state):
-            snapshots=state.get('jobExecutions',{})
-            bad=bool(snapshots) if mode=='snapshot' else any(s['checkpoint'].get('targetResults') for s in snapshots.values())
-            if bad:raise OSError('injected '+mode+' persistence failure')
-            return original(path,state)
-        monkeypatch.setattr(module,'atomic',atomic)
-        try:
-            await rt.launch(job['jobId'],1)
-            done=await finished(rt,job['jobId'],'failed' if mode=='snapshot' else 'uncertain')
-            assert not rt.actions.read().get('jobExecutions')
-            assert calls==([] if mode=='snapshot' else ['selected'])
-            if mode=='checkpoint':assert not done['enabled']
-        finally:monkeypatch.setattr(module,'atomic',original);await rt.close()
-
-
-@async_test
-async def test_terminal_job_write_failure_after_cleanup_recovers_same_run_once(tmp_path,monkeypatch):
-    rt,calls=await setup(tmp_path);job=rt.create(config(),True);original=jobs._write_job
-    def write(path,value,**kwargs):
-        if value.get('lastExecution') and not value.get('execution'):raise OSError('injected terminal Job write failure')
-        return original(path,value,**kwargs)
-    monkeypatch.setattr(jobs,'_write_job',write)
+@pytest.mark.parametrize('mode', ['snapshot', 'checkpoint'])
+def test_snapshot_write_or_post_effect_checkpoint_failure_never_replays(h, monkeypatch, mode):
+    from packages.jobs.final_service import FinalService
+    from packages.jobs.final_runtime.ledger import aggregate
+    from tests.test_job_final_http_service import USER, control
+    from tests.test_action_groups import canonical_state
+    template, _, _ = canonical_fixed_template(h, key='persistence')
+    copied = h.service.instantiate_template(template['id'], {'expectedRevision':template['revision'],
+        'requestKey':'persistence-copy'}, actor=USER)
+    jid = copied['result']['objectIds']['job']
+    child = h.service.get('job', jid, actor=USER)
+    enabled = control(h, 'jobs', child, 'enable', 'enable-persistence-copy')
+    assert enabled.status_code == 200, enabled.text
+    child = enabled.json()['result']['object']
+    original = h.service._save
+    failed = False
+    def save(db, kind, identity, value):
+        nonlocal failed
+        original(db, kind, identity, value)
+        if kind == 'job' and identity == jid and not failed:
+            state = aggregate(value, h.root)
+            if (mode == 'snapshot' and state['plans'] or mode == 'checkpoint' and state['effects']):
+                failed = True
+                raise OSError('injected ' + mode + ' persistence failure')
+    monkeypatch.setattr(h.service, '_save', save)
+    before = canonical_state(h.service)
+    response = h.client.post('/api/jobs/' + jid + '/runs', json={
+        'expectedRevision':child['configRevision'], 'requestKey':'persistence-run',
+        'input':{}, 'cause':{'type':'manual'}})
+    if mode == 'snapshot':
+        assert failed and response.status_code == 503
+        assert response.json()['error']['code'] == 'storage_unavailable'
+        assert canonical_state(h.service) == before and h.service.final.runs(jid) == []
+        assert h.provider.calls == []
+        return
+    assert response.status_code == 202, response.text
+    rid = response.json()['runId']
+    with pytest.raises(OSError, match='injected checkpoint persistence failure'):
+        asyncio.run(h.service.dispatch_once())
+    assert failed and len(h.provider.calls) == 1
+    pending = h.service.final.get(jid)
+    assert len(pending['attempts']) == 1 and pending['effects'] == []
+    asyncio.run(h.service.close())
+    cold = FinalService(h.root, h.automation.auth, executor=h.service.executor)
     try:
-        await rt.launch(job['jobId'],1);await rt.tasks[job['jobId']]
-        assert rt.get(job['jobId'])['status']=='cleaning' and not rt.actions.read()['jobExecutions']
-        monkeypatch.setattr(jobs,'_write_job',original)
-        await rt.tick({'enabled':False});await finished(rt,job['jobId'])
-        assert calls==['selected'] and len(jobs.list_run_records(registry_root=rt.root))==1
-    finally:monkeypatch.setattr(jobs,'_write_job',original);await rt.close()
+        cold.owner.claim(cold.owner.status()['epoch'])
+        cold.recover()
+        preserved = cold.final.get(jid)
+        assert preserved['runs'][rid]['state'] == 'uncertain'
+        attempt, = preserved['attempts'].values()
+        effect, = preserved['effects']
+        assert attempt['state'] == 'uncertain' and effect['outcome'] == 'unknown'
+        assert effect['attemptId'] == attempt['attemptId']
+        for _ in range(2):
+            asyncio.run(cold.dispatch_once())
+        assert cold.final.get(jid) == preserved and len(h.provider.calls) == 1
+        assert not Store().read().get('jobExecutions')
+    finally:
+        asyncio.run(cold.close())
+
+
+def test_terminal_job_write_failure_after_cleanup_recovers_same_run_once(env, monkeypatch):
+    import sys
+    import time
+    from packages.jobs.final_service import FinalService
+    from tests.test_job_automatic_recovery import create, job_definition, state, USER
+    from packages.jobs.final_runtime.ledger import aggregate
+    marker = env.tmp / 'terminal-effect'
+    value = job_definition(env, recovery={'automatic':False}, code=
+        f'from pathlib import Path; Path({str(marker)!r}).open("a").write("one\\n")')
+    jid, rid = create(env, value)
+    save = env.service._save
+    failed = False
+    def fault(db, kind, identity, item):
+        nonlocal failed
+        save(db, kind, identity, item)
+        if kind == 'job' and identity == jid and aggregate(item, env.root)['runs'][rid]['state'] == 'completed':
+            failed = True
+            raise OSError('injected terminal Job write failure')
+    monkeypatch.setattr(env.service, '_save', fault)
+    async def drive_to_fault():
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            try:
+                await env.service.dispatch_once()
+            except OSError as exc:
+                assert str(exc) == 'injected terminal Job write failure'
+                return
+            await asyncio.sleep(.025)
+        pytest.fail('terminal persistence fault was never reached')
+    asyncio.run(drive_to_fault())
+    assert failed and marker.read_text().splitlines() == ['one']
+    pending = copy.deepcopy(env.service.final.store.get(jid)['finalRuntime'])
+    assert pending['runs'][rid]['state'] != 'completed'
+    assert len(pending['attempts']) == 1 and pending['effects'] == []
+    original_attempt, = pending['attempts'].values()
+    admission, = pending['effectAdmissions'].values()
+    from packages.jobs.independent_executor import ExecutionStore, effect_id, fence
+    external = ExecutionStore(env.root / 'executions').get(effect_id(admission['effectKey']))
+    original_receipt = external['result']
+    assert original_receipt['outcome'] == 'succeeded'
+    assert original_receipt['cleanupProof']['confirmed'] is True
+    assert fence(external['attempt']) == fence(original_attempt)
+    monkeypatch.setattr(env.service, '_save', save)
+    asyncio.run(env.service.close())
+    cold = FinalService(env.root, env.auth)
+    try:
+        status = cold.owner.status()
+        if status is not None:
+            cold.owner.claim(status['epoch'])
+        cold.recover()
+        asyncio.run(cold.dispatch_once())
+        done = cold.final.get(jid)
+        assert set(done['runs']) == {rid} and done['runs'][rid]['state'] == 'completed'
+        finished_attempt, = done['attempts'].values()
+        assert fence(finished_attempt) == fence(original_attempt) and finished_attempt['state'] == 'succeeded'
+        original_effect, = done['effects']
+        assert original_effect['effectKey'] == admission['effectKey'] and original_effect['outcome'] == 'succeeded'
+        assert original_effect['receipt'] == original_receipt
+        assert marker.read_text().splitlines() == ['one']
+        assert len(done['outbox']) == 1
+        asyncio.run(cold.dispatch_once())
+        assert cold.final.get(jid)['effects'] == [original_effect]
+        assert marker.read_text().splitlines() == ['one']
+    finally:
+        asyncio.run(cold.close())
 
 
 def test_fixed_template_action_capability_idempotence_and_group_gate(h):
@@ -740,56 +976,117 @@ def test_api_permissions_unknown_fields_legacy_aliases_and_repair(h):
     assert len(h.service.list('job', actor=USER)['items']) == 2
 
 
-@async_test
-async def test_reference_replacement_failed_publication_protects_old_and_new(tmp_path,monkeypatch):
-    rt,_=await setup(tmp_path)
-    entered=threading.Event();release=threading.Event();original=jobs._write_job
-    try:
-        other={**action(),'id':'other'};rt.actions.put('actions',other)
-        job=rt.create(config(),True);jid=job['jobId']
-        def blocked(path,value):
-            if value.get('jobId')==jid and value.get('configRevision')==2:
-                entered.set();assert release.wait(3);raise OSError('replacement commit failed')
-            return original(path,value)
-        monkeypatch.setattr(jobs,'_write_job',blocked)
-        update=asyncio.create_task(asyncio.to_thread(rt.update,jid,{**config(),'actionId':'other'},1,True))
-        assert await asyncio.to_thread(entered.wait,2)
-        from packages.jobs.action_templates import references
-        assert references(rt.actions.read(),'pause') and references(rt.actions.read(),'other')
-        with pytest.raises(PermissionError):rt.actions.delete('actions','pause')
-        # Deleting the old definition must not wait for the Job file writer.
-        await asyncio.wait_for(asyncio.to_thread(rt.actions.delete,'actions','pause',authorized=True,confirm_references=True),1)
-        release.set()
-        with pytest.raises(OSError,match='replacement'):await update
-        assert rt.get(jid)['config']['actionId']=='pause'
-        assert rt.view(rt.get(jid))['integrity']['status']=='incomplete'
-        monkeypatch.setattr(jobs,'_write_job',original)
-        await rt.close()
-        fresh=Runtime(rt.root,rt.actions,rt.pause);await fresh.start()
+def test_reference_replacement_failed_publication_protects_old_and_new(h, monkeypatch):
+    from contextlib import contextmanager
+    from packages.jobs.final_service import FinalService, definition, object_ref
+    from tests.test_job_final_http_service import enabled, job_def, USER
+    cfg = job_def(h)
+    job = enabled(h, cfg)
+    old = h.service.get('action', h.action['id'], actor=USER)
+    replacement = h.service.publish_action('replacement_fault_action', definition('action', old))
+    changed = copy.deepcopy(cfg)
+    changed['steps'][0]['actionRef'] = object_ref('action', replacement)
+    entered, release, retire_waiting = threading.Event(), threading.Event(), threading.Event()
+    save, writer = h.service._save, h.service.owner.writer
+    retiring = []
+    observed = []
+    def blocked(db, kind, identity, value):
+        save(db, kind, identity, value)
+        if kind == 'job' and identity == job['id'] and value['configRevision'] == 2:
+            observed.append(copy.deepcopy(h.service._get(db, 'job', identity)['canonical']['steps']))
+            entered.set()
+            assert release.wait(4), 'reference replacement barrier timed out'
+            raise OSError('replacement commit failed')
+    @contextmanager
+    def fenced(*args, **kwargs):
+        if retiring and threading.get_ident() == retiring[0]:
+            retire_waiting.set()
+        with writer(*args, **kwargs):
+            yield
+    monkeypatch.setattr(h.service, '_save', blocked)
+    monkeypatch.setattr(h.service.owner, 'writer', fenced)
+    def retire():
+        retiring.append(threading.get_ident())
+        return h.service.control('action', old['id'], {'operation':'retire',
+            'expectedRevision':old['revision'], 'expectedStateRevision':old['stateRevision'],
+            'parameters':{}, 'requestKey':'retire-after-reference-rollback'}, actor=USER)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        update = pool.submit(h.service.write, 'job', job['id'], {'definition':changed,
+            'expectedRevision':job['configRevision'], 'requestKey':'replacement-fault'}, actor=USER)
         try:
-            assert references(fresh.actions.read(),'pause')
-            assert not references(fresh.actions.read(),'other')
-        finally:await fresh.close()
-    finally:release.set();await rt.close()
-
-
-@async_test
-async def test_cancel_while_snapshot_commit_inflight_settles_before_cleanup(tmp_path,monkeypatch):
-    rt,calls=await setup(tmp_path);entered=threading.Event();release=threading.Event()
-    original=rt.templates.snapshot
-    def blocked(*args):
-        entered.set();assert release.wait(3)
-        return original(*args)
-    monkeypatch.setattr(rt.templates,'snapshot',blocked)
+            assert entered.wait(3)
+            deletion = pool.submit(retire)
+            assert retire_waiting.wait(3)
+            assert not deletion.done(), 'source retirement bypassed the canonical writer'
+        finally:
+            release.set()
+        with pytest.raises(OSError, match='replacement commit failed'):
+            update.result(timeout=4)
+        assert deletion.result(timeout=4)['result']['object']['state'] == 'retired'
+    assert observed == [changed['steps']]
+    cold = FinalService(h.root, h.automation.auth)
     try:
-        job=rt.create(config(),True);await rt.launch(job['jobId'],1)
-        assert await asyncio.to_thread(entered.wait,2)
-        cancel=asyncio.create_task(rt.cancel(job['jobId'],1))
-        await asyncio.sleep(0);assert not cancel.done()
-        release.set();await cancel
-        assert not calls and not rt.actions.read().get('jobExecutions')
-        assert rt.get(job['jobId'])['lastExecution']['status']=='cancelled'
-    finally:release.set();await rt.close()
+        current = cold.get('job', job['id'], actor=USER)
+        assert current == job and current['steps'] == cfg['steps'] and current['configRevision'] == 1
+        assert not any(step['actionRef'] == object_ref('action', replacement) for step in current['steps'])
+        with pytest.raises(KeyError):
+            cold.operation_for_key('update', 'replacement-fault', actor=USER)
+        assert cold.get('action', replacement['id'], actor=USER) == replacement
+        assert cold.final.runs(job['id']) == [] and h.provider.calls == []
+    finally:
+        asyncio.run(cold.close())
+
+
+def test_cancel_while_snapshot_commit_inflight_settles_before_cleanup(h, monkeypatch):
+    from contextlib import contextmanager
+    from tests.test_job_final_http_service import enabled, USER
+    from packages.jobs.final_runtime.ledger import aggregate
+    job = enabled(h)
+    entered, release, cancel_waiting = threading.Event(), threading.Event(), threading.Event()
+    save, writer = h.service._save, h.service.owner.writer
+    cancelling, ids = [], []
+    def blocked(db, kind, identity, value):
+        if kind == 'job' and identity == job['id']:
+            state = aggregate(value, h.root)
+            if state['plans'] and not state.get('cancellations') and not entered.is_set():
+                ids.extend(state['plans'])
+                entered.set()
+                assert release.wait(4), 'snapshot admission barrier timed out'
+        return save(db, kind, identity, value)
+    @contextmanager
+    def fenced(*args, **kwargs):
+        if cancelling and threading.get_ident() == cancelling[0]:
+            cancel_waiting.set()
+        with writer(*args, **kwargs):
+            yield
+    monkeypatch.setattr(h.service, '_save', blocked)
+    monkeypatch.setattr(h.service.owner, 'writer', fenced)
+    def cancel():
+        cancelling.append(threading.get_ident())
+        return h.service.control_run(ids[0], {'operation':'cancel', 'expectedStateRevision':0,
+            'requestKey':'cancel-inflight-snapshot'}, actor=USER)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        creation = pool.submit(h.service.create_run, job['id'], {'expectedRevision':job['configRevision'],
+            'input':{}, 'cause':{'type':'manual'}, 'requestKey':'inflight-snapshot'}, actor=USER)
+        try:
+            assert entered.wait(3) and len(ids) == 1
+            cancellation = pool.submit(cancel)
+            assert cancel_waiting.wait(3)
+            assert not cancellation.done(), 'cancellation bypassed the uncommitted admission'
+            assert h.provider.calls == []
+        finally:
+            release.set()
+        admitted = creation.result(timeout=4)
+        receipt = cancellation.result(timeout=4)
+    assert admitted['runId'] == ids[0] and receipt['runId'] == ids[0]
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][ids[0]]['state'] == 'cancelled'
+    assert state['attempts'] == {} and state['effects'] == [] and h.provider.calls == []
+    assert h.service.operation(receipt['operationId'], actor=USER)['status'] == 'completed'
+    assert not Store().read().get('jobExecutions')
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == state
 
 
 def test_close_during_claim_never_starts_effect(h, monkeypatch):
