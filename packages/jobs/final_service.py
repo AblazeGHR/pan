@@ -1597,6 +1597,37 @@ class FinalService:
         self._permit(actor, "job", "read")
         return result
 
+    def _admission_order(self, db, job, rows):
+        """Read original receipt insertion order; random IDs never imply age.
+
+        Operation rows and the Run plan are committed by one owner transaction.
+        Updates preserve their rowids, and retention keeps these same receipts.
+        No new sequence, metadata writer or ledger is introduced here.
+        """
+        state = aggregate(job, self.root)
+        operation_ids = {rid: state.get('plans', {}).get(rid, {}).get('operationId')
+                         for rid in state['runs']}
+        ids = list({identity for identity in operation_ids.values() if identity})
+        receipts = {}
+        if ids:
+            for ordinal, identity, raw in db.execute(
+                    'SELECT rowid,id,document FROM final_operations WHERE id IN '
+                    '(SELECT value FROM json_each(?))', (fc.canonical_json(ids),)):
+                record = json.loads(raw)
+                if record.get('kind') == 'job' and record.get('operation') in {'create', 'run-again', 'clone-and-run'}:
+                    receipts[identity] = (ordinal, record.get('response', {}).get('runId'))
+        ordinals = {}
+        for rid, identity in operation_ids.items():
+            original = receipts.get(identity)
+            if original is not None and original[1] == rid:
+                ordinals[rid] = original[0]
+        if all(row['runId'] in ordinals for row in rows):
+            return sorted(rows, key=lambda row: ordinals[row['runId']]), True
+        # Historical missing receipts cannot prove which equal-time admission
+        # was newest. Stable listing is still possible; callers must preserve
+        # unknown when choosing a latest state from an ambiguous timestamp.
+        return sorted(rows, key=lambda row: (row['createdAt'], row['runId'])), False
+
     def runs(self, job_id, *, actor, cursor=None, limit=100):
         self._permit(actor, "job", "read")
         with self.transaction(readonly=True) as db:
@@ -1605,6 +1636,7 @@ class FinalService:
             if job is None:
                 raise KeyError(job_id)
             rows = [self._run_notification_projection(job, row) for row in self.final.runs(job_id)]
+            rows, _ = self._admission_order(db, job, rows)
         return self._page(rows, "runs:" + job_id, cursor, limit, actor)
 
     @staticmethod
@@ -1923,10 +1955,16 @@ class FinalService:
         args = {key: copy.deepcopy(value.get("value")) for key, value in step.get("arguments", {}).items()
                 if isinstance(value, dict) and value.get("from") == "literal"}
         runs = self.runs(job_id, actor=actor).get("items", [])
-        latest = runs[-1] if runs else None
+        # A page is bounded and stored maps sort random IDs. Select the latest
+        # admission from the original aggregate, including beyond page one.
+        with self.transaction(readonly=True) as db:
+            stored = self._get(db, 'job', job_id)
+            ordered, proven = self._admission_order(db, stored, list(aggregate(stored, self.root)['runs'].values()))
+        latest = ordered[-1] if ordered else None
         status = item.get("state", "draft")
         if latest:
-            status = latest.get("state", status)
+            ambiguous = not proven and sum(row['createdAt'] == latest['createdAt'] for row in ordered) > 1
+            status = 'uncertain' if ambiguous else latest.get('state', status)
         return {"jobId": job_id, "kind": "background-process", "executionOwner": "final-service",
                 "status": status, "argv": args.get("argv", []), "cwd": args.get("cwd"),
                 "hideWindow": args.get("hideWindow", True), "name": item.get("name"),
