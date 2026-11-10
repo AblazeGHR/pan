@@ -5,6 +5,7 @@ import pytest
 from packages.actions.store import Store
 from packages.jobs.action_templates import config_value
 from tests.test_automation_core import action
+from tests.test_job_final_http_service import h, create, control, job_def
 
 
 def base(store=None):
@@ -40,16 +41,25 @@ def test_event_query_is_structured_and_bounded(tmp_path):
     raw['trigger']['eventTypes']=['workers.all_idle']
     assert config_value(raw,state())['trigger']['kind']=='event'
 
-def test_attempt_audit_is_persisted_and_terminal_summary_is_non_executable(tmp_path):
-    from tests.support.canonical_host import build, USER
+def test_attempt_audit_is_persisted_and_terminal_summary_is_non_executable(h):
     import asyncio
-    h = build(tmp_path)
-    try:
-        assert h.service.list('job', actor=USER)['items'] == []
-        with h.service.transaction(readonly=True) as db:
-            assert db.execute("SELECT COUNT(*) FROM final_operations").fetchone()[0] == 0
-    finally:
-        asyncio.run(h.service.close()); asyncio.run(h.automation.close())
+    job = create(h)
+    enabled = control(h, 'jobs', job, 'enable')
+    assert enabled.status_code == 200, enabled.text
+    job = enabled.json()['result']['object']
+    response = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+        'expectedRevision': job['configRevision'], 'requestKey': 'unified-audit-run',
+        'input': {}, 'cause': {'type': 'manual'}})
+    assert response.status_code == 202, response.text
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'] and state['attempts'] and state['effects']
+    run = next(iter(state['runs'].values()))
+    attempt = next(iter(state['attempts'].values()))
+    effect = state['effects'][0]
+    assert attempt['runId'] == run['runId'] and effect['attemptId'] == attempt['attemptId']
+    assert effect['effectKey']['runId'] == run['runId']
+    assert 'execution' not in state
 
 from packages.jobs.unified import project
 
@@ -70,11 +80,9 @@ import asyncio
 from packages.jobs.action_runtime import Runtime
 from tests.test_automation_core import until
 
-def test_monitoring_without_signal_enters_restarting(tmp_path):
-    from tests.support.canonical_host import build, USER
-    import asyncio
-    h = build(tmp_path)
-    try:
-        assert h.service.list('job', actor=USER)['items'] == []
-    finally:
-        asyncio.run(h.service.close()); asyncio.run(h.automation.close())
+def test_monitoring_without_signal_enters_restarting(h):
+    job = create(h)
+    enabled = control(h, 'jobs', job, 'enable')
+    assert enabled.status_code == 200, enabled.text
+    state = h.service.final.get(job['id'])
+    assert state['runs'] == {} and state['attempts'] == {} and state['effects'] == []
