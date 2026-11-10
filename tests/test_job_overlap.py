@@ -65,6 +65,41 @@ def test_parallel_claim_bound_independent_jobs_and_terminal_cleanup(h):
     asyncio.run(run())
 
 
+def test_close_while_admission_waits_for_writer_is_zero_write(h, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from contextlib import contextmanager
+    import threading
+    from packages.jobs.final_contracts import ContractError
+    from tests.test_job_final_http_service import enabled, USER
+    from tests.test_action_groups import canonical_state
+    job = enabled(h)
+    before = canonical_state(h.service)
+    entered, proceed = threading.Event(), threading.Event()
+    original = h.service.owner.writer
+    @contextmanager
+    def blocked_writer(*args, **kwargs):
+        entered.set()
+        assert proceed.wait(4), 'writer admission barrier timed out'
+        with original(*args, **kwargs):
+            yield
+    monkeypatch.setattr(h.service.owner, 'writer', blocked_writer)
+    def admit():
+        return h.service.create_run(job['id'], {'expectedRevision': job['configRevision'],
+            'requestKey': 'close-waiting-writer', 'input': {}, 'cause': {'type': 'manual'}}, actor=USER)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(admit)
+        try:
+            assert entered.wait(3), 'write transaction never reached owner barrier'
+            asyncio.run(h.service.close())
+        finally:
+            proceed.set()
+        with pytest.raises(ContractError) as stopped:
+            pending.result(timeout=4)
+    assert stopped.value.code == 'provider_unavailable'
+    assert canonical_state(h.service) == before
+    assert h.service.final.get(job['id'])['runs'] == {} and h.provider.calls == []
+
+
 def test_queue_is_persistent_bounded_and_disable_cancels_waiting(tmp_path):
     async def run():
         release=asyncio.Event();entered=asyncio.Event()

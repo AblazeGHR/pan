@@ -278,6 +278,8 @@ class FinalService:
             changes = self._change_local.pending
             try:
                 with self.owner.writer(canonical=True), self.creators.transaction() as db:
+                    if self.closed:
+                        error('provider_unavailable', 'Canonical service is closed')
                     yield db
                     if outer and changes:
                         committed = copy.deepcopy(changes)
