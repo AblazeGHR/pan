@@ -3445,6 +3445,7 @@ LEGACY_MCP_COMPATIBILITY = {
     "agent_background_retry": "old retry creates a legacy Job identity; canonical retry requires an original Run/Step/effect and owner fence",
     "agent_message_job_create": "old message backlog/schedule envelope lacks a canonical Creator/Trigger reference and source admission envelope",
     "agent_message_job_update": "old message Job update mutates legacy schedule state; canonical definitions are immutable/CAS-bound",
+    "agent_background_cancel": "old cancel path has no canonical Run/Attempt/effect receipt; use job_run_cancel with the original Run identity",
 }
 
 LEGACY_MCP_GUIDANCE = {
@@ -3452,6 +3453,7 @@ LEGACY_MCP_GUIDANCE = {
     "agent_background_retry": "job_run_get(original run_id) -> job_run_retry(original run_id, expected_state_revision, request_key); unknown/partial: query original, do not replay",
     "agent_message_job_create": "job_create(definition, request_key) with immutable Session Action ref; event_creator_create + trigger_create for scheduling, or job_template_create for a complete composition",
     "agent_message_job_update": "job_get -> job_update(object_id, definition, expected_revision, request_key); edit schedule via event_creator_update with its own revision",
+    "agent_background_cancel": "job_run_get(original run_id) -> job_run_cancel(original run_id, expected_state_revision, request_key); unknown: query original, do not replay",
 }
 
 
