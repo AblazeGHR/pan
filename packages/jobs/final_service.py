@@ -266,6 +266,8 @@ class FinalService:
 
     @contextmanager
     def transaction(self, *, readonly=False):
+        if not readonly and self.closed:
+            error('provider_unavailable', 'Canonical service is closed')
         if readonly:
             with self.creators.connection(readonly=True) as db:
                 yield db
