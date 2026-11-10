@@ -143,18 +143,40 @@ def test_reduce_parallel_limit_rechecks_claim_after_reference_validation(tmp_pat
     assert current['config']['overlap']['parallelLimit']==3
 
 
-def test_parallel_out_of_order_failure_confirmation_preserves_selected_run(tmp_path):
-    store=Store(tmp_path/'actions');store.put('actions',action())
-    rt=Runtime(tmp_path/'jobs',store,None)
-    cfg={'name':'ordered confirmation','actionId':'pause','arguments':{},'enabled':True,
-         'schedule':[{'kind':'interval','intervalSec':60}], 'overlap':{'mode':'parallel','parallelLimit':2}}
-    job=rt.create(cfg,True)
-    first=rt.claim(job['jobId'],'first',1)
-    second=rt.claim(job['jobId'],'second',1)
-    rt.finalize(job['jobId'],'second','completed')
-    rt.finalize(job['jobId'],'first','failed')
-    reservation=rt.reserve_recovery(job['jobId'],1,('failed',))
-    recovered=rt.claim(job['jobId'],'confirmed',reservation['configRevision'],confirmed=True)
-    assert recovered['execution']['runId']==first['execution']['runId']
-    assert recovered['execution']['runId']!=second['execution']['runId']
-    assert recovered['execution']['attemptCount']==2
+def test_parallel_out_of_order_failure_confirmation_preserves_selected_run(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch, run_control
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    async def run():
+        second_finished = asyncio.Event()
+        calls = []
+        failed_id = None
+        class Provider:
+            async def send_session(self, session_id, text, *, effect_key, source):
+                rid = effect_key['runId']
+                calls.append(rid)
+                if rid == failed_id and calls.count(rid) == 1:
+                    await second_finished.wait()
+                    return {'status': 'rejected'}
+                second_finished.set()
+                return {'status': 'queued', 'messageId': rid}
+        h.service.executor = TypedExecutor(session_provider=Provider())
+        job = enabled(h, job_def(h, overlap={'mode': 'parallel', 'maxActive': 2, 'maxPending': 0}))
+        failed_id = launch(h, job, 'older-failure')['runId']
+        newer = launch(h, job, 'newer-success')['runId']
+        await asyncio.wait_for(h.service.dispatch_once(), 5)
+        before = h.service.final.get(job['id'])
+        assert before['runs'][failed_id]['state'] == 'failed'
+        assert before['runs'][newer]['state'] == 'completed'
+        assert before['runs'][newer]['finishedAt'] <= before['runs'][failed_id]['finishedAt']
+        original_newer = copy.deepcopy(before['runs'][newer])
+        response = run_control(h, failed_id, 'retry', 'retry-selected-original')
+        assert response.status_code == 202 and response.json()['runId'] == failed_id, response.text
+        await h.service.dispatch_once()
+        state = h.service.final.get(job['id'])
+        assert state['runs'][failed_id]['state'] == 'completed'
+        assert state['runs'][newer] == original_newer
+        assert len([a for a in state['attempts'].values() if a['runId'] == failed_id]) == 2
+        assert len([a for a in state['attempts'].values() if a['runId'] == newer]) == 1
+        assert calls.count(failed_id) == 2 and calls.count(newer) == 1
+        assert set(state['runs']) == {failed_id, newer}
+    asyncio.run(run())
