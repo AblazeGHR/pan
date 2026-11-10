@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  fetchCompletedJobRetentionSettings,
+  fetchCompletedJobRetentionSettings, updateCompletedJobRetentionSettings, canonicalRequest,
 } from '@/services/api';
 import type {
-  CompletedJobRetentionRun,
+  CompletedJobRetentionRun, CanonicalRetentionSettings, RetentionUpdate,
   JobRetentionRule,
   JobRetentionRules,
 } from '@/services/api';
+import type { CanonicalReceipt } from '@/types/canonicalJobs';
 
+const pendingStorage = 'pan:job-retention-pending';
 const RETENTION_RULE_META: Array<{
   key: JobRetentionRule;
   label: string;
@@ -15,28 +17,28 @@ const RETENTION_RULE_META: Array<{
 }> = [
   {
     key: 'completed',
-    label: 'Completed Jobs',
-    description: 'Deletes only Jobs whose top-level status is exactly completed and whose updatedAt is old enough.',
+    label: 'Completed Runs',
+    description: 'Cleans eligible completed Run history after the configured retention period.',
   },
   {
     key: 'failed',
-    label: 'Failed Jobs',
-    description: 'Deletes only Jobs whose top-level status is exactly failed and whose updatedAt is old enough.',
+    label: 'Failed Runs',
+    description: 'Cleans eligible failed Run history after the configured retention period.',
   },
   {
     key: 'timed_out',
-    label: 'Timed out Jobs',
-    description: 'Deletes only Jobs whose top-level status is exactly timed_out and whose updatedAt is old enough.',
+    label: 'Timed out Runs',
+    description: 'Cleans eligible timed-out Run history after the configured retention period.',
   },
   {
     key: 'cancelled',
-    label: 'Cancelled Jobs',
-    description: 'Deletes only Jobs whose top-level status is exactly cancelled and whose updatedAt is old enough.',
+    label: 'Cancelled Runs',
+    description: 'Cleans eligible cancelled Run history after the configured retention period.',
   },
   {
     key: 'logs',
-    label: 'Job log files',
-    description: 'Uses each uniquely owned regular log file’s last-modified time inside the Pan Jobs logs directory.',
+    label: 'Run log files',
+    description: 'Cleans eligible Run logs independently from Run history.',
   },
 ];
 
@@ -73,6 +75,23 @@ export function JobRetentionSettings() {
   > | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [revision, setRevision] = useState<number | null>(null);
+  const [pending, setPendingState] = useState<RetentionUpdate | null>(() => {
+    try { return JSON.parse(sessionStorage.getItem(pendingStorage) ?? 'null') as RetentionUpdate | null; } catch { return null; }
+  });
+  const lock = useRef(false);
+  const pendingRef = useRef(pending);
+  const setPending = (value: RetentionUpdate | null) => {
+    if (value) sessionStorage.setItem(pendingStorage, JSON.stringify(value));
+    else sessionStorage.removeItem(pendingStorage);
+    pendingRef.current = value;
+    setPendingState(value);
+  };
+  const applySettings = (result: CanonicalRetentionSettings) => {
+    setRevision(result.revision); setRules(result.rules); setDraft(cloneRules(result.rules)); setLastRuns(result.lastRuns);
+    const invalidRules = RETENTION_RULE_META.filter(({ key }) => !result.configValidity[key]).map(({ label }) => label);
+    if (invalidRules.length) setError(`Invalid saved values for ${invalidRules.join(', ')}. Those rules remain disabled until valid values are saved.`);
+  };
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -81,15 +100,8 @@ export function JobRetentionSettings() {
     setError(null);
     try {
       const result = await fetchCompletedJobRetentionSettings();
-      setRules(result.rules);
-      setDraft(cloneRules(result.rules));
-      setLastRuns(result.lastRuns);
-      if (!result.configValid) {
-        const invalidRules = RETENTION_RULE_META
-          .filter(({ key }) => !result.configValidity[key])
-          .map(({ label }) => label);
-        setError(`Invalid saved values for ${invalidRules.join(', ')}. Those rules remain disabled until valid values are saved.`);
-      }
+      applySettings(result);
+      if (pendingRef.current) setDraft(cloneRules({ ...result.rules, ...pendingRef.current.rules }));
     } catch (reason) {
       setError(errMsg(reason));
     } finally {
@@ -101,37 +113,48 @@ export function JobRetentionSettings() {
     void loadSettings();
   }, [loadSettings]);
 
-  const saveSettings = useCallback(async () => {
+  const settle = (receipt: CanonicalReceipt) => {
+    if (receipt.status === 'completed' && receipt.result?.settings) {
+      applySettings(receipt.result.settings as CanonicalRetentionSettings);
+      setPending(null); setFeedback('Settings saved.');
+    } else if (receipt.status === 'rejected' || receipt.status === 'cancelled') {
+      setPending(null); setError(receipt.error?.message ?? `Operation ${receipt.status}.`);
+    } else setError(`Operation ${receipt.status}; query the original request before continuing.`);
+  };
+  const saveSettings = async () => {
+    if (lock.current || pending || revision === null) return;
     for (const { key, label } of RETENTION_RULE_META) {
       const days = draft[key].days;
       if (days !== null && (!Number.isInteger(days) || days < 1 || days > 36500)) {
-        setError(`${label} keep days must be blank or a whole number from 1 to 36500.`);
-        setFeedback(null);
-        return;
+        setError(`${label} keep days must be blank or a whole number from 1 to 36500.`); setFeedback(null); return;
       }
     }
-
-    setSaving(true);
-    setError(null);
-    setFeedback(null);
-    try {
-      setFeedback('Legacy retention settings are read-only after Jobs migration. Manage canonical retention from Jobs.');
-    } catch (reason) {
+    const body: RetentionUpdate = { expectedRevision: revision, requestKey: crypto.randomUUID(), rules: cloneRules(draft) };
+    try { setPending(body); } catch { setError('Cannot preserve the request identity; settings were not submitted.'); return; }
+    lock.current = true; setSaving(true); setError(null); setFeedback(null);
+    try { settle(await updateCompletedJobRetentionSettings(body)); }
+    catch (reason) {
+      const status = (reason as { status?: number })?.status;
+      if (status === 400 || status === 401 || status === 403 || status === 409) setPending(null);
       setError(errMsg(reason));
-    } finally {
-      setSaving(false);
-    }
-  }, [draft]);
+    } finally { lock.current = false; setSaving(false); }
+  };
+  const queryOriginal = async () => {
+    if (!pending || lock.current) return;
+    lock.current = true; setSaving(true); setError(null);
+    try { settle(await canonicalRequest<CanonicalReceipt>(`operations?operation=update&requestKey=${encodeURIComponent(pending.requestKey)}`)); }
+    catch (reason) { setError(`${errMsg(reason)}. The original request remains unresolved.`); }
+    finally { lock.current = false; setSaving(false); }
+  };
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-sm font-semibold text-text-primary">Automatic cleanup settings</h2>
         <p className="mt-1 text-xs leading-5 text-text-secondary">
-          Each rule is independent and disabled by default. Rules with a day count run on the server
-          at most once every 24 hours without requiring a browser page to stay open. A blank day count
-          prevents cleanup even when a switch is on. Job record rules use the exact top-level status
-          and updatedAt; missing or invalid timestamps are kept. Logs and Job records are retained independently.
+          Each rule is independent. A blank day count prevents cleanup even when a switch is on.
+          The four status rules apply to terminal Run history; logs are managed independently.
+          Job definitions and schedules remain available. Active, unknown, pinned and referenced records are protected.
         </p>
       </div>
 
@@ -158,14 +181,13 @@ export function JobRetentionSettings() {
                   <p className="mt-1 text-xs leading-5 text-text-secondary">{description}</p>
                   {key === 'logs' ? (
                     <p className="mt-1 text-xs leading-5 text-text-secondary">
-                      This does not delete Job records or runs history. A Job record may remain
+                      Log cleanup does not delete Job definitions or Run history. A Run may remain
                       after its expired log is removed, but that log can no longer be viewed.
-                      Files with unknown ownership, links, directories, and logs for active
-                      Jobs or Runners are kept.
+                      Logs with unknown ownership and active execution logs are protected.
                     </p>
                   ) : (
                     <p className="mt-1 text-xs leading-5 text-text-secondary">
-                      Other Job statuses are unaffected; this rule does not infer or group statuses.
+                      Other Run statuses are unaffected; this rule does not infer or group statuses.
                     </p>
                   )}
                 </div>
@@ -175,7 +197,7 @@ export function JobRetentionSettings() {
                     type="checkbox"
                     aria-label={`Enable ${label} cleanup`}
                     checked={rule.enabled}
-                    disabled={saving || rules === null}
+                    disabled={saving || rules === null || !!pending}
                     onChange={(event) => {
                       setDraft((current) => ({
                         ...current,
@@ -198,7 +220,7 @@ export function JobRetentionSettings() {
                       max={36500}
                       step={1}
                       value={rule.days ?? ''}
-                      disabled={saving || rules === null}
+                      disabled={saving || rules === null || !!pending}
                       onChange={(event) => {
                         const value = event.target.value;
                         setDraft((current) => ({
@@ -222,16 +244,15 @@ export function JobRetentionSettings() {
                   {lastRun ? (
                     <>
                       <p className="mt-1">
-                        {new Date(lastRun.scannedAt).toLocaleString()} · scanned {lastRun.scanned}
-                        {' · '}deleted {lastRun.deleted}{' · '}skipped {lastRun.skipped}
-                        {' · '}errors {lastRun.errorCount}
+                        {new Date(lastRun.at * 1000).toLocaleString()} · expired {lastRun.expired}
+                        {' · '}protected {lastRun.protected}{' · '}errors {lastRun.errors.length}
                       </p>
                       {lastRun.errors.length > 0 && (
                         <details className="mt-1">
                           <summary className="cursor-pointer">Error details</summary>
                           <ul className="mt-1 list-disc pl-4">
                             {lastRun.errors.map((message, index) => (
-                              <li key={`${key}-error-${index}`}>{message}</li>
+                              <li key={`${key}-error-${index}`}>{message.code} · Run {message.runId} · Attempt {message.attemptId}</li>
                             ))}
                           </ul>
                         </details>
@@ -248,13 +269,17 @@ export function JobRetentionSettings() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              disabled={saving || rules === null}
+              disabled={saving || rules === null || !!pending}
               onClick={() => void saveSettings()}
               className="rounded border border-accent/50 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? 'Saving…' : 'Save settings'}
             </button>
-            {feedback && <span className="text-xs text-success" role="status">{feedback}</span>}
+            {pending && <div className="text-xs text-warning" role="status">Unresolved request {pending.requestKey}. Query using the same account and profile.
+              <details><summary>Original request</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(pending, null, 2)}</pre></details>
+              <button type="button" disabled={saving} onClick={() => void queryOriginal()} className="underline">Query original operation</button>
+            </div>}
+            {feedback && <span className="text-xs text-warning" role="status">{feedback}</span>}
             {error && (
               <span className="inline-flex items-center gap-2 text-xs text-danger" role="alert">
                 {error}

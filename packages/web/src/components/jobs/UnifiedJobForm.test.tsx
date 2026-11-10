@@ -65,4 +65,17 @@ describe('Unified Job configuration editor', () => {
     expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Retained draft');
     expect(screen.getByText(/Unsaved changes/)).toBeTruthy();
   });
+  it('edits schema arguments and an interval without losing its anchor', async () => {
+    const typed: Action = { ...action, input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } };
+    const submit = vi.fn();
+    render(<UnifiedJobForm actions={[typed]} initial={{ name: 'Structured', actionId: typed.id, schedule: [{ kind: 'interval', intervalSec: 30, anchor: '2026-11-10T00:00:00Z' }] }} onSubmit={submit} />);
+    expect(screen.getByText('Advanced arguments JSON').closest('details')?.open).toBe(false);
+    expect(screen.getByText('Advanced schedule JSON').closest('details')?.open).toBe(false);
+    fireEvent.change(screen.getByLabelText('message (required)'), { target: { value: 'hello' } });
+    fireEvent.change(screen.getByLabelText('Interval seconds'), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save unified Job' }));
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(submit.mock.calls[0]?.[0]).toMatchObject({ arguments: { message: 'hello' }, schedule: [{ kind: 'interval', intervalSec: 60, anchor: '2026-11-10T00:00:00Z' }] });
+  });
+
 });

@@ -120,4 +120,22 @@ describe('JobDetailDrawer width', () => {
     expect(screen.getByText('Scheduled QQ text message')).toBeTruthy();
     expect(screen.queryByText('no target')).toBeNull();
   });
+  it('keeps retired records read-only while allowing canonical process edits', () => {
+    const renderJob = (value: Job) => render(<JobDetailDrawer inline job={value} kindLabel="Background process" runs={[]} runsLoading={false}
+      onLoadMoreRuns={vi.fn()} onClose={vi.fn()} onRunNow={vi.fn()} onTogglePaused={vi.fn()}
+      onCancel={vi.fn()} onDelete={vi.fn()} onChangeTarget={vi.fn()} onEdit={vi.fn()} onToggleEntryEnabled={vi.fn()} />);
+    const process: Job = { ...job, kind: 'background-process', status: 'running', argv: ['python', 'task.py'], cwd: 'owned', action: { api: 'shell', args: { command: '', cwd: 'owned' } } };
+    const view = renderJob(process);
+    expect(screen.getByRole('region', { name: 'Job detail' })).toBeTruthy();
+    expect(screen.getByText('Immediate argv process (no shell)')).toBeTruthy();
+    expect(screen.getByText(/task.py/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancel job' })).toBeTruthy();
+    view.unmount();
+    renderJob({ ...process, retirementStatus: 'Retired' });
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel job' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
 });

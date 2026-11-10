@@ -44,7 +44,7 @@ const click = (name: string) => fireEvent.click(screen.getByRole('button', { nam
 const change = (name: string, value: string) => fireEvent.change(screen.getByLabelText(name), { target: { value } });
 function host() { render(<MemoryRouter><CanonicalJobsView /></MemoryRouter>); }
 async function choose(id: string) {
-  host(); click('创建 Jobs'); change('名称', '  原文 Job  ');
+  host(); click('Create Jobs'); change('Name', '  原文 Job  ');
   await screen.findByRole('option', { name: /assign · Revision/ });
   change('Action for step 1', id);
 }
@@ -58,7 +58,7 @@ it('existing assign caller writes exact literal fields and immutable Action refe
   change('sessionId value', 'ses_owned'); change('text value', '  原文\ntext  ');
   parameter('source', 'MA'); parameter('sourceSessionId', 'ses_caller'); parameter('taskId', 'task_owned');
   expect(writes).toEqual([]);
-  click('保存定义');
+  click('Save definition');
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0]!.url).toBe('/api/jobs');
   expect(writes[0]!.body).toMatchObject({ expectedRevision: 0, definition: { name: '  原文 Job  ', steps: [{
@@ -76,10 +76,11 @@ it('existing assign caller writes exact literal fields and immutable Action refe
 it('existing process caller preserves argv boundaries/cwd/hideWindow without guessing command-string shell syntax', async () => {
   await choose('product_process_logs_v1');
   const argv = ['owned executable', 'a b', '"quoted"', '$literal', '中文'];
-  change('argv value (JSON)', JSON.stringify(argv)); change('cwd value', '  owned directory  ');
+  argv.forEach((value, index) => { click('Add argv value item'); change(`argv value item ${index + 1}`, value); });
+  change('cwd value', '  owned directory  ');
   parameter('hideWindow', 'true');
   expect(writes).toEqual([]);
-  click('保存定义'); await waitFor(() => expect(writes).toHaveLength(1));
+  click('Save definition'); await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0]!.url).toBe('/api/jobs');
   expect(writes[0]!.body.definition.steps[0]).toEqual({ stepId: 'step1', actionRef: references.product_process_logs_v1,
     completion: { contract: 'process-exit' }, arguments: { argv: { from: 'literal', value: argv },
@@ -88,15 +89,15 @@ it('existing process caller preserves argv boundaries/cwd/hideWindow without gue
 });
 
 it('missing Action selection rejects locally without a legacy fallback write', async () => {
-  host(); click('创建 Jobs'); change('名称', 'Incomplete');
-  click('Add step'); click('保存定义');
+  host(); click('Create Jobs'); change('Name', 'Incomplete');
+  click('Add step'); click('Save definition');
   expect(await screen.findAllByText(/Choose an Action for each step/)).toHaveLength(2);
   expect(writes).toEqual([]);
 });
 
 it('server rejection preserves the structured draft without retrying a legacy endpoint', async () => {
   await choose('product_assign_v2'); change('sessionId value', 'ses_owned'); change('text value', 'raw');
-  rejected = 'revision_conflict'; click('保存定义');
+  rejected = 'revision_conflict'; click('Save definition');
   await screen.findByText(/\[revision_conflict\]/);
   expect((screen.getByLabelText('text value') as HTMLInputElement).value).toBe('raw');
   expect(writes).toHaveLength(1); expect(writes[0]!.url).toBe('/api/jobs');

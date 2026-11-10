@@ -1,7 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
 import { scheduleEntries, type Job, type JobRunRecord, type JobSource, type JobTimestamp } from '@/types/jobs';
+import { CanonicalJobEnable } from './CanonicalJobEnable';
+import { CanonicalExecutionDetails } from './CanonicalExecutionDetails';
+import type { CanonicalJobDetails } from './CanonicalExecutionDetails';
 import { LegacyJobDetails } from './LegacyJobDetails';
+import { fetchRunLogReferences, fetchRunLogText } from '@/services/legacyJobs';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -136,6 +140,20 @@ function scheduleKindLabel(kind: string): string {
 
 function RunRow({ run }: { run: JobRunRecord }) {
   const result = run.result;
+  const [output, setOutput] = useState<string | null>(null);
+  const [outputError, setOutputError] = useState('');
+  const [loadingOutput, setLoadingOutput] = useState(false);
+  const loadOutput = async () => {
+    if (!run.run_id) return;
+    setLoadingOutput(true); setOutputError('');
+    try {
+      const refs = await fetchRunLogReferences(run.run_id);
+      if (!refs.length) throw new Error('No log is available for this Run.');
+      const parts = await Promise.all(refs.map(ref => fetchRunLogText(run.run_id!, ref.attemptId)));
+      setOutput(parts.join('\n'));
+    } catch (error) { setOutputError(error instanceof Error ? error.message : 'Log unavailable'); }
+    finally { setLoadingOutput(false); }
+  };
   const hasDetails = result != null || !!run.log_path || run.exit_code != null;
   return (
     <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary px-2 py-1.5 text-[11px]">
@@ -146,6 +164,9 @@ function RunRow({ run }: { run: JobRunRecord }) {
         </div>
         <StatusBadge status={run.status ?? 'unknown'} />
       </div>
+      {run.run_id && <button type="button" aria-label={`View output for run ${run.run_id}`} disabled={loadingOutput} onClick={() => void loadOutput()} className="self-start text-accent">{loadingOutput ? 'Loading output…' : 'View output'}</button>}
+      {outputError && <p role="alert">{outputError}</p>}
+      {output !== null && <pre aria-label={`Run output for ${run.run_id}`} className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2">{output}</pre>}
       {hasDetails && (
         <details className="text-text-tertiary">
           <summary className="cursor-pointer">Execution details</summary>
@@ -167,6 +188,10 @@ function RunRow({ run }: { run: JobRunRecord }) {
 
 export function JobDetailDrawer({
   inline = false,
+  canonicalDetail,
+  isActionJob = false,
+  definitionStatus,
+  onCanonicalChanged,
   job,
   kindLabel,
   runs,
@@ -185,6 +210,10 @@ export function JobDetailDrawer({
   onConfirmRecovery,
 }: {
   inline?: boolean;
+  canonicalDetail?: CanonicalJobDetails | null;
+  isActionJob?: boolean;
+  definitionStatus?: 'idle' | 'loading' | 'ready' | 'error';
+  onCanonicalChanged?: () => void | Promise<void>;
   job: Job;
   kindLabel: string;
   runs: JobRunRecord[];
@@ -226,8 +255,8 @@ export function JobDetailDrawer({
     (job.kind === 'session-message' || job.kind === 'session-broadcast')
     && ['completed', 'failed', 'cancelled'].includes(job.status)
   );
-  const legacyReadOnly = Boolean(job.unified?.compatibility) || (!job.unified && job.kind === 'background-process');
-  const canChangeTarget = !legacyReadOnly && ((job.kind === 'scheduled-task'
+  const legacyReadOnly = Boolean(job.retirementStatus || job.unified?.compatibility);
+  const canChangeTarget = !legacyReadOnly && !isActionJob && ((job.kind === 'scheduled-task'
     && job.action?.api !== 'resume_legal_running'
     && job.action?.api !== 'send_qq')
     || (job.kind === 'session-message' && !terminalMessage)
@@ -258,8 +287,8 @@ export function JobDetailDrawer({
 
       {/* Drawer panel */}
       <aside
-        role="dialog"
-        aria-modal="true"
+        role={inline ? 'region' : 'dialog'}
+        aria-modal={inline ? undefined : true}
         aria-label="Job detail"
         className={inline
           ? 'flex w-full flex-col rounded-lg border border-border-default bg-bg-secondary shadow-sm'
@@ -299,13 +328,14 @@ export function JobDetailDrawer({
             <div className="flex flex-wrap items-center gap-1.5">
               {job.status === 'failed' && onRetry && <button className="rounded border border-warning/50 px-2 py-1 text-xs text-warning" onClick={onRetry}>Confirm failed Run retry</button>}
               {['unknown','uncertain'].includes(job.status) && onConfirmRecovery && <button className="rounded border border-warning/50 px-2 py-1 text-xs text-warning" onClick={onConfirmRecovery}>Confirm uncertain Run recovery</button>}
-              {onCancel && (job.kind !== 'scheduled-task' || job.unified && !job.unified.compatibility) && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status) && <button type="button" onClick={onCancel} disabled={cancelling} className="rounded border border-warning/50 px-2 py-1 text-xs text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
-              {isScheduledTask && !legacyReadOnly && (
+              {isActionJob && canonicalDetail?.job.state === 'draft' && onCanonicalChanged && <CanonicalJobEnable item={canonicalDetail.job} onChanged={onCanonicalChanged} />}
+              {!legacyReadOnly && onCancel && (job.kind !== 'scheduled-task' || job.unified && !job.unified.compatibility) && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status) && <button type="button" onClick={onCancel} disabled={cancelling} className="rounded border border-warning/50 px-2 py-1 text-xs text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
+              {(isScheduledTask || isActionJob) && !legacyReadOnly && (
                 <button
                   type="button"
                   onClick={onRunNow}
-                  disabled={!canRunNow}
-                  title={canRunNow ? undefined : 'No target available for dispatch'}
+                  disabled={isActionJob ? canonicalDetail?.job.state !== 'enabled' : !canRunNow}
+                  title={isActionJob ? (canonicalDetail?.job.state === 'enabled' ? undefined : 'Enable the Job before running it') : canRunNow ? undefined : 'No target available for dispatch'}
                   className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-tertiary disabled:hover:text-text-secondary"
                 >
                   <Play size={12} />
@@ -332,18 +362,20 @@ export function JobDetailDrawer({
                   Change target
                 </button>
               )}
-              <button
+              {!legacyReadOnly && <button
                 type="button"
                 onClick={onDelete}
                 className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-danger transition-colors hover:bg-danger/10"
               >
                 <Trash2 size={12} />
                 Delete
-              </button>
+              </button>}
               {canEdit && (
                 <button
                   type="button"
                   onClick={onEdit}
+                  disabled={definitionStatus === 'loading' || definitionStatus === 'error'}
+                  title={definitionStatus === 'error' ? 'Job definition unavailable; refresh before editing.' : undefined}
                   className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 >
                   <Pencil size={12} />
@@ -352,7 +384,8 @@ export function JobDetailDrawer({
               )}
             </div>
 
-            {(!job.unified || job.unified.compatibility) && <LegacyJobDetails job={job} />}
+            {definitionStatus === 'error' && !legacyReadOnly && <p role="alert">Job definition unavailable. Refresh before editing.</p>}
+            {legacyReadOnly && <LegacyJobDetails job={job} />}
             {job.unified && !job.unified.compatibility && <Section title="Unified execution">
               <KV label="Action reference">{job.unified.config.actionId}</KV>
               <KV label="Configuration revision">{job.configRevision ?? 'legacy adapter'}</KV>
@@ -386,7 +419,7 @@ export function JobDetailDrawer({
                       : job.target.sessionId ?? 'no target'}
                   </span>
                 </KV>
-                <KV label={job.unified && !job.unified.compatibility ? 'Run count' : 'Legacy execution count'}>{job.runCount ?? 0}</KV>
+                <KV label={legacyReadOnly ? 'Legacy execution count' : 'Run count'}>{job.runCount ?? 0}</KV>
                 <KV label="Created">{formatDateTime(job.createdAt)}</KV>
                 <KV label="Updated">{formatDateTime(job.updatedAt)}</KV>
                 {job.paused && <KV label="Paused">Yes</KV>}
@@ -397,7 +430,8 @@ export function JobDetailDrawer({
               </div>
             </Section>
 
-            {(isScheduledTask || job.kind === 'background-process') && (
+            {canonicalDetail && <CanonicalExecutionDetails detail={canonicalDetail} />}
+            {!isActionJob && (isScheduledTask || job.kind === 'background-process') && (
               <Section title="Execution">
                 <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary p-2.5 text-xs">
                   {job.action?.api === 'resume_legal_running' ? (
@@ -411,7 +445,7 @@ export function JobDetailDrawer({
                         Configured in Settings → Behavior → Wake message
                       </pre>
                     </>
-                  ) : job.action?.api === 'shell' || job.shellCommand ? (
+                  ) : job.kind !== 'background-process' && (job.action?.api === 'shell' || job.shellCommand) ? (
                     <>
                       <KV label="Mode">Pan server shell</KV>
                       <div className="text-[11px] text-text-tertiary">
@@ -436,6 +470,7 @@ export function JobDetailDrawer({
                         {JSON.stringify(job.argv ?? [])}
                       </pre>
                       <KV label="Working directory"><code className="break-all">{job.cwd ?? '—'}</code></KV>
+                      <KV label="Window">{job.hideWindow == null ? '—' : job.hideWindow ? 'Hidden' : 'Visible'}</KV>
                     </>
                   ) : (
                     <>
@@ -586,7 +621,7 @@ export function JobDetailDrawer({
             </Section>
 
             {/* 4. Runs history */}
-            <Section title={job.unified && !job.unified.compatibility ? 'Runs' : 'Legacy execution history'}>
+            <Section title={legacyReadOnly ? 'Legacy execution history' : 'Runs'}>
               {runs.length === 0 ? (
                 <div className="text-xs text-text-tertiary">
                   {runsLoading ? 'Loading…' : '—'}

@@ -25,7 +25,10 @@ assert(![8767, 8768].includes(port));
 const base = `http://127.0.0.1:${port}`;
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('PAN_')));
 Object.assign(env, { PAN_E2E_RUNTIME: runtime, PAN_PORT: String(port), PYTHONPATH: root });
-const python = process.env.PAN_E2E_PYTHON || 'E:/software/miniforge/python.exe';
+const configuredPython = process.env.PAN_E2E_PYTHON || 'D:/project/Pan/.venv/Scripts/python.exe';
+const cfg = await fs.readFile(path.join(path.dirname(configuredPython), '..', 'pyvenv.cfg'), 'utf8');
+const python = cfg.match(/^executable\s*=\s*(.+)$/m)?.[1]?.trim();
+assert(python, 'venv interpreter must resolve');
 const child = spawn(python, [path.join(import.meta.dirname, 'action-group-unified-server.py')], {
   cwd: root,
   env,
@@ -63,6 +66,7 @@ try {
   const identity = await (await fetch(base + '/__e2e/identity')).json();
   assert.equal(identity.pid, child.pid);
   assert.equal(path.resolve(identity.runtime), runtime);
+  assert.equal(path.resolve(identity.checkout), root);
   evidence.checks.push('owned service PID and runtime verified');
 
   const key = (await fs.readFile(path.join(runtime, 'automation/user.key'), 'utf8')).trim();
@@ -94,6 +98,7 @@ try {
   await page.getByRole('button', { name: 'Inspect Unified Echo' }).click();
   const versionSelect = page.getByLabel('Action version');
   await expect(versionSelect).toBeVisible();
+  await expect(versionSelect.locator('option')).toHaveCount(2);
   const options = await versionSelect.locator('option').allInnerTexts();
   assert.equal(options.length, 2, `expected two versions, saw ${options.length}`);
   await versionSelect.selectOption('1');
@@ -106,13 +111,59 @@ try {
   await page.getByRole('button', { name: 'New Action', exact: true }).click();
   await page.getByLabel(/^Name/).fill('Browser Wire Action');
   await page.getByLabel(/^Description/).fill('Created without JSON');
+  await page.getByLabel('New input field').fill('message');
+  await page.getByRole('button', { name: 'Add field', exact: true }).click();
   await page.getByRole('switch', { name: 'Enable for build' }).click();
   await page.getByRole('button', { name: 'Create Action' }).click();
   await expect(page.getByRole('button', { name: 'Inspect Browser Wire Action' })).toBeVisible();
   evidence.checks.push('designed quick-create lands in the canonical catalog and becomes visible');
 
+  await page.goto(base + '/react/jobs');
+  await page.getByRole('button', { name: 'New Job', exact: true }).click();
+  await page.getByLabel('Job configuration type').selectOption('action');
+  await page.getByLabel('Name', { exact: true }).fill('Browser typed Action Job');
+  const actionPicker = page.getByLabel('Action for step 1');
+  await expect(actionPicker.getByRole('option', { name: /Browser Wire Action/ })).toBeAttached();
+  const actionId = await actionPicker.getByRole('option', { name: /Browser Wire Action/ }).getAttribute('value');
+  assert.ok(actionId);
+  await actionPicker.selectOption(actionId);
+  await page.getByLabel('message value', { exact: true }).fill('typed in browser');
+  const actionJobWrite = page.waitForResponse(r => r.url().endsWith('/api/jobs') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Create Action Job' }).click();
+  const savedJob = await actionJobWrite;
+  assert.equal(savedJob.status(), 201);
+  const savedBody = savedJob.request().postDataJSON();
+  assert.deepEqual(savedBody.definition.steps[0].arguments.message, { from: 'literal', value: 'typed in browser' });
+  await expect(page.getByTestId('jobs-list-scroll').getByText('Browser typed Action Job', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('jobs-list-scroll').getByText('Browser typed Action Job', { exact: true })).toBeVisible();
+  await page.getByTestId('jobs-list-scroll').getByText('Browser typed Action Job', { exact: true }).click();
+  await page.getByRole('region', { name: 'Job detail' }).getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByLabel('message value', { exact: true })).toHaveValue('typed in browser');
+  await expect(page.getByLabel('message value type')).toHaveCount(0);
+  await expect(page.getByLabel('message source')).not.toBeVisible();
+  await shot('action-job-editor-1280');
+  await page.setViewportSize({ width: 390, height: 900 });
+  await fits('Action Job editor 390');
+  await shot('action-job-editor-390');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  evidence.checks.push('Action inputSchema produces typed controls and survives Job reload and edit');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).first().click();
+  const typedDetail = page.getByRole('region', { name: 'Job detail' });
+  await typedDetail.getByRole('button', { name: 'Enable Action Job' }).click();
+  await expect(typedDetail.getByRole('button', { name: 'Run now' })).toBeEnabled();
+  const runResponse = page.waitForResponse(r => r.url().endsWith('/run-now') && r.request().method() === 'POST');
+  await typedDetail.getByRole('button', { name: 'Run now' }).click();
+  const typedRun = await runResponse;
+  assert.equal(typedRun.status(), 200, await typedRun.text());
+  const typedReceipt = await typedRun.json();
+  assert.ok(['accepted', 'completed'].includes(typedReceipt.run?.status), 'Run admission must retain its receipt status');
+  evidence.checks.push('Action Job enable and Run use canonical service admission');
+  await page.goto(base + '/react/actions');
+
   // Fixed-version call from the same entry.
   await page.getByRole('button', { name: 'Inspect Browser Wire Action' }).click();
+  await page.getByLabel('message', { exact: true }).fill('typed invocation');
   await page.getByRole('button', { name: 'Run fixed version' }).click();
   await expect(page.getByText(/Invocation status:completed|Invocation status:unknown/)).toBeVisible();
   evidence.checks.push('the fixed version runs through the canonical invocation receipt');
@@ -132,6 +183,24 @@ try {
 
   // Group entry: fixed versions, immutable release history, binding.
   await page.getByRole('button', { name: /^Groups/ }).click();
+  await page.getByRole('button', { name: 'New Group', exact: true }).click();
+  await expect(page.getByLabel('Group name')).toBeVisible();
+  assert.equal(await page.getByRole('dialog').count(), 0, 'Group editor replaces the main panel');
+  await page.getByLabel('Group name').fill('Browser Structured Group');
+  await page.getByLabel('Search Actions').fill('Unified Echo');
+  await page.getByLabel(/Unified Echo/).check();
+  await page.getByRole('button', { name: 'Create Group', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Inspect Browser Structured Group' })).toBeVisible();
+  evidence.checks.push('Group creation uses a full-panel structured Action picker');
+  await page.getByRole('button', { name: 'Inspect Browser Structured Group' }).click();
+  await page.getByLabel('Group Name').fill('Browser Group Edited');
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Browser Group Edited' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to list', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspect Browser Group Edited' }).click();
+  await expect(page.getByLabel('Group Name')).toHaveValue('Browser Group Edited');
+  await page.getByRole('button', { name: 'Back to list', exact: true }).click();
+  evidence.checks.push('Group structured edit saves and reopens from the directory');
   await page.getByRole('button', { name: 'Inspect Unified Tools' }).click();
   const history = page.getByRole('region', { name: 'Release history' });
   await expect(history).toBeVisible();
@@ -223,6 +292,8 @@ try {
     await page.getByRole('button', { name: 'Fixed versions and releases' }).first().click();
     await expect(page.getByLabel('Group Name')).toBeVisible();
     await fits(`group detail ${width}`);
+    const back = page.getByRole('button', { name: 'Back to list', exact: true });
+    assert(await back.evaluate(el => { const r = el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); }), 'Group back button must not be covered by navigation');
     await shot(`group-${width}`);
   }
   evidence.checks.push('1280/390/320 keep the designed page readable without horizontal overflow');

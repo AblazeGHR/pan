@@ -13,9 +13,13 @@ import {
   Settings2,
   Trash2,
 } from 'lucide-react';
+import { CanonicalJobEditor } from '@/components/jobs/CanonicalJobEditor';
+import { canonicalJobs } from '@/services/canonicalJobs';
+import { canonicalRequest } from '@/services/api';
+import type { CanonicalObject, JsonObject } from '@/types/canonicalJobs';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
 import { UnifiedJobForm } from '@/components/jobs/UnifiedJobForm';
-import { JobTemplateEditor } from '@/components/jobs/JobTemplateEditor';
+import { CanonicalCollection } from '@/views/CanonicalJobsView';
 import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
@@ -28,17 +32,17 @@ import { useJobStore } from '@/stores/jobStore';
 import { wsClient } from '@/services/ws';
 import { scheduleEntries } from '@/types/jobs';
 import {
-  fetchJob,
-  fetchJobKinds,
-  fetchJobRuns,
-  createActionJob,
   updateActionJob,
   fetchActionRegistry,
   mutateActionJob,
 } from '@/services/api';
 import {
   cancelJob,
+  createJob,
   deleteJob as deleteJobApi,
+  fetchJob,
+  fetchJobKinds,
+  fetchJobRuns,
   patchJob,
   pinJob,
   runJobNow,
@@ -47,14 +51,16 @@ import type {
   Job,
   JobKind,
   JobKindMeta,
+  JobCreateInput,
   JobPatchInput,
   JobRunRecord,
   JobStatus,
 } from '@/types/jobs';
 import type { Action } from '@/types/actions';
 
+function isReadOnlyJob(job: Job): boolean { return Boolean(job.retirementStatus || job.unified?.compatibility); }
 function canCancelJob(job: Job): boolean {
-  return (isUnifiedJob(job) || job.kind !== 'scheduled-task') && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status);
+  return !isReadOnlyJob(job) && (isUnifiedJob(job) || job.kind !== 'scheduled-task') && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status);
 }
 function isUnifiedJob(job: Job): boolean { return Boolean(job.unified && !job.unified.compatibility); }
 function timestampMs(value: unknown): number | null {
@@ -62,7 +68,7 @@ function timestampMs(value: unknown): number | null {
   return Number.isFinite(result) ? result : null;
 }
 
-type Tab = 'list' | 'legacy' | 'create' | 'settings';
+type Tab = 'list' | 'legacy' | 'create' | 'settings' | 'templates';
 
 type StatusFilter =
   'all' | 'active' | 'scheduled' | 'completed' | 'failed' | 'timed_out' | 'undeliverable';
@@ -276,6 +282,7 @@ function JobRow({
   const next = nextFireAt(job);
   const backlog = job.undeliveredFires?.length ?? 0;
   const isScheduledTask = job.kind === 'scheduled-task';
+  const readOnly = isReadOnlyJob(job);
   const hasTarget = !!job.target.sessionId;
   const canRunNow = job.action?.api === 'shell'
     || Boolean(isUnifiedJob(job) && job.enabled)
@@ -344,13 +351,13 @@ function JobRow({
                 role="menu"
                 className="absolute right-0 top-full mt-1 z-30 w-40 rounded border border-border-default bg-bg-tertiary py-1 shadow-xl"
               >
-                <button role="menuitem" type="button" disabled={pinUnavailable}
+                <button role="menuitem" type="button" disabled={pinUnavailable || readOnly}
                   className={`${menuItemClass} disabled:cursor-not-allowed disabled:opacity-50`}
                   onClick={(e) => { e.stopPropagation(); onToggleMenu(); onTogglePinned(); }}>
                   {job.pinned ? <PinOff size={13} /> : <Pin size={13} />}
                   {pinUnavailable ? 'Pin unavailable' : job.pinned ? 'Unpin' : 'Pin'}
                 </button>
-                {isScheduledTask && (
+                {isScheduledTask && !readOnly && (
                   <button
                     role="menuitem"
                     type="button"
@@ -368,7 +375,7 @@ function JobRow({
                     Run now
                   </button>
                 )}
-                {isScheduledTask && (
+                {isScheduledTask && !readOnly && (
                   <button
                     role="menuitem"
                     type="button"
@@ -383,7 +390,7 @@ function JobRow({
                     {job.paused ? 'Resume' : 'Pause'}
                   </button>
                 )}
-                <button
+                {!readOnly && <button
                   role="menuitem"
                   type="button"
                   onClick={(e) => {
@@ -395,7 +402,7 @@ function JobRow({
                 >
                   <Trash2 size={13} />
                   Delete
-                </button>
+                </button>}
               </div>
             </>
           )}
@@ -409,7 +416,7 @@ function JobRow({
           {job.status}
         </span>
         <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1.5 py-px text-[10px] text-text-secondary">
-          {isUnifiedJob(job) ? kindLabel : 'Retired'}
+          {job.retirementStatus ?? (job.unified?.compatibility ? 'Retired' : job.kind === 'background-process' && !job.argv ? 'Action' : kindLabel)}
         </span>
 
         <span>
@@ -467,7 +474,12 @@ export default function JobsView() {
   const cancelRequests = useRef(new Set<string>());
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('list');
+  const [createMode, setCreateMode] = useState<'practical' | 'action'>('practical');
+  const [detailGeneration, setDetailGeneration] = useState(0);
+  const [detailState, setDetailState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [canonicalDetail, setCanonicalDetail] = useState<{ job: CanonicalObject; actions: Record<string, JsonObject>; missing: string[] } | null>(null);
   const dirtyEditor = useRef(false);
+  const creationIntent = useRef(crypto.randomUUID());
   const editorDirtyChange = useCallback((dirty: boolean) => { dirtyEditor.current = dirty; }, []);
   const requestTab = (next: Tab) => {
     if (dirtyEditor.current && !window.confirm('Discard unsaved Job configuration?')) return;
@@ -613,6 +625,35 @@ export default function JobsView() {
     }
   }, [allJobs]);
 
+  // Resolve only the selected Job and its fixed Action versions; never fetch per row.
+  useEffect(() => {
+    setCanonicalDetail(null); setDetailState('idle');
+    const current = useJobStore.getState().jobs.find((job) => job.jobId === selectedJobId);
+    if (!selectedJobId || !current || isReadOnlyJob(current)) return;
+    setDetailState('loading');
+    let active = true;
+    void (async () => {
+      const job = await canonicalJobs.get('jobs', selectedJobId);
+      const steps = Array.isArray(job.steps) ? job.steps as JsonObject[] : [];
+      const refs = steps.map(step => step.actionRef as JsonObject).filter(ref => ref && typeof ref.id === 'string');
+      const unique = Array.from(new Set(refs.map(ref => String(ref.id))));
+      const responses = await Promise.allSettled(unique.map(id => canonicalRequest<{ items: JsonObject[] }>(`jobs/actions/${encodeURIComponent(id)}/versions`)));
+      const actions: Record<string, JsonObject> = {}; const missing: string[] = [];
+      for (const ref of refs) {
+        const id = String(ref.id), response = responses[unique.indexOf(id)];
+        const version = response?.status === 'fulfilled' ? response.value.items?.find(v => {
+          const nested = v.ref && typeof v.ref === 'object' ? v.ref as JsonObject : {};
+          return v.revision === ref.revision && (v.digest === ref.digest || nested.digest === ref.digest);
+        }) : undefined;
+        const key = `${id}:${String(ref.revision)}:${String(ref.digest)}`;
+        if (version?.definition && typeof version.definition === 'object') actions[key] = version.definition as JsonObject;
+        else missing.push(key);
+      }
+      if (active) { setCanonicalDetail({ job, actions, missing }); setDetailState('ready'); }
+    })().catch(() => { if (active) { setCanonicalDetail(null); setDetailState('error'); } });
+    return () => { active = false; };
+  }, [selectedJobId, authorizationToken, detailGeneration]);
+
   // 详情 runs：随选中 job / limit 拉取。
   useEffect(() => {
     if (!selectedJobId) {
@@ -714,6 +755,8 @@ export default function JobsView() {
   // An open draft and its CAS revision are one snapshot. A WS refresh may update
   // the list, but cannot promote the revision attached to unsaved input.
   const editJob = editSnapshot?.jobId === editJobId ? editSnapshot : null;
+  const firstRef = canonicalDetail && Array.isArray(canonicalDetail.job.steps) ? (canonicalDetail.job.steps[0] as JsonObject | undefined)?.actionRef as JsonObject | undefined : undefined;
+  const isActionJob = !!firstRef?.id && selectedJob?.kind === 'background-process' && !Array.isArray(selectedJob.argv);
   // 抽屉 z-50 会盖住 z-40 的居中 Modal → 有对话框时隐藏抽屉。
   const dialogOpen =
     changeTargetJobId !== null ||
@@ -753,7 +796,7 @@ export default function JobsView() {
     if (bulkActionRef.current) return;
     const requested = new Set(requestedIds);
     const candidates = visibleJobs.filter((job) =>
-      requested.has(job.jobId) && (action !== 'pause' || job.kind === 'scheduled-task'));
+      requested.has(job.jobId) && !isReadOnlyJob(job) && (action !== 'pause' || job.kind === 'scheduled-task'));
     if (candidates.length === 0) {
       setBatchDeleteIds(null);
       return;
@@ -841,15 +884,16 @@ export default function JobsView() {
     [upsertJob],
   );
 
-  const handleUnifiedCreate = async (config: import('@/types/jobs').UnifiedJobConfig) => {
+  const handleCreate = async (input: JobCreateInput) => {
     setSubmitting(true);
     try {
-      const job = await createActionJob(config);
+      const job = await createJob(input, creationIntent.current);
       upsertJob(job);
+      creationIntent.current = crypto.randomUUID();
       dirtyEditor.current = false;
       setTab('list');
-      showToast(`Created unified Job "${job.name}"`);
-    } catch (e) { showToast(errMsg(e), 'error'); throw e; }
+      showToast(`Created Job "${job.name}"`);
+    } catch (e) { showToast(errMsg(e), 'error'); }
     finally { setSubmitting(false); }
   };
 
@@ -1052,6 +1096,7 @@ export default function JobsView() {
           <Plus size={12} />
           New Job
         </button>
+        <button type="button" aria-pressed={tab === 'templates'} disabled={bulkAction !== null} onClick={() => requestTab('templates')} className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-secondary">Job Templates</button>
         <button
           type="button"
           aria-pressed={tab === 'settings'}
@@ -1073,7 +1118,7 @@ export default function JobsView() {
       </div>
 
       {(tab === 'list' || tab === 'legacy') && <p className="shrink-0 px-4 py-2 text-xs text-text-secondary" role="note">
-        Canonical Jobs use Action, receipt, CAS, and owner-fenced execution. Older records remain visible for history and are read-only.
+        Older records remain available for history and are read-only.
       </p>}
       {editJobId !== null && editJob ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -1083,7 +1128,7 @@ export default function JobsView() {
               <Button variant="ghost" size="sm" onClick={() => { if (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?')) { dirtyEditor.current = false; setEditJobId(null); } }}>Cancel</Button>
             </div>
             {isUnifiedJob(editJob) && <JobUserAuthorization />}
-            {editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
+            {isActionJob && canonicalDetail?.job.id === editJob.jobId ? <CanonicalJobEditor key={editJob.jobId} item={canonicalDetail.job} onDirtyChange={editorDirtyChange} onSaved={async () => { dirtyEditor.current = false; setEditJobId(null); await loadJobs(); setDetailGeneration((v) => v + 1); }} /> : editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
               key={editJob.jobId}
               initial={editJob.unified.config}
               actions={actions}
@@ -1100,7 +1145,11 @@ export default function JobsView() {
           <div className="mx-auto w-full max-w-4xl p-4">
             <JobDetailDrawer inline
               job={selectedJob}
-              kindLabel={labelFor(selectedJob.kind)}
+              canonicalDetail={canonicalDetail?.job.id === selectedJob.jobId ? canonicalDetail : null}
+              isActionJob={isActionJob}
+              definitionStatus={detailState}
+              onCanonicalChanged={async () => { await loadJobs(); setDetailGeneration((v) => v + 1); }}
+              kindLabel={isActionJob ? 'Action Job' : labelFor(selectedJob.kind)}
               runs={runs}
               runsLoading={runsLoading}
               onLoadMoreRuns={() => setRunsLimit((n) => n + RUNS_PAGE)}
@@ -1377,9 +1426,12 @@ export default function JobsView() {
               <Button variant="ghost" size="sm" onClick={() => requestTab('list')}>Cancel</Button>
             </div>
             <JobUserAuthorization />
-            <JobTemplateEditor actions={actions} submitting={submitting} onCreate={handleUnifiedCreate} onInstantiated={(job) => { dirtyEditor.current = false; upsertJob(job); setTab('list'); }} onDirtyChange={editorDirtyChange} />
+            <label className="mb-4 block text-sm">Job configuration type<select aria-label="Job configuration type" className={selectClass} value={createMode} onChange={(e) => { if (dirtyEditor.current && !window.confirm('Discard unsaved Job configuration?')) return; dirtyEditor.current = false; setCreateMode(e.target.value as 'practical' | 'action'); }}><option value="practical">Process or message</option><option value="action">Action Job</option></select></label>
+            {createMode === 'action' ? <CanonicalJobEditor onDirtyChange={editorDirtyChange} onSaved={async () => { dirtyEditor.current = false; setTab('list'); await loadJobs(); }} /> : <NewJobForm kindMetas={kindMetas} submitting={submitting} onCreate={(input) => void handleCreate(input)} />}
           </div>
         </div>
+      ) : tab === 'templates' ? (
+        <div className="min-h-0 flex-1 overflow-y-auto"><div className="mx-auto w-full max-w-4xl p-4"><JobUserAuthorization /><CanonicalCollection kind="job-templates" /></div></div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">

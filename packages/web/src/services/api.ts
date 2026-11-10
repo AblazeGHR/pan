@@ -2464,60 +2464,29 @@ interface ApiJobKindsResponse { ok?: boolean; kinds?: JobKindMeta[]; error?: Sch
 interface ApiJobRunsResponse { ok?: boolean; runs?: JobRunRecord[]; error?: SchedulerApiError; }
 
 export interface CompletedJobRetentionRun {
-  scannedAt: string;
-  scanned: number;
-  deleted: number;
-  skipped: number;
-  errorCount: number;
-  errors: string[];
+  at: number;
+  expired: number;
+  protected: number;
+  errors: Array<{ runId: string; attemptId: string; code: string }>;
 }
-
-export interface CompletedJobRetentionSettings {
-  enabled: boolean;
-  days: number | null;
-}
-
+export interface CompletedJobRetentionSettings { enabled: boolean; days: number | null; }
 export type JobRetentionRule = 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'logs';
 export type JobRetentionRules = Record<JobRetentionRule, CompletedJobRetentionSettings>;
-
-interface ApiCompletedJobRetentionResponse {
-  ok?: boolean;
-  settings?: CompletedJobRetentionSettings;
-  rules?: JobRetentionRules;
-  configValid?: boolean;
-  configValidity?: Record<JobRetentionRule, boolean>;
-  lastRun?: CompletedJobRetentionRun | null;
-  lastRuns?: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
-  error?: SchedulerApiError;
-}
-
-/** GET /api/legacy/jobs/settings/completed-retention. */
-export async function fetchCompletedJobRetentionSettings(): Promise<{
-  settings: CompletedJobRetentionSettings;
+export interface CanonicalRetentionSettings {
+  revision: number;
+  cleanupScope: 'run_history';
   rules: JobRetentionRules;
-  configValid: boolean;
   configValidity: Record<JobRetentionRule, boolean>;
-  lastRun: CompletedJobRetentionRun | null;
   lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
-}> {
-  const data = await request<ApiCompletedJobRetentionResponse>(
-    `${BASE}/legacy/jobs/settings/completed-retention`,
-  );
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
-    throw new Error('Job retention settings missing');
-  }
-  return {
-    settings: data.settings,
-    rules: data.rules,
-    configValid: data.configValid === true,
-    configValidity: data.configValidity,
-    lastRun: data.lastRun ?? null,
-    lastRuns: data.lastRuns,
-  };
+}
+export type RetentionUpdate = { expectedRevision: number; requestKey: string; rules: JobRetentionRules };
+export function fetchCompletedJobRetentionSettings(): Promise<CanonicalRetentionSettings> {
+  return canonicalRequest('job-maintenance/retention-settings');
+}
+export function updateCompletedJobRetentionSettings(body: RetentionUpdate): Promise<import('@/types/canonicalJobs').CanonicalReceipt> {
+  return canonicalRequest('job-maintenance/retention-settings', 'PUT', body);
 }
 
-/** Legacy retention settings are read-only in the React client. */
 /** GET /api/legacy/jobs — 全 kind 列表（客户端排序/筛选）。 */
 export async function fetchJobs(
   onPinMetadataStatus?: (status: 'available' | 'unavailable') => void,

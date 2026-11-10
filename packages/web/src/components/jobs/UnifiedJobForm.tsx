@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Field, inputClass } from '@/components/jobs/ScheduleListEditor';
+import { Field, inputClass, ScheduleListEditor, scheduleEntryToDraft, buildScheduleSpec } from '@/components/jobs/ScheduleListEditor';
+import type { ScheduleEntry } from '@/types/jobs';
+import type { ScheduleEntryDraft } from '@/components/jobs/ScheduleListEditor';
+import { TypedValue } from '@/components/automation/CanonicalDefinitionFields';
 import type { UnifiedJobConfig, UnifiedTriggerKind, OverlapMode } from '@/types/jobs';
 import type { Action } from '@/types/actions';
 import { ApiRequestError } from '@/services/api';
@@ -23,6 +26,17 @@ export function UnifiedJobForm({ initial, actions = [], submitting = false, erro
   }));
   const [args, setArgs] = useState(JSON.stringify(config.arguments, null, 2));
   const [schedule, setSchedule] = useState(JSON.stringify(config.schedule, null, 2));
+  const [entries, setEntries] = useState(() => config.schedule.map((spec, index) => scheduleEntryToDraft({ id: String(index), enabled: true, misfirePolicy: 'fire_now', nextFireAt: null, ...spec } as ScheduleEntry)));
+  const [advancedArgs, setAdvancedArgs] = useState(false);
+  const [advancedSchedule, setAdvancedSchedule] = useState(false);
+  const buildEntries = (drafts: ScheduleEntryDraft[]) => drafts.map((draft) => {
+    const original = config.schedule[Number(draft.key)];
+    const spec = buildScheduleSpec(draft);
+    if (!original || original.kind !== spec.kind) return spec;
+    const preserved = { ...original } as typeof original & { interval_sec?: number | null };
+    if (spec.kind === 'interval') delete preserved.interval_sec;
+    return { ...preserved, ...spec };
+  });
   const [query, setQuery] = useState(JSON.stringify(config.trigger?.query ?? { field: 'adapter', op: 'eq', value: 'codex' }, null, 2));
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -58,9 +72,15 @@ export function UnifiedJobForm({ initial, actions = [], submitting = false, erro
     <Field label="Action reference">{actions.length > 0 ? <select aria-label="Action reference" className={inputClass} value={config.actionId} onChange={(e) => patch('actionId', e.target.value)}><option value="">Select an Action…</option>{config.actionId && !selectedAction && <option value={config.actionId}>Missing Action · {config.actionId}</option>}{actions.map((action) => <option key={action.id} value={action.id}>{action.name} · {action.id}{action.system ? ' · system' : ''}</option>)}</select> : <input aria-label="Action reference" className={inputClass} value={config.actionId} placeholder="Action ID or system Action ID" onChange={(e) => patch('actionId', e.target.value)} />}</Field>
     {actions.length > 0 && config.actionId && !selectedAction && <p role="alert" className="text-xs text-danger">Incomplete: missing Action {config.actionId} at /config/actionId. Choose a replacement; repair stays disabled.</p>}
     {selectedAction && <p className="text-xs text-text-secondary break-words">Declared fields: {Object.entries(selectedAction.input_schema.properties ?? {}).map(([key, spec]) => `${key}: ${spec.type}`).join(', ') || 'none; only {} accepted'}</p>}
-    <Field label="Declared arguments (JSON)"><textarea aria-label="Declared arguments (JSON)" className={`${inputClass} min-h-24 font-mono`} value={args} onChange={(e) => { setArgs(e.target.value); setDirty(true); }} /></Field>
+    {selectedAction && Object.entries(selectedAction.input_schema.properties ?? {}).map(([name, schema]) => {
+      let values: Record<string, unknown> = {};
+      try { values = JSON.parse(args); } catch { /* Advanced JSON retains its validation on save. */ }
+      return <div key={name} className="rounded border border-border-muted p-3"><TypedValue key={`${config.actionId}:${name}`} label={`${name}${selectedAction.input_schema.required?.includes(name) ? ' (required)' : ''}`} schema={schema} value={values[name] ?? schema.default} onChange={(value) => { setArgs(JSON.stringify({ ...values, [name]: value }, null, 2)); setDirty(true); }} />{schema.description && <p className="text-xs text-text-secondary">{schema.description}</p>}</div>;
+    })}
+    <details open={advancedArgs} onToggle={(e) => setAdvancedArgs(e.currentTarget.open)}><summary>Advanced arguments JSON</summary><Field label="Declared arguments (JSON)"><textarea aria-label="Declared arguments (JSON)" className={`${inputClass} min-h-24 font-mono`} value={args} onChange={(e) => { setArgs(e.target.value); setDirty(true); }} /></Field></details>
     <Field label="Trigger"><select aria-label="Trigger" className={inputClass} value={trigger} onChange={(e) => patch('trigger', { kind: e.target.value as UnifiedTriggerKind })}><option value="immediate">Immediate</option><option value="once">Once</option><option value="interval">Interval</option><option value="cron">Cron</option><option value="event">Event query</option><option value="schedule">Existing schedule</option></select></Field>
-    <Field label="Complete schedule specs (JSON)"><textarea aria-label="Complete schedule specs (JSON)" className={`${inputClass} min-h-24 font-mono`} value={schedule} onChange={(e) => { setSchedule(e.target.value); setDirty(true); }} /></Field>
+    {!['immediate', 'event'].includes(trigger) && <ScheduleListEditor entries={entries} onChange={(next) => { setEntries(next); setSchedule(JSON.stringify(buildEntries(next), null, 2)); setDirty(true); }} />}
+    <details open={advancedSchedule} onToggle={(e) => { const open = e.currentTarget.open; if (!open && advancedSchedule) { try { const specs = JSON.parse(schedule); if (!Array.isArray(specs)) throw new Error('Schedule must be an array'); setEntries(specs.map((spec, index) => scheduleEntryToDraft({ id: String(index), enabled: true, misfirePolicy: 'fire_now', nextFireAt: null, ...spec }))); setConfig((old) => ({ ...old, schedule: specs })); } catch { /* Save reports malformed JSON while advanced mode remains open. */ e.currentTarget.open = true; return; } } setAdvancedSchedule(open); }}><summary>Advanced schedule JSON</summary><Field label="Complete schedule specs (JSON)"><textarea aria-label="Complete schedule specs (JSON)" className={`${inputClass} min-h-24 font-mono`} value={schedule} onChange={(e) => { setSchedule(e.target.value); setDirty(true); }} /></Field></details>
     {trigger === 'event' && <Field label="Event query (JSON)"><textarea aria-label="Event query (JSON)" className={`${inputClass} min-h-20 font-mono`} value={query} onChange={(e) => { setQuery(e.target.value); setDirty(true); }} /></Field>}
     {trigger === 'event' && <Field label="Event types (comma-separated)"><input className={inputClass} value={config.trigger?.eventTypes?.join(',') ?? ''} onChange={(e) => patch('trigger', { ...config.trigger!, eventTypes: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} /></Field>}
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"><Field label="Completion"><select aria-label="Completion" className={inputClass} value={config.completion?.kind} onChange={(e) => { const monitoring = e.target.value === 'monitoring'; patch('completion', { ...config.completion!, kind: monitoring ? 'monitoring' : 'ordinary' }); patch('recovery', { ...config.recovery!, monitoring, enabled: monitoring && config.recovery!.enabled }); }}><option value="ordinary">Ordinary result</option><option value="monitoring">Monitoring signal</option></select></Field><Field label="Signal type"><input className={inputClass} value={config.completion?.signalType ?? ''} onChange={(e) => patch('completion', { ...config.completion!, signalType: e.target.value || undefined })} /></Field></div>

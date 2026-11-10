@@ -106,11 +106,10 @@ function jobRetentionResponse(rules = defaultJobRetentionRules) {
     logs: null,
   };
   return {
-    settings: rules.completed,
+    revision: 0,
+    cleanupScope: 'run_history',
     rules,
-    configValid: true,
     configValidity,
-    lastRun: null,
     lastRuns,
   };
 }
@@ -315,7 +314,7 @@ describe('AppSettingsModal', () => {
     fetchCompletedJobRetentionSettingsMock.mockReset();
     fetchCompletedJobRetentionSettingsMock.mockResolvedValue(jobRetentionResponse());
     updateCompletedJobRetentionSettingsMock.mockReset();
-    updateCompletedJobRetentionSettingsMock.mockImplementation(async (rules) => jobRetentionResponse(rules));
+    updateCompletedJobRetentionSettingsMock.mockImplementation(async (body) => ({ status: 'completed', result: { settings: { ...jobRetentionResponse(body.rules), revision: 1 } } }));
   });
 
   it('renders nothing when closed', () => {
@@ -961,7 +960,7 @@ describe('AppSettingsModal', () => {
     expect(panel.querySelector('code')?.className).toContain('break-all');
     expect(panel.textContent).not.toContain('共享策略');
     await waitFor(() => expect(panel.querySelector(
-      '[aria-label="Keep Completed Jobs for days"]',
+      '[aria-label="Keep Completed Runs for days"]',
     )).not.toBeNull());
     expect(document.querySelectorAll('[role="tab"]')).toHaveLength(10);
     expect(updateUiSettingsMock).not.toHaveBeenCalled();
@@ -1099,7 +1098,7 @@ describe('AppSettingsModal', () => {
 
     const failedDays = await waitFor(() => {
       const input = document.querySelector<HTMLInputElement>(
-        '[aria-label="Keep Failed Jobs for days"]',
+        '[aria-label="Keep Failed Runs for days"]',
       );
       expect(input).not.toBeNull();
       return input!;
@@ -1111,8 +1110,8 @@ describe('AppSettingsModal', () => {
     fireEvent.click(Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
       .find((button) => button.textContent?.trim() === 'Save settings')!);
 
-    await waitFor(() => expect(screen.getByText(/read-only after Jobs migration/)).toBeTruthy());
-    expect(updateCompletedJobRetentionSettingsMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(updateCompletedJobRetentionSettingsMock).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: 0, requestKey: expect.any(String), rules: expect.objectContaining({ failed: { enabled: false, days: 21 } }) })));
+    expect(await screen.findByText('Settings saved.')).toBeTruthy();
     expect(updateDataRetentionMock).not.toHaveBeenCalled();
   });
 

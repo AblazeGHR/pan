@@ -65,11 +65,11 @@ it('explicitly opts the assign Template into the immutable runtime release and d
 
 it('unknown creation queries the original operation and disables duplicate form submission', async () => {
   host('assign'); change('Session ID', 'ses_owned'); change('Text', 'raw'); await ready();
-  lost = true; click('Save passive Template'); await screen.findByText('请求结果未确认，请按原身份查询。');
+  lost = true; click('Save passive Template'); await screen.findByText('The result is unconfirmed. Query the original identity.');
   expect((screen.getByRole('button', { name: 'Save passive Template' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.submit(screen.getByRole('form'));
   expect(writes).toHaveLength(1);
-  click('查询原操作'); await waitFor(() => expect(screen.queryByRole('form')).toBeNull());
+  click('Query original operation'); await waitFor(() => expect(screen.queryByRole('form')).toBeNull());
   expect(writes).toHaveLength(1);
 });
 

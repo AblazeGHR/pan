@@ -22,6 +22,16 @@ export function LegacyJobDetails({ job }: { job: Job }) {
       <button type="button" onClick={() => setRefresh((value) => value + 1)}>Refresh record</button>
     </div>
     {error && <p role="alert" className="text-danger">{error}</p>}
+    {record && <dl className="grid grid-cols-1 gap-2 rounded border border-border-muted p-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
+      {Object.entries({
+        argv: record.argv,
+        'Working directory': record.cwd,
+        Environment: record.env ?? record.environment,
+        Window: record.hideWindow ?? record.hide_window ?? record.window,
+        Timeout: record.timeout ?? record.timeoutSec ?? record.timeout_sec,
+        'Log path': record.logPath ?? record.log_path,
+      }).map(([label, value]) => <div key={label} className="contents"><dt className="text-text-tertiary">{label}</dt><dd className="min-w-0 whitespace-pre-wrap break-all font-mono">{value == null ? 'Not provided' : typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</dd></div>)}
+    </dl>}
     {record && <details><summary>Original record / log path / delivery details</summary>
       <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-bg-tertiary p-2">{JSON.stringify(record, null, 2)}</pre>
     </details>}

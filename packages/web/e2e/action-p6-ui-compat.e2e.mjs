@@ -89,11 +89,21 @@ try {
   });
 
   await page.goto(base + '/react/actions');
-  await page.getByLabel('Local user key').fill(key);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Log out', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '旧定义与 Session 绑定' }).click();
-  await page.getByRole('button', { name: 'Edit Owned old series', exact: true }).click();
+  // The integrated canonical shell may expose login from Settings rather than
+  // inline on Actions. Establish the same HttpOnly session through the real
+  // authorization endpoint, then keep the inline flow for older shells.
+  const login = await page.evaluate(async (value) => {
+    const response = await fetch('/api/automation/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: value }) });
+    return { ok: response.ok };
+  }, key);
+  if (login.ok) await page.reload();
+  if (await page.getByLabel('Local user key').count()) {
+    await page.getByLabel('Local user key').fill(key);
+    await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  }
+  const mappedTab = page.getByRole('button', { name: '旧定义与 Session 绑定' });
+  if (await mappedTab.count()) await mappedTab.click();
+  else await page.getByRole('button', { name: 'Inspect Owned old series', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Mapped canonical Action' })).toBeVisible();
   evidence.checks.push('old UI mapped advanced Action opens the canonical compatibility panel');
 
@@ -114,17 +124,25 @@ try {
   assert.ok(duplicateBody.requestKey);
   evidence.checks.push('canonical duplicate preserves both commands, timeout and a fresh requestKey');
 
-  await page.getByRole('button', { name: '编辑为新草稿版本' }).click();
+  const draftButton = page.getByRole('button', { name: '编辑为新草稿版本' });
+  if (await draftButton.count()) await draftButton.click();
+  else await page.getByRole('button', { name: 'Edit as a new draft version' }).click();
   const copyDefinition = JSON.parse(
     await page.getByRole('textbox', { name: 'Action definition' }).inputValue(),
   );
   assert.equal(copyDefinition.execution.config.commands.length, 2);
   assert.equal(copyDefinition.name, 'Owned browser copy');
-  await page.getByRole('button', { name: '返回旧目录' }).click();
+  const backCatalog = page.getByRole('button', { name: '返回旧目录' });
+  if (await backCatalog.count()) await backCatalog.click();
+  else await page.getByRole('button', { name: 'Back to catalog' }).click();
   await page.getByRole('button', { name: 'Discard draft' }).click();
   evidence.checks.push('duplicated canonical copy opens with the full definition and discard guard');
 
-  await page.getByRole('button', { name: 'Edit Owned old series', exact: true }).click();
+  if (await page.getByRole('button', { name: 'Edit Owned old series', exact: true }).count()) {
+    await page.getByRole('button', { name: 'Edit Owned old series', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: 'Inspect Owned old series', exact: true }).click();
+  }
   const deletesBefore = requests.filter((item) => item.method === 'DELETE').length;
   await page.getByRole('button', { name: 'Delete canonical Action' }).click();
   await expect(page.getByText(/Action is used by Owned Group/)).toBeVisible();
@@ -182,10 +200,43 @@ try {
   await expect(page.getByRole('heading', { name: 'Jobs' })).toBeVisible();
   evidence.checks.push('production Jobs flow uses one list and an in-panel structured editor');
 
+  // A canonical Action Job is created and edited from the same Jobs entry.
+  await page.getByRole('button', { name: 'New Job', exact: true }).click();
+  await page.getByLabel('Job configuration type').selectOption('action');
+  await page.getByLabel('Name', { exact: true }).fill('Owned Action Job');
+  await page.getByLabel('Action for step 1').selectOption('p6_original');
+  await expect(page.getByRole('region', { name: 'Parameter bindings for step 1' })).toBeVisible();
+  assert.equal(await page.getByRole('dialog').count(), 0, 'Action Job editor must occupy the main panel');
+  await page.getByRole('button', { name: 'Create Action Job' }).click();
+  await expect(page.getByTestId('jobs-list-scroll').getByText('Owned Action Job', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId('jobs-list-scroll').getByText('Owned Action Job', { exact: true })).toBeVisible();
+  await page.getByTestId('jobs-list-scroll').getByText('Owned Action Job', { exact: true }).click();
+  const jobDetail = page.getByRole('region', { name: 'Job detail' });
+  await expect(jobDetail.getByRole('region', { name: 'Canonical Job configuration' })).toBeVisible();
+  await expect(jobDetail.getByText('Action Job', { exact: true })).toBeVisible();
+  await expect(jobDetail.getByRole('button', { name: 'Change target' })).toHaveCount(0);
+  await expect(jobDetail.getByText(/Command 2/)).toBeVisible();
+  await expect(jobDetail.getByText('Timeout: 19')).toBeVisible();
+  await jobDetail.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByLabel('Name', { exact: true }).fill('Owned Action Job edited');
+  await page.getByRole('button', { name: 'Save Action Job' }).click();
+  await expect(jobDetail.getByText('Owned Action Job edited', { exact: true })).toBeVisible();
+  await jobDetail.getByRole('button', { name: 'Close' }).click();
+  await page.getByTestId('jobs-list-scroll').getByText('Owned Action Job edited', { exact: true }).click();
+  await expect(jobDetail.getByText('Timeout: 19')).toBeVisible();
+  await page.screenshot({ path: path.join(runtime, 'action-job-detail-1280.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 900 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.screenshot({ path: path.join(runtime, 'action-job-detail-390.png'), fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await jobDetail.getByRole('button', { name: 'Close' }).click();
+  evidence.checks.push('Action Job creation, reload, exact Action definition and panel edit round-trip');
+
   await page.screenshot({ path: path.join(runtime, 'jobs-list.png'), fullPage: true });
 
-  await page.goto(base + '/react/automation/canonical');
-  await page.getByRole('button', { name: 'JobTemplates' }).click();
+  await page.goto(base + '/react/jobs');
+  await page.getByRole('button', { name: 'Job Templates', exact: true }).click();
   await expect(page.getByRole('article', { name: 'JobTemplates Owned template', exact: true })).toBeVisible();
 
   const templateDuplicateResponse = page.waitForResponse(
@@ -208,8 +259,8 @@ try {
   async function revisions(name) {
     const text = await page.getByRole('article', { name: `JobTemplates ${name}` }).innerText();
     return {
-      revision: Number(text.match(/定义版本\s*(\d+)/)?.[1]),
-      stateRevision: Number(text.match(/状态版本\s*(\d+)/)?.[1]),
+      revision: Number(text.match(/(?:定义版本|Definition revision)\s*(\d+)/)?.[1]),
+      stateRevision: Number(text.match(/(?:状态版本|State revision)\s*(\d+)/)?.[1]),
     };
   }
   const beforePublish = await revisions('Owned template copy');
@@ -237,18 +288,18 @@ try {
       response.url().includes('/api/job-templates/') &&
       response.request().method() === 'DELETE',
   );
-  await page.getByRole('button', { name: '确认 retire' }).click();
+  await page.getByRole('button', { name: /确认 retire|Confirm retire/ }).click();
   const retired = await retireResponse;
   assert.equal(retired.request().postDataJSON().expectedRevision, beforeRetire.revision);
   assert.equal(retired.request().postDataJSON().expectedStateRevision, beforeRetire.stateRevision);
   await expect(page.getByRole('button', { name: 'retire Owned template copy' })).toBeDisabled();
   evidence.checks.push('Template delete retires only the selected revision with observed CAS');
 
-  await page.getByRole('button', { name: '创建 JobTemplates' }).click();
-  await page.getByRole('textbox', { name: '名称', exact: true }).fill('Browser new template');
+  await page.getByRole('button', { name: /创建 JobTemplates|Create JobTemplates/ }).click();
+  await page.getByRole('textbox', { name: /^(名称|Name)$/ }).fill('Browser new template');
   await page.getByText('Advanced definition JSON', { exact: true }).click();
   await page
-    .getByLabel('定义 JSON（名称单独填写）')
+    .getByLabel('Definition JSON (name is entered separately)')
     .fill(
       JSON.stringify(
         {
@@ -274,7 +325,7 @@ try {
     (response) =>
       response.url().endsWith('/api/job-templates') && response.request().method() === 'POST',
   );
-  await page.getByRole('button', { name: '保存定义' }).click();
+  await page.getByRole('button', { name: /保存定义|Save definition/ }).click();
   const created = await createResponse;
   assert.equal(created.status(), 201);
   assert.equal(created.request().postDataJSON().definition.name, 'Browser new template');
@@ -286,17 +337,16 @@ try {
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(base + '/react/actions');
-    await page.getByRole('button', { name: '旧定义与 Session 绑定' }).click();
-    await page.getByRole('button', { name: 'Owned old series', exact: true }).click();
+    await page.getByRole('button', { name: 'Inspect Owned old series', exact: true }).click();
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       true,
       `mapped Action panel overflows at ${width}`,
     );
     await page.screenshot({ path: path.join(runtime, `mapped-${width}.png`), fullPage: true });
-    await page.getByRole('button', { name: '返回旧目录' }).click();
-    await page.goto(base + '/react/automation/canonical');
-    await page.getByRole('button', { name: 'JobTemplates' }).click();
+    await page.getByRole('button', { name: 'Back to catalog' }).click();
+    await page.goto(base + '/react/jobs');
+    await page.getByRole('button', { name: 'Job Templates', exact: true }).click();
     await expect(page.getByRole('article', { name: 'JobTemplates Owned template', exact: true })).toBeVisible();
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

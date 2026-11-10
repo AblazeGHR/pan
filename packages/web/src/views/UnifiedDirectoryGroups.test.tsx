@@ -3,7 +3,7 @@
  * Unified directory: Groups live in the same navigation as Actions, keep their
  * fixed versions/release visible, and bind to a Session in one of three MCP
  * modes with the observed CAS revision. Legacy-only records stay reachable
- * through the legacy writer surface instead of being hidden.
+ * as preserved read-only records instead of being hidden.
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -117,10 +117,10 @@ it('keeps Groups in the same directory with fixed versions, release and build co
   await openGroups();
   expect(screen.getByRole('button', { name: 'Open Group Draft Group' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Open Group Release Group' }));
-  expect(await screen.findByRole('button', { name: /在 Session 中使用/ })).toBeTruthy();
-  expect(screen.getByRole('button', { name: /重新 Build/ })).toBeTruthy();
+  expect(await screen.findByRole('button', { name: /Use in Session/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /Build again/ })).toBeTruthy();
   expect(screen.getByText(releaseVersion)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: '查看当前 release' }));
+  fireEvent.click(screen.getByRole('button', { name: 'View current release' }));
   await waitFor(() => expect(screen.getByText('d'.repeat(64))).toBeTruthy());
   expect(request.mock.calls.some(([p]) => p === `action-groups/releases/${releaseVersion}`)).toBe(true);
 });
@@ -164,7 +164,7 @@ it('binds a built Group to one Session in one of the three MCP modes with the ob
   });
   await openGroups();
   fireEvent.click(screen.getByRole('button', { name: 'Open Group Release Group' }));
-  fireEvent.click(await screen.findByRole('button', { name: /在 Session 中使用/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Use in Session/ }));
   fireEvent.click(await screen.findByRole('radio', { name: /Session One/ }));
   fireEvent.click(await screen.findByRole('radio', { name: /Discover \/ call/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Apply to Session' }));
@@ -198,21 +198,21 @@ it('keeps the observed Group revision on build and only queries after a lost res
   });
   await openGroups();
   fireEvent.click(screen.getByRole('button', { name: 'Open Group Release Group' }));
-  fireEvent.click(await screen.findByRole('button', { name: /重新 Build/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Build again/ }));
   await screen.findByText(/lost response/);
   const body = request.mock.calls.find(([p]) => p === 'action-groups/release_group/build')![2] as {
     expectedRevision: number;
     requestKey: string;
   };
   expect(body.expectedRevision).toBe(5);
-  fireEvent.click(screen.getByRole('button', { name: '查询原 Group 操作' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Query original Group operation' }));
   await waitFor(() =>
     expect(request.mock.calls.some(([p]) => p.includes(encodeURIComponent(body.requestKey)))).toBe(true),
   );
   expect(request.mock.calls.filter(([p]) => p === 'action-groups/release_group/build')).toHaveLength(1);
 });
 
-it('shows a legacy-only Group through the legacy editor instead of inventing canonical state', async () => {
+it('shows a legacy-only Group as a preserved read-only record without inventing canonical state', async () => {
   request.mockImplementation(async (path) => {
     if (path === 'jobs/actions') return { items: [], versions: {}, references: {} } as never;
     if (path === 'action-groups') return { items: [] } as never;
@@ -232,8 +232,10 @@ it('shows a legacy-only Group through the legacy editor instead of inventing can
   render(<UnifiedActionsView />);
   fireEvent.click(await screen.findByRole('button', { name: /^Groups/ }));
   fireEvent.click(await screen.findByRole('button', { name: 'Open Group Old Group' }));
-  expect(await screen.findByText('Group identity')).toBeTruthy();
-  expect(screen.getByText('旧记录')).toBeTruthy();
+  expect(await screen.findByRole('region', { name: 'Preserved source record' })).toBeTruthy();
+  expect(screen.getByText('Invalid / Retired')).toBeTruthy();
+  expect(screen.getByText(/Legacy definitions are read-only/)).toBeTruthy();
+  expect(legacyRequest.mock.calls.some(([, method]) => method && method !== 'GET')).toBe(false);
 });
 
 it('shows preserved and adopted state per row and blocks the preserved editor with its reason', async () => {
@@ -263,8 +265,8 @@ it('shows preserved and adopted state per row and blocks the preserved editor wi
     throw new Error(`Unhandled legacy ${path}`);
   });
   render(<UnifiedActionsView />);
-  expect(await screen.findByText('已接管旧定义')).toBeTruthy();
-  expect(screen.getByText('已保留 · 写入阻断')).toBeTruthy();
+  expect(await screen.findByText('Canonical definition')).toBeTruthy();
+  expect(screen.getByText('Preserved · Writes blocked')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Open Action Preserved One' }));
   expect(await screen.findByText(/unrepresentable shell execution/)).toBeTruthy();
 });
@@ -299,14 +301,14 @@ it('creates a canonical Action draft from the same directory without publishing 
     throw new Error(`Unhandled ${path} ${method}`);
   });
   render(<UnifiedActionsView />);
-  fireEvent.click(await screen.findByRole('button', { name: /新建 Action/ }));
-  fireEvent.click(await screen.findByRole('button', { name: '新建统一 Action' }));
+  fireEvent.click(await screen.findByRole('button', { name: /New Action/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'New definition' }));
   const textarea = await screen.findByLabelText('Action definition');
   const definition = JSON.parse((textarea as HTMLTextAreaElement).value);
   fireEvent.change(textarea, {
     target: { value: JSON.stringify({ ...definition, name: 'Browser Action Draft' }, null, 2) },
   });
-  fireEvent.click(screen.getByRole('button', { name: '保存草稿版本' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft version' }));
   await waitFor(() => expect(posted).toHaveLength(1));
   expect(posted[0]!).toMatchObject({ expectedRevision: 0 });
   expect((posted[0]!.definition as { name: string }).name).toBe('Browser Action Draft');
@@ -381,7 +383,7 @@ it('merges an adopted alias only through the explicit binding projection', async
     throw new Error(`Unhandled legacy ${path}`);
   });
   render(<UnifiedActionsView />);
-  expect(await screen.findByText('已接管旧定义')).toBeTruthy();
+  expect(await screen.findByText('Canonical definition')).toBeTruthy();
   // The live binding is merged into the canonical row; the deleted one keeps
   // its legacy writer state instead of inheriting the canonical head.
   expect(screen.getByRole('button', { name: 'Open Action Adopted Canonical' })).toBeTruthy();
@@ -430,7 +432,7 @@ it('lists a Group release history and opens one immutable release', async () => 
   const history = await screen.findByRole('region', { name: 'Release history' });
   expect(history.textContent).toContain('rel-first-0001');
   expect(history.textContent).toContain(releaseVersion);
-  fireEvent.click(within(history).getByRole('button', { name: '查看 rel-first-0001' }));
+  fireEvent.click(within(history).getByRole('button', { name: 'Inspect rel-first-0001' }));
   await waitFor(() =>
     expect(request.mock.calls.some(([p]) => p === 'action-groups/releases/rel-first-0001')).toBe(true),
   );

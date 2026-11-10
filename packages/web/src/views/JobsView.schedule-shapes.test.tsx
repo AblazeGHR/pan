@@ -28,6 +28,14 @@ vi.mock('@/services/api', () => ({
   deleteJob: vi.fn(),
   runJobNow: vi.fn(),
 }));
+vi.mock('@/services/legacyJobs', () => ({
+  fetchJobs: api.fetchJobs,
+  fetchJob: api.fetchJob,
+  fetchJobKinds: api.fetchJobKinds,
+  fetchJobRuns: api.fetchJobRuns,
+  patchJob: api.patchJob,
+  cancelJob: vi.fn(), deleteJob: vi.fn(), pinJob: vi.fn(), runJobNow: vi.fn(),
+}));
 vi.mock('@/services/ws', () => ({
   wsClient: {
     on: (name: string, callback: (event: unknown) => void) => {
@@ -106,15 +114,15 @@ describe('JobsView schedule payload compatibility', () => {
     renderView();
 
     fireEvent.click(await screen.findByText('Object schedule'));
-    expect(await screen.findByRole('dialog', { name: 'Job detail' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Job detail' })).toBeTruthy();
     expect(screen.getByText(/weekly/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByText('Missing schedule'));
-    expect(await screen.findByRole('dialog', { name: 'Job detail' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Job detail' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByText('Null schedule'));
-    expect(await screen.findByRole('dialog', { name: 'Job detail' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Job detail' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByText('Scalar schedule'));
     expect(await screen.findByText('legacy schedule value')).toBeTruthy();
@@ -127,11 +135,11 @@ describe('JobsView schedule payload compatibility', () => {
     renderView();
     fireEvent.click(await screen.findByText('Reminder'));
 
-    expect(await screen.findByRole('dialog', { name: 'Job detail' })).toBeTruthy();
+    expect(await screen.findByRole('region', { name: 'Job detail' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
     expect(api.patchJob).not.toHaveBeenCalled();
     expect(screen.getByText(/weekly/)).toBeTruthy();
-    expect(screen.getByText('Legacy execution history')).toBeTruthy();
+    expect(screen.getByText('Runs')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^Edit$/ }));
     expect(screen.queryByLabelText('Job user authorization')).toBeNull();
   });

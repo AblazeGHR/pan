@@ -40,6 +40,7 @@ export function CanonicalGroupPanel({
   onChanged,
   onInspect,
   onSelectAction,
+  onClose,
 }: {
   row: UnifiedGroupRow;
   catalog: UnifiedActionRow[];
@@ -48,6 +49,7 @@ export function CanonicalGroupPanel({
   onChanged: () => Promise<void>;
   onInspect: (ref: JsonObject) => void;
   onSelectAction: (actionId: string) => void;
+  onClose?: () => void;
 }) {
   const [name, setName] = useState(row.name);
   const [tools, setTools] = useState<DraftTool[]>([]);
@@ -201,6 +203,7 @@ export function CanonicalGroupPanel({
 
   return (
     <article className="min-w-0 space-y-3" aria-label={`Group ${row.name}`}>
+      {onClose && <div className="ml-12 sm:ml-0"><Button size="sm" variant="ghost" disabled={busy || !!pending} onClick={() => { if (!dirty || window.confirm('Discard unsaved Group changes?')) onClose(); }}>Back to list</Button></div>}
       <header className="min-w-0 space-y-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="min-w-0 break-all text-lg font-semibold">{row.name}</h2>
@@ -213,9 +216,7 @@ export function CanonicalGroupPanel({
             </Badge>
           )}
         </div>
-        <p className="break-all font-mono text-[11px] text-text-tertiary">
-          {row.id} · {row.pluginId}
-        </p>
+        <details className="text-[11px] text-text-tertiary"><summary className="cursor-pointer">Technical details</summary><p className="break-all font-mono">{row.id} · {row.pluginId}</p></details>
         <p className="text-[11px] text-text-tertiary">revision {String(row.revision ?? '—')}</p>
       </header>
 
@@ -298,7 +299,7 @@ export function CanonicalGroupPanel({
                     .filter((item) => item.canonicalId)
                     .map((item) => (
                       <option key={item.canonicalId} value={item.canonicalId}>
-                        {item.name} · {item.canonicalId}
+                        {item.name}
                       </option>
                     ))}
                 </select>
@@ -310,7 +311,7 @@ export function CanonicalGroupPanel({
               onChange={(actionRef) => patch(index, { actionRef })}
             />
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-tertiary">
-              <span className="break-all font-mono">{JSON.stringify(tool.actionRef)}</span>
+              <details className="min-w-0"><summary className="cursor-pointer">Technical details</summary><span className="break-all font-mono">{JSON.stringify(tool.actionRef)}</span></details>
               {text(tool.actionRef.id) && (
                 <Button size="sm" variant="ghost" onClick={() => onSelectAction(text(tool.actionRef.id))}>
                   Inspect Action
@@ -451,10 +452,7 @@ export function CanonicalGroupPanel({
               <span className="text-text-tertiary">version: </span>
               <span className="font-mono">{text(release.version)}</span>
             </p>
-            <p className="break-all">
-              <span className="text-text-tertiary">digest: </span>
-              <span className="font-mono">{text(release.digest)}</span>
-            </p>
+            <details><summary className="cursor-pointer">Technical details</summary><p className="break-all">Digest: <span className="font-mono">{text(release.digest)}</span></p></details>
             <p className="break-words">
               <span className="text-text-tertiary">Fixed tools:</span>
               {aliasesOf(rows(release.tools)) || '—'}

@@ -28,11 +28,13 @@ export function TypedValue({
   value,
   schema,
   onChange,
+  depth = 0,
 }: {
   label: string;
   value: unknown;
   schema?: JsonObject;
   onChange: (value: unknown) => void;
+  depth?: number;
 }) {
   const inferred = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
   const [type, setType] = useState(
@@ -40,7 +42,7 @@ export function TypedValue({
   );
   return (
     <div className="space-y-2">
-      <label className="block text-sm">
+      {typeof schema?.type !== 'string' && <label className="block text-sm">
         {label} type
         <select
           aria-label={`${label} type`}
@@ -68,7 +70,7 @@ export function TypedValue({
             <option key={t}>{t}</option>
           ))}
         </select>
-      </label>
+      </label>}
       {type === 'string' ? (
         <label className="block text-sm">
           {label}
@@ -104,13 +106,38 @@ export function TypedValue({
             onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
           />
         </label>
-      ) : (
-        type !== 'null' && (
-          <LiteralInput label={`${label} (JSON)`} value={value} onChange={onChange} />
-        )
-      )}
+      ) : type === 'array' && depth < 5 ? (
+        <div className="space-y-2" aria-label={`${label} items`}>
+          {(Array.isArray(value) ? value : []).map((entry, index) => <div key={index} className="rounded border border-border-muted p-2">
+            <TypedValue label={`${label} item ${index + 1}`} value={entry} schema={obj(schema?.items)} depth={depth + 1} onChange={next => { const items = Array.isArray(value) ? [...value] : []; items[index] = next; onChange(items); }} />
+            <Button type="button" onClick={() => onChange((Array.isArray(value) ? value : []).filter((_, at) => at !== index))}>Remove {label} item {index + 1}</Button>
+          </div>)}
+          <Button type="button" onClick={() => onChange([...(Array.isArray(value) ? value : []), initialLiteral(obj(schema?.items))])}>Add {label} item</Button>
+          <details><summary>Advanced {label} JSON</summary><LiteralInput label={`${label} (JSON)`} value={value} onChange={onChange} /></details>
+        </div>
+      ) : type === 'object' && depth < 5 ? (
+        <ObjectLiteral label={label} value={obj(value)} schema={schema ?? {}} depth={depth} onChange={onChange} />
+      ) : type !== 'null' ? (
+        <details><summary>Advanced {label} JSON</summary><LiteralInput label={`${label} (JSON)`} value={value} onChange={onChange} /></details>
+      ) : null}
     </div>
   );
+}
+
+
+function ObjectLiteral({ label, value, schema, depth, onChange }: { label: string; value: JsonObject; schema: JsonObject; depth: number; onChange: (value: unknown) => void }) {
+  const [name, setName] = useState('');
+  const properties = obj(schema.properties);
+  const additional = obj(schema.additionalProperties);
+  return <div className="space-y-2" aria-label={`${label} fields`}>
+    {Object.entries(value).map(([key, item]) => <div key={key} className="rounded border border-border-muted p-2">
+      <TypedValue label={`${label} ${key}`} value={item} schema={obj(properties[key] ?? additional)} depth={depth + 1} onChange={next => onChange({ ...value, [key]: next })} />
+      <Button type="button" onClick={() => onChange(Object.fromEntries(Object.entries(value).filter(([field]) => field !== key)))}>Remove {label} {key}</Button>
+    </div>)}
+    {Object.keys(properties).some(key => !(key in value)) && <label className="block text-sm">Add {label} field<select aria-label={`Add ${label} field`} className={fieldClass} value="" onChange={e => { if (e.target.value) onChange({ ...value, [e.target.value]: initialLiteral(obj(properties[e.target.value])) }); }}><option value="">Choose a field</option>{Object.keys(properties).filter(key => !(key in value)).map(key => <option key={key}>{key}</option>)}</select></label>}
+    {schema.additionalProperties !== false && <div><label className="block text-sm">New {label} field<input aria-label={`New ${label} field`} className={fieldClass} value={name} onChange={e => setName(e.target.value)} /></label><Button type="button" disabled={!name || name in value} onClick={() => { onChange({ ...value, [name]: initialLiteral(additional) }); setName(''); }}>Add {label} field</Button></div>}
+    <details><summary>Advanced {label} JSON</summary><LiteralInput label={`${label} (JSON)`} value={value} onChange={onChange} /></details>
+  </div>;
 }
 
 function Bindings({
@@ -142,7 +169,9 @@ function Bindings({
             className="min-w-0 space-y-2 rounded border border-border-default p-3"
           >
             <legend>{name}</legend>
-            <label className="block text-sm">
+            <details open={binding.from !== 'literal'}>
+              <summary className="cursor-pointer text-xs text-text-secondary">Advanced binding</summary>
+              <label className="block text-sm">
               {name} source
               <select
                 aria-label={`${name} source`}
@@ -170,7 +199,8 @@ function Bindings({
                 )}
                 {binding.from === 'system' && <option value="system">Trusted system field</option>}
               </select>
-            </label>
+              </label>
+            </details>
             {binding.from === 'literal' ? (
               <TypedValue
                 key={JSON.stringify(obj(properties[name]).type)}
@@ -300,6 +330,8 @@ export function CanonicalDefinitionFields({
   targetJob?: CanonicalObject;
 }) {
   const [catalog, setCatalog] = useState<Catalog>({ items: [], references: {} });
+  const [fixedVersions, setFixedVersions] = useState<Record<string, JsonObject>>({});
+  const [fixedError, setFixedError] = useState('');
   const [error, setError] = useState('');
   const [eventName, setEventName] = useState('');
   const [triggerAction, setTriggerAction] = useState<JsonObject>({});
@@ -338,6 +370,31 @@ export function CanonicalDefinitionFields({
     };
   }, [kind, loadCatalog]);
   const steps = list(value.steps);
+  const fixedSignature = JSON.stringify(steps.map(step => obj(step.actionRef)).filter(ref => ref.id && ref.revision && ref.digest));
+  useEffect(() => {
+    if (kind !== 'jobs') return;
+    let active = true;
+    const refs = JSON.parse(fixedSignature) as JsonObject[];
+    const ids = [...new Set(refs.map(ref => String(ref.id)))];
+    setFixedVersions({}); setFixedError('');
+    void Promise.allSettled(ids.map(id => canonicalRequest<{ items: JsonObject[] }>(`jobs/actions/${encodeURIComponent(id)}/versions`))).then(results => {
+      if (!active) return;
+      const fixed: Record<string, JsonObject> = {}; const missing: string[] = [];
+      for (const ref of refs) {
+        const id = String(ref.id), result = results[ids.indexOf(id)];
+        const found = result?.status === 'fulfilled' ? result.value.items?.find(version => {
+          const nested = obj(version.ref);
+          return version.revision === ref.revision && (version.digest === ref.digest || nested.digest === ref.digest);
+        }) : undefined;
+        const key = `${id}:${String(ref.revision)}:${String(ref.digest)}`;
+        if (found?.definition && typeof found.definition === 'object') fixed[key] = obj(found.definition);
+        else if (obj(catalog.references[id]).revision !== ref.revision || obj(catalog.references[id]).digest !== ref.digest) missing.push(key);
+      }
+      setFixedVersions(fixed);
+      if (missing.length) setFixedError('Some fixed Action versions could not be loaded. Existing arguments are preserved; refresh before changing them.');
+    });
+    return () => { active = false; };
+  }, [kind, fixedSignature, catalog.references]);
   const updateStep = (index: number, step: JsonObject) =>
     onChange({ ...value, steps: steps.map((s, i) => (i === index ? step : s)) });
   const move = (i: number, delta: number) => {
@@ -361,6 +418,7 @@ export function CanonicalDefinitionFields({
       {kind === 'jobs' ? (
         <>
           {error && <p role="status">{error}</p>}
+          {fixedError && <p role="status">{fixedError}</p>}
           <Button type="button" onClick={() => void loadCatalog()}>
             Refresh Actions
           </Button>
@@ -378,7 +436,7 @@ export function CanonicalDefinitionFields({
               const exactAction =
                 ref.revision === currentRef.revision && ref.digest === currentRef.digest
                   ? action
-                  : undefined;
+                  : fixedVersions[`${String(ref.id)}:${String(ref.revision)}:${String(ref.digest)}`];
               const completions = list(exactAction?.completionContracts);
               return (
                 <fieldset
@@ -468,10 +526,10 @@ export function CanonicalDefinitionFields({
                     </select>
                   </label>
                   {!!ref.id && (
-                    <p className="break-all text-xs">
-                      Fixed Action: {String(ref.id)} · Revision {String(ref.revision)} ·{' '}
-                      {String(ref.digest)}
-                    </p>
+                    <div className="text-xs text-text-secondary">
+                      <p>Fixed Action: {String(exactAction?.name ?? action?.name ?? 'Unavailable Action')} · Revision {String(ref.revision)}</p>
+                      <details><summary className="cursor-pointer">Technical details</summary><p className="break-all">ID: {String(ref.id)} · Digest: {String(ref.digest)}</p></details>
+                    </div>
                   )}
                   <Bindings
                     value={obj(step.arguments)}

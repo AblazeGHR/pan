@@ -62,7 +62,8 @@ export async function fetchJobKinds(): Promise<JobKindMeta[]> {
 export async function fetchJobs(onPinMetadataStatus?: (status: 'available' | 'unavailable') => void): Promise<Job[]> {
   // Global socket hydration also runs before login and after logout. Never
   // retain or reload private canonical rows without the current authority.
-  if (!useAutomationAuth.getState().token) return [];
+  const auth = useAutomationAuth.getState();
+  if (!auth.token && !auth.authenticated) return [];
   const data = await call<{ jobs?: Job[] }>('jobs/legacy-list');
   onPinMetadataStatus?.('available');
   return data.jobs || [];
@@ -137,10 +138,11 @@ export async function fetchRunLogReferences(runId: string): Promise<RunLogRefere
 }
 
 export async function fetchRunLogText(runId: string, attemptId: string): Promise<string> {
-  const data = await call<{ text?: string | null }>(
+  const data = await call<{ text?: string | null; eof?: boolean }>(
     `job-runs/${encodeURIComponent(runId)}/attempts/${encodeURIComponent(attemptId)}/log`,
   );
-  return typeof data.text === 'string' ? data.text : '';
+  if (typeof data.text !== 'string') throw new Error('This output is binary or unavailable as text.');
+  return data.text + (data.eof === false ? '\n[Output truncated at the first 64 KiB.]' : '');
 }
 
 export async function cancelJob(jobId: string): Promise<void> {

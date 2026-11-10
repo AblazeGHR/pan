@@ -725,6 +725,7 @@ export function LegacyActionsView() {
           }}
           onInspect={() => undefined}
           onSelectAction={() => undefined}
+          onClose={() => setCanonicalTarget(null)}
         />
       ) : canonicalNew ? (
         <section aria-label="New advanced Action" className="min-h-0 overflow-auto p-4 sm:p-6">
