@@ -22,7 +22,17 @@ const env = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('PAN_')),
 );
 Object.assign(env, { PAN_E2E_RUNTIME: runtime, PAN_PORT: String(port), PYTHONPATH: root });
-const python = process.env.PAN_E2E_PYTHON || 'E:/software/miniforge/python.exe';
+const configuredPython = process.env.PAN_E2E_PYTHON || 'E:/software/miniforge/python.exe';
+// Windows venv `Scripts/python.exe` is a launcher on this machine: Node
+// receives the launcher PID while the real interpreter owns the HTTP socket.
+// Resolve its pyvenv.cfg executable before spawn so the PID returned by Node
+// and the PID published by /__e2e/identity are the same process.
+let python = configuredPython;
+try {
+  const cfg = await fs.readFile(path.join(path.dirname(configuredPython), '..', 'pyvenv.cfg'), 'utf8');
+  const executable = cfg.match(/^executable\s*=\s*(.+)$/m)?.[1]?.trim();
+  if (executable && await fs.stat(executable).then(() => true, () => false)) python = executable;
+} catch {}
 const child = spawn(python, [path.join(import.meta.dirname, 'action-p6-server.py')], {
   cwd: root,
   env,
@@ -56,6 +66,11 @@ try {
   evidence.checks.push('owned service PID, checkout and runtime verified');
 
   const sourcePath = path.join(runtime, 'cooperative-actions/registry.json');
+  for (let index = 0; index < 90; index++) {
+    if (await fs.stat(sourcePath).then(() => true, () => false)) break;
+    await fetch(base + '/__e2e/identity');
+    await sleep(500);
+  }
   const sourceBytes = await fs.readFile(sourcePath);
   const seed = JSON.parse(await fs.readFile(path.join(runtime, 'p6-seed.json'), 'utf8'));
   const key = (await fs.readFile(path.join(runtime, 'automation/user.key'), 'utf8')).trim();
