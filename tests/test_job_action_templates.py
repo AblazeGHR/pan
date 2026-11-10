@@ -249,23 +249,50 @@ async def test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only(tmp_
     finally:monkeypatch.setattr(rt.templates,'clear_snapshot',original);await rt.close()
 
 
-@async_test
-async def test_snapshot_io_does_not_hold_job_registry_or_block_event_loop(tmp_path,monkeypatch):
-    rt,calls=await setup(tmp_path);job=rt.create(config(),True)
-    entered,release=threading.Event(),threading.Event();original=rt.templates.snapshot
-    def blocked(*args):entered.set();assert release.wait(3);return original(*args)
-    monkeypatch.setattr(rt.templates,'snapshot',blocked)
-    try:
-        await rt.launch(job['jobId'],1);assert await asyncio.to_thread(entered.wait,2)
-        await asyncio.wait_for(asyncio.sleep(0),.1)
-        session=await asyncio.wait_for(asyncio.to_thread(jobs._sessions.create,'unrelated'),1)
-        other=await asyncio.wait_for(asyncio.to_thread(jobs.create_service_job,
-            request_id='unrelated-io-proof', operation='exit', root=str(tmp_path),
-            port=48321, registry_root=rt.root),1)
-        assert other['requestId']=='unrelated-io-proof' and other['operation']=='exit'
-        assert other['phase']=='requested' and not calls
-        release.set();await finished(rt,job['jobId'])
-    finally:release.set();await rt.close()
+def test_snapshot_io_does_not_hold_job_registry_or_block_event_loop(h, monkeypatch, tmp_path):
+    from packages.core import session as sessions
+    from packages.jobs.final_service import FinalService, object_ref
+    from packages.jobs.final_api import CanonicalUserAuth
+    from tests.test_job_final_http_service import enabled, USER
+    job = enabled(h)
+    entered, release = threading.Event(), threading.Event()
+    original = h.service._save
+    def blocked(db, kind, identity, value):
+        if kind == 'job' and value.get('finalRuntime', {}).get('plans'):
+            entered.set()
+            assert release.wait(5), 'snapshot commit barrier timed out'
+        return original(db, kind, identity, value)
+    monkeypatch.setattr(h.service, '_save', blocked)
+    other_root = tmp_path / 'independent-profile'
+    other = FinalService(other_root / 'canonical', CanonicalUserAuth(other_root / 'automation'))
+    action = next(a for a in other.actions(actor=USER)['items'] if a['id'] == 'product_process_cleanup_v1')
+    value = {'name': 'unrelated management', 'retention': {'policyRef': 'test'}, 'steps': [{
+        'stepId': 'owned', 'actionRef': object_ref('action', action),
+        'arguments': {'argv': {'from': 'literal', 'value': ['unused']},
+                      'cwd': {'from': 'literal', 'value': str(other.root)}},
+        'completion': {'contract': 'process-exit'}}]}
+    async def scenario():
+        pending = asyncio.create_task(asyncio.to_thread(h.service.create_run, job['id'], {
+            'expectedRevision': job['configRevision'], 'requestKey': 'blocked-snapshot',
+            'input': {}, 'cause': {'type': 'manual'}}, actor=USER))
+        try:
+            assert await asyncio.to_thread(entered.wait, 3)
+            await asyncio.wait_for(asyncio.sleep(0), .2)
+            session = sessions.Session(id='snapshot-independent-session', name='unrelated')
+            await asyncio.wait_for(asyncio.to_thread(sessions.save, session), 2)
+            assert sessions.get(session.id).name == 'unrelated'
+            created = await asyncio.wait_for(asyncio.to_thread(other.write, 'job', None, {
+                'definition': value, 'expectedRevision': 0, 'requestKey': 'unrelated-profile-create'}, actor=USER), 2)
+            assert created['result']['object']['name'] == 'unrelated management'
+            assert not other.final.get(created['result']['object']['id'])['runs']
+            assert h.provider.calls == []
+        finally:
+            release.set()
+            await asyncio.wait_for(pending, 5)
+            await other.close()
+        await h.service.dispatch_once()
+        assert len(h.provider.calls) == 1
+    asyncio.run(scenario())
 
 
 
