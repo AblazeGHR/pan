@@ -132,7 +132,6 @@
   "tools": [
     "action_drafts",
     "agent_assign",
-    "agent_background_cancel",
     "agent_background_get",
     "agent_background_list",
     "agent_inbox",
