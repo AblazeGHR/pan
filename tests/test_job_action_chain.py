@@ -145,23 +145,31 @@ async def test_chain_is_serial_and_cancel_stops_next_step(tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize('status', ['unknown', 'uncertain', 'unconfirmed'])
-@async_test
-async def test_unknown_step_blocks_and_never_replays(tmp_path, monkeypatch, status):
-    runtime = await _runtime(tmp_path); calls = []
-    async def execute(action, *args):
-        calls.append(action['id']); return {'ok': True, 'status': status}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps()), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        for _ in range(2):await runtime.tick({'enabled': True})
-        current = runtime.get(job['jobId'])
-        assert current['status'] == 'uncertain' and calls == ['one']
-        assert [s['status'] for s in current['lastExecution']['stepExecutions']] == ['uncertain', 'pending']
-        with pytest.raises(Conflict, match='reconciliation'):
-            await runtime.confirm_recovery(job['jobId'], 1)
-    finally:
-        await runtime.close()
+def test_unknown_step_blocks_and_never_replays(h, status):
+    from tests.test_job_final_http_service import enabled, job_def, launch, run_control
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    calls = []
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            calls.append(effect_key['stepId'])
+            return {'status': status}
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    job = enabled(h, job_def(h, steps=2))
+    rid = launch(h, job, 'unknown-chain')['runId']
+    for _ in range(3):
+        asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'uncertain' and calls == ['s0']
+    assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['uncertain', 'pending']
+    attempt, = state['attempts'].values()
+    effect, = state['effects']
+    assert attempt['state'] == 'uncertain' and attempt['runId'] == rid
+    assert effect['attemptId'] == attempt['attemptId'] and effect['outcome'] == 'unknown'
+    response = run_control(h, rid, 'retry', 'no-replay-unknown')
+    assert response.status_code == 409, response.text
+    assert response.json()['error']['code'] == 'reconciliation_required'
+    asyncio.run(h.service.dispatch_once())
+    assert calls == ['s0'] and h.service.final.get(job['id']) == state
 
 
 @async_test
