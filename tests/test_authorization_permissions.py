@@ -2,12 +2,28 @@ import json
 
 import pytest
 import asyncio
+import sys
+from types import SimpleNamespace
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from packages.automation.auth import UserAuth
 from packages.automation.api import install
 from packages.automation.service import Service
+from packages.core.manifest_loader import ManifestConfig, McpServer
+from packages.core.session import Session
+from packages.plugins.ipc import Bridge, request
+from packages.plugins.runtime import Runtime as PluginRuntime
+from packages.automation.authorization import bind_objects
+from tests.support.canonical_host import build
+
+async def canonical_harness(root):
+    host = build(root)
+    manifest = ManifestConfig(mcp_servers=[McpServer('pan', command=sys.executable, args=['-m', 'packages.mcp.server'])])
+    session = Session(id='ses_authorization_permission', name='Authorization', adapter_config={'plugin_bindings': [{'plugin_id': 'pan', 'mode': 'standalone', 'enabled': True}]})
+    runtime = PluginRuntime(lambda: manifest, lambda sid: session if sid == session.id else None)
+    bind_objects(runtime, host.app)
+    return SimpleNamespace(host=host, svc=host.automation, rt=runtime, session=session, bridge=Bridge(runtime, root))
 
 
 def full_permissions(value=True):
@@ -128,10 +144,8 @@ def test_invalid_permission_root_http_error_is_bounded_and_file_retained(tmp_pat
 
 @pytest.mark.parametrize('value', [None, [], 'synthetic-private-marker', 7])
 def test_invalid_permission_root_private_ipc_rejects_without_raw_value(tmp_path, monkeypatch, value):
-    from tests.support.legacy_automation import harness, close
-    from packages.plugins.ipc import request
     async def run():
-        h=await harness(tmp_path,monkeypatch)
+        h=await canonical_harness(tmp_path)
         try:
             key=h.svc.auth.key()
             h.svc.auth.permissions_path.write_text(json.dumps(value),encoding='utf-8')
@@ -146,6 +160,7 @@ def test_invalid_permission_root_private_ipc_rejects_without_raw_value(tmp_path,
             assert result['error']['message']=='Authorization state is invalid or unreadable'
             assert key not in json.dumps(result) and 'synthetic-private-marker' not in json.dumps(result)
             assert h.svc.auth.permissions_path.read_bytes()==before
-            assert not h.rt.list()
-        finally:await close(h)
+            assert not list((tmp_path / 'canonical').glob('*.tmp-*'))
+        finally:
+            await h.bridge.close(); await h.host.automation.close(); await h.host.service.close()
     asyncio.run(run())
