@@ -393,7 +393,9 @@ def test_parallel_runs_have_separate_step_attempts(h):
     assert len(calls) == 4
 
 
-@pytest.mark.parametrize('damage', [None, 'missing_receipt', 'wrong_key', 'wrong_output', 'pending_admission', 'missing_operation'])
+@pytest.mark.parametrize('damage', [None, 'missing_receipt', 'wrong_key', 'wrong_output', 'pending_admission', 'missing_operation',
+    'missing_attempt', 'generation', 'leaseId', 'ownerEpoch', 'attemptId', 'targetId', 'ordinal',
+    'wrong_operation', 'wrong_job', 'wrong_admission'])
 def test_restart_boundary_reuses_original_run_and_never_reruns_completed(h, tmp_path, damage):
     from packages.jobs.final_service import FinalService
     from tests.test_job_final_http_service import enabled, job_def, launch, USER
@@ -434,13 +436,37 @@ raise AssertionError('crash boundary not reached')
     first_attempt, = original_state['attempts'].values()
     first_effect, = original_state['effects']
     assert first_attempt['state'] == 'succeeded' and first_effect['outcome'] == 'succeeded'
+    from packages.jobs.independent_executor import fence
+    assert fence(first_effect['attempt']) == fence(first_attempt)
+    assert first_effect['attempt']['state'] == 'running'
+    assert 'endedAt' not in first_effect['attempt']
     assert effects.read_text().splitlines() == ['0']
     if damage:
         with h.service.transaction() as db:
             stored = h.service._get(db, 'job', job['id'])
             from packages.jobs.final_runtime.ledger import aggregate
             ledger = aggregate(stored, h.root)
-            if damage == 'missing_receipt':
+            if damage == 'missing_attempt':
+                ledger['effects'][0].pop('attempt')
+            elif damage in {'generation', 'ownerEpoch'}:
+                ledger['effects'][0]['attempt'][damage] += 1
+            elif damage in {'leaseId', 'attemptId'}:
+                ledger['effects'][0]['attempt'][damage] += '_wrong'
+            elif damage in {'targetId', 'ordinal'}:
+                key = ledger['effects'][0]['effectKey']
+                key['targetId' if damage == 'targetId' else 'operationOrdinal'] = 'wrong' if damage == 'targetId' else 1
+                ledger['effects'][0]['receipt']['effectKey'] = copy.deepcopy(key)
+            elif damage in {'wrong_operation', 'wrong_job', 'wrong_admission'}:
+                op_id = ledger['plans'][rid]['operationId']
+                original = json.loads(db.execute('SELECT document FROM final_operations WHERE id=?', (op_id,)).fetchone()[0])
+                if damage == 'wrong_operation':
+                    original['operation'] = 'update'
+                elif damage == 'wrong_job':
+                    original['response']['objectRefs'][0]['id'] = 'job_wrong'
+                else:
+                    original['response']['admissionId'] = 'adm_wrong'
+                db.execute('UPDATE final_operations SET document=? WHERE id=?', (json.dumps(original), op_id))
+            elif damage == 'missing_receipt':
                 ledger['effects'].clear()
             elif damage == 'wrong_key':
                 ledger['effects'][0]['receipt']['effectKey']['runId'] = 'run_wrong'
@@ -482,6 +508,44 @@ raise AssertionError('crash boundary not reached')
         assert effects.read_text().splitlines() == ['0', '1']
     finally:
         asyncio.run(cold.close())
+
+
+@pytest.mark.parametrize('field', ['generation', 'leaseId', 'ownerEpoch', 'attemptId'])
+def test_terminal_effect_snapshot_uses_original_attempt_and_rejects_changed_fence(h, field):
+    from tests.test_job_final_http_service import enabled, launch
+    from tests.test_action_groups import canonical_state
+    from packages.jobs.final_contracts import ContractError, validate_record
+    from packages.jobs.final_runtime.ledger import aggregate
+    job = enabled(h)
+    rid = launch(h, job, 'snapshot-write-fence')['runId']
+    with h.service.transaction() as db:
+        stored = h.service._get(db, 'job', job['id'])
+        ledger = h.service.final.ledger
+        ledger.start(stored, h.root, rid)
+        original = copy.deepcopy(ledger.begin_attempt(stored, h.root, rid, 's0'))
+        key = ledger.admit_effect(stored, h.root, original['attemptId'], h.action['id'])
+        h.service._save(db, 'job', job['id'], stored)
+    before = canonical_state(h.service)
+    receipt = {'effectKey': key, 'outcome': 'succeeded', 'receipt': {'messageId': 'original'}}
+    with pytest.raises(ContractError) as denied:
+        with h.service.transaction() as db:
+            stored = h.service._get(db, 'job', job['id'])
+            state = aggregate(stored, h.root)
+            current = state['attempts'][original['attemptId']]
+            current[field] = current[field] + (1 if field in {'generation', 'ownerEpoch'} else '_changed')
+            ledger.record_effect(stored, h.root, original['attemptId'], 'completed', receipt, expected_attempt=original)
+            h.service._save(db, 'job', job['id'], stored)
+    assert denied.value.code == 'revision_conflict'
+    assert canonical_state(h.service) == before and h.provider.calls == []
+    # The same strict generated schema permits old facts without a snapshot,
+    # but an incomplete new snapshot cannot masquerade as a fence.
+    old = {'effectKey': key, 'attemptId': original['attemptId'], 'outcome':'succeeded',
+           'receipt': receipt, 'createdAt': original['startedAt']}
+    assert validate_record('effect', old) == old
+    bad = {**old, 'attempt': {k:v for k,v in original.items() if k != 'leaseId'}}
+    with pytest.raises(ContractError) as invalid:
+        validate_record('effect', bad)
+    assert invalid.value.code == 'invalid_schema'
 
 
 @pytest.mark.parametrize('outcome,terminal', [('rejected', 'failed'), ('unknown', 'uncertain')])
@@ -567,33 +631,56 @@ def test_known_failure_explicit_retry_preserves_completed_and_frozen_steps(h):
     assert 'chainRecovery' not in h.client.get('/api/jobs/' + job['id']).json()
 
 
-@async_test
 @pytest.mark.parametrize('phase', ['step_running', 'boundary'])
-async def test_chain_write_failure_never_advances_or_replays(tmp_path, monkeypatch, phase):
-    runtime = await _runtime(tmp_path)
-    calls = []
-    async def execute(action, *unused):calls.append(action['id']); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    original = runtime.chain_save
+def test_chain_write_failure_never_advances_or_replays(h, monkeypatch, phase):
+    from tests.test_job_final_http_service import enabled, job_def, launch
+    from packages.jobs.final_service import FinalService
+    from packages.jobs.final_runtime.ledger import aggregate
+    job = enabled(h, job_def(h, steps=2))
+    rid = launch(h, job, 'checkpoint-failure')['runId']
+    original = h.service._save
     failed = False
-    def save(jid, eid, steps, current_phase):
+    def save(db, kind, identity, value):
         nonlocal failed
-        if current_phase == phase and not failed:
+        original(db, kind, identity, value)
+        if kind != 'job' or identity != job['id'] or failed:
+            return
+        state = aggregate(value, h.root)
+        step = state['steps'][rid]['s0']
+        checkpoint = 'running' if phase == 'step_running' else 'completed'
+        if step['state'] == checkpoint:
             failed = True
-            raise OSError('owned injected boundary failure')
-        return original(jid, eid, steps, current_phase)
-    monkeypatch.setattr(runtime, 'chain_save', save)
+            raise OSError('owned injected canonical checkpoint failure')
+    monkeypatch.setattr(h.service, '_save', save)
+    with pytest.raises(OSError, match='owned injected canonical checkpoint failure'):
+        asyncio.run(h.service.dispatch_once())
+    assert failed
+    expected = [] if phase == 'step_running' else ['0']
+    assert [text for text, _ in h.provider.calls] == expected
+    before = h.service.final.get(job['id'])
+    assert before['steps'][rid]['s1']['state'] == 'pending'
+    assert before['steps'][rid]['s1']['attemptCount'] == 0
+    assert before['effects'] == []
+    assert len(before['attempts']) == (0 if phase == 'step_running' else 1)
+    cold = FinalService(h.root, h.automation.auth, executor=h.service.executor)
     try:
-        job = runtime.create(_config(_steps()), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        current = runtime.get(job['jobId'])
-        assert current['lastStatus'] == 'uncertain'
-        assert calls == ([] if phase == 'step_running' else ['one'])
-        assert current['lastExecution']['stepExecutions'][1]['status'] == 'pending'
-        await runtime.tick({'enabled': True})
-        assert calls == ([] if phase == 'step_running' else ['one'])
+        cold.recover()
+        recovered = cold.final.get(job['id'])
+        assert recovered['runs'][rid]['state'] == 'uncertain'
+        assert recovered['steps'][rid]['s1']['state'] == 'pending'
+        if phase == 'boundary':
+            attempt, = recovered['attempts'].values()
+            original_attempt, = before['attempts'].values()
+            effect, = recovered['effects']
+            assert attempt['attemptId'] == original_attempt['attemptId']
+            assert attempt['state'] == 'uncertain' and effect['outcome'] == 'unknown'
+            assert effect['attemptId'] == attempt['attemptId']
+        for _ in range(2):
+            asyncio.run(cold.dispatch_once())
+        assert cold.final.get(job['id']) == recovered
+        assert [text for text, _ in h.provider.calls] == expected
     finally:
-        await runtime.close()
+        asyncio.run(cold.close())
 
 
 def test_running_step_restart_is_uncertain_and_never_replayed(h):

@@ -2836,7 +2836,8 @@ class FinalService:
                     return
                 self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
                     expected_epoch=attempt["ownerEpoch"], expected_generation=attempt["generation"])
-                self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "partial" if outcome == "partial" else mapped, receipt)
+                self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "partial" if outcome == "partial" else mapped, receipt,
+                    expected_attempt=attempt if mapped in {"completed", "failed"} else None)
                 state = aggregate(job, self.root)
                 if run_id in state.get("cancellations", {}):
                     rows = receipt.get("receipt", {}).get("commands", [])
@@ -2928,8 +2929,7 @@ class FinalService:
                     op["response"].pop("error", None)
                 db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
 
-    @staticmethod
-    def _completed_chain_boundary(state, run_id):
+    def _completed_chain_boundary(self, state, run_id):
         """Prove a committed prefix without authorizing any previous effect again."""
         plan = state["plans"][run_id]
         steps = plan["frozen"]["steps"]
@@ -2961,10 +2961,14 @@ class FinalService:
                 return False
             effect = effects[0]
             receipt = effect["receipt"]
-            if (effect["outcome"] != "succeeded" or effect["effectKey"]["runId"] != run_id
-                    or effect["effectKey"]["stepId"] != step["stepId"]
-                    or effect["effectKey"]["targetId"] != step["actionRef"]["id"]
-                    or effect["effectKey"]["operationOrdinal"] != 0
+            from packages.jobs.independent_executor import fence
+            try:
+                if fence(effect.get("attempt")) != fence(matches[0]):
+                    return False
+            except (ValueError, TypeError):
+                return False
+            if (effect["outcome"] != "succeeded"
+                    or effect["effectKey"] != self.final.ledger.effect_key(run_id, step["stepId"], step["actionRef"]["id"], 0)
                     or receipt.get("effectKey") != effect["effectKey"]
                     or receipt.get("outcome") != "succeeded"
                     or step["stepId"] not in plan.get("outputs", {})
@@ -3016,8 +3020,15 @@ class FinalService:
                         original = db.execute("SELECT document FROM final_operations WHERE id=?",
                             (state["plans"][run["runId"]].get("operationId"),)).fetchone()
                         original = json.loads(original[0]) if original else {}
+                        response = original.get("response", {})
                         if (original.get("kind") == "job"
-                                and original.get("response", {}).get("runId") == run["runId"]):
+                                and original.get("operation") in {"create", "run-again", "clone-and-run"}
+                                and response.get("runId") == run["runId"]
+                                and response.get("admissionId") == run["admissionId"]
+                                and response.get("result", {}).get("runId") == run["runId"]
+                                and response.get("result", {}).get("admissionId") == run["admissionId"]
+                                and run["jobId"] == job["jobId"]
+                                and any(ref.get("id") == job["jobId"] for ref in response.get("objectRefs", []))):
                             # Continue at a committed boundary, never retry or
                             # reconcile an unfinished Attempt or infer identity.
                             self.final.ledger.transition_run(job, self.root, run["runId"], "retry_wait")
@@ -3068,7 +3079,8 @@ class FinalService:
                 error("revision_conflict", "Original admission missing")
             self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], outcome,
                 expected_epoch=expected["ownerEpoch"], expected_generation=expected["generation"])
-            self.final.ledger.record_effect(job, self.root, attempt["attemptId"], outcome, receipt)
+            self.final.ledger.record_effect(job, self.root, attempt["attemptId"], outcome, receipt,
+                expected_attempt=expected)
         elif attempt["state"] == "uncertain":
             self.final.ledger.reconcile_attempt(job, self.root, expected_attempt=expected, effect_key=key, receipt=receipt)
         else:
