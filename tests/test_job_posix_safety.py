@@ -178,12 +178,19 @@ def test_late_success_terminal_does_not_rebuild_retired_parent(canonical):
     assert doc['result']['cleanupProof']['confirmed'] is True
     o.children[0].wait(5)
     response = delete(c, 'retire-before-late-success')
-    assert response.status_code == 200, response.text
-    retired = c.client.get('/api/jobs/' + c.job['id']).json()
-    assert retired['state'] == 'retired'
+    assert response.status_code == 409, response.text
+    assert response.json()['error']['code'] == 'reference_conflict'
     c.release_receipt.set()
     c.dispatch.join(10)
     assert not c.dispatch.is_alive() and c.dispatch_errors == []
+    assert refresh(c)['state'] == 'completed'
+    # The canonical parent can retire only after its original Run/effect has
+    # settled. A process exit alone must never bypass the owner fence.
+    c.job = c.client.get('/api/jobs/' + c.job['id']).json()
+    response = delete(c, 'retire-after-late-success')
+    assert response.status_code == 200, response.text
+    retired = c.client.get('/api/jobs/' + c.job['id']).json()
+    assert retired['state'] == 'retired'
     for _ in range(2):
         refresh(c)
         asyncio.run(c.service.dispatch_once())
