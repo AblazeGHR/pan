@@ -14,6 +14,7 @@ from packages.core import background_jobs as jobs
 from packages.jobs.action_templates import Templates, Conflict, CreationPending, config_value
 from packages.jobs.action_runtime import Runtime, RUNTIMES
 from tests.test_automation_core import async_test, action, until
+from tests.test_job_final_http_service import h
 from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
 from tests.test_retirement_rev16_behavior import h as canonical_h  # noqa: F401
 
@@ -46,9 +47,19 @@ async def finished(rt,jid,status='completed'):
     {'arguments':{'text':'extra'}}, {'arguments':[]}, {'enabled':'true'},
     {'schedule':[]}, {'schedule':[{'kind':'interval','intervalSec':1,'unknown':True}]},
     {'schedule':[{'kind':'once'}]}, {'maxRuns':True}])
-def test_job_fields_are_declared_only(tmp_path,extra):
-    store=Store(tmp_path/'actions');store.put('actions',action())
-    with pytest.raises(ValueError):config_value({**config(),**extra},store.read())
+def test_job_fields_are_declared_only(h, extra):
+    from tests.test_job_final_http_service import job_def
+    from tests.test_action_groups import canonical_state
+    before = canonical_state(h.service)
+    value = job_def(h)
+    value['inputSchema'] = {'type': 'object', 'properties': {}, 'additionalProperties': False}
+    response = h.client.post('/api/jobs', json={
+        'definition': {**value, **extra}, 'expectedRevision': 0,
+        'requestKey': 'invalid-template-job'})
+    assert response.status_code == 400, response.text
+    assert response.json()['error']['code'] == 'invalid_schema'
+    assert canonical_state(h.service) == before
+    assert h.provider.calls == []
 
 
 def test_complete_fields_defaults_and_template_revision(tmp_path):
