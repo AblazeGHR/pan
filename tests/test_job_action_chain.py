@@ -122,26 +122,56 @@ async def test_legacy_single_step_equivalent_and_no_legacy_rewrite(tmp_path, mon
         await runtime.close()
 
 
-@async_test
-async def test_chain_is_serial_and_cancel_stops_next_step(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    entered, release = asyncio.Event(), asyncio.Event()
-    calls = []
-    async def execute(action, *args):
-        calls.append(action['id']); entered.set(); await release.wait(); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps()), True)
-        await runtime.launch(job['jobId'], 1)
-        await asyncio.wait_for(entered.wait(), 2)
-        assert calls == ['one']
-        done = await runtime.cancel(job['jobId'], 1)
-        assert done['status'] == 'cancelled' and calls == ['one']
-        steps = done['lastExecution']['stepExecutions']
-        assert [s['status'] for s in steps] == ['cancelled', 'pending']
-        assert steps[0]['attempts'][0]['status'] == 'cancelled' and not steps[1]['attempts']
-    finally:
-        release.set(); await runtime.close()
+def test_chain_is_serial_and_cancel_stops_next_step(h, tmp_path):
+    from tests.test_action_unification_p2 import install, py
+    from tests.test_job_final_http_service import enabled, launch, USER
+    install(h)
+    commands = [py(tmp_path, "from pathlib import Path;import time;Path('started').write_text('yes');time.sleep(30)"),
+                py(tmp_path, "from pathlib import Path;Path('forbidden').write_text('second')")]
+    value = {'name': 'cancel serial chain', 'retention': {'policyRef': 'test'}, 'steps': [
+        {'stepId': sid, 'actionRef': h.action,
+         'arguments': {key: {'from': 'literal', 'value': val} for key, val in args.items()},
+         'completion': {'contract': 'process-exit'}}
+        for sid, args in zip(('first', 'second'), commands)]}
+    job = enabled(h, value)
+    rid = launch(h, job, 'cancel-chain')['runId']
+    async def scenario():
+        task = asyncio.create_task(h.service.dispatch_once())
+        try:
+            async with asyncio.timeout(5):
+                while not (tmp_path / 'started').exists():
+                    await asyncio.sleep(.01)
+            assert not (tmp_path / 'forbidden').exists()
+            run = h.service.get_run(rid, actor=USER)
+            response = await h.service.control_run_postcommit(rid, {
+                'operation': 'cancel', 'requestKey': 'cancel-original-chain',
+                'expectedStateRevision': run['stateRevision']}, actor=USER)
+            await asyncio.wait_for(task, 5)
+            return response
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+    response = asyncio.run(scenario())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'cancelled'
+    # Persisted cancellation closes the command's running fence; its original
+    # receipt retains that rejection while the Run carries cancelled state.
+    assert [state['steps'][rid][sid]['state'] for sid in ('first', 'second')] == ['failed', 'pending']
+    attempt, = state['attempts'].values()
+    assert attempt['stepId'] == 'first' and attempt['state'] == 'failed'
+    assert state['steps'][rid]['second']['attemptCount'] == 0
+    assert not (tmp_path / 'forbidden').exists()
+    effect, = state['effects']
+    assert effect['outcome'] == 'rejected'
+    command = effect['receipt']['receipt']['commands'][0]
+    assert command['code'] == 'revision_conflict'
+    assert command['error'] == 'Original Attempt is no longer executable'
+    assert command['cleanupProof']['confirmed'] is True
+    assert effect['receipt']['cleanupProof']['confirmed'] is True
+    assert h.service.operation(response['operationId'], actor=USER)['status'] == 'completed'
+    asyncio.run(h.service.dispatch_once())
+    assert not (tmp_path / 'forbidden').exists() and h.service.final.get(job['id']) == state
 
 
 @pytest.mark.parametrize('status', ['unknown', 'uncertain', 'unconfirmed'])
@@ -404,31 +434,28 @@ asyncio.run(main())
         await fresh.close()
 
 
-def test_chain_failure_and_uncertain_block_following_step(tmp_path, monkeypatch):
-    async def run():
-        runtime = await _runtime(tmp_path)
-        calls = []
-
-        async def execute(action, args, event, progress, pause):
-            calls.append(action['id'])
-            return {'ok': False, 'status': 'failed'} if action['id'] == 'one' else {'ok': True}
-
-        monkeypatch.setattr(executor, 'execute_dynamic', execute)
-        try:
-            job = runtime.create(_config([
-                {'stepId': 'first', 'actionId': 'one', 'arguments': {'value': 'literal'}},
-                {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': 'literal'}},
-            ]), True)
-            await runtime.launch(job['jobId'], 1)
-            await asyncio.gather(*runtime.tasks.values())
-            current = runtime.get(job['jobId'])
-            assert calls == ['one']
-            assert current['status'] == 'failed'
-            assert current['lastExecution']['stepExecutions'][1]['status'] == 'pending'
-        finally:
-            await runtime.close()
-
-    asyncio.run(run())
+@pytest.mark.parametrize('outcome,terminal', [('rejected', 'failed'), ('unknown', 'uncertain')])
+def test_chain_failure_and_uncertain_block_following_step(h, outcome, terminal):
+    from tests.test_job_final_http_service import enabled, job_def, launch
+    job = enabled(h, job_def(h, steps=2))
+    if outcome == 'rejected':
+        h.provider.fail_once = '0'
+    else:
+        h.provider.unknown = True
+    rid = launch(h, job, 'stop-at-first-effect')['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert [text for text, _ in h.provider.calls] == ['0']
+    assert state['runs'][rid]['state'] == terminal
+    assert state['steps'][rid]['s0']['state'] == terminal
+    assert state['steps'][rid]['s1']['state'] == 'pending'
+    assert state['steps'][rid]['s1']['attemptCount'] == 0
+    attempt, = state['attempts'].values()
+    effect, = state['effects']
+    assert attempt['stepId'] == 's0' and effect['attemptId'] == attempt['attemptId']
+    assert effect['outcome'] == outcome
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == state and len(h.provider.calls) == 1
 
 
 def test_chain_monitoring_recovery_reuses_completed_step(tmp_path, monkeypatch):
@@ -547,29 +574,43 @@ async def test_running_step_restart_is_uncertain_and_never_replayed(tmp_path):
         await runtime.close()
 
 
-@async_test
 @pytest.mark.parametrize('revoke', ['action', 'authorization'])
-async def test_chain_checks_revocation_between_steps(tmp_path, monkeypatch, revoke):
-    runtime = await _runtime(tmp_path)
+def test_chain_checks_revocation_between_steps(h, revoke):
+    from tests.test_job_final_http_service import enabled, job_def, USER
+    from tests.test_authorization_mcp import grants
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    permissions = grants()
+    h.automation.auth.change_permissions(permissions, 0)
     calls = []
-    permitted = True
-    runtime.authorization = lambda *unused: (permitted, 7)
-    async def execute(action, *unused):
-        nonlocal permitted
-        calls.append(action['id'])
-        if revoke == 'action':runtime.actions.set_enabled('two', False, runtime.actions.read()['revision'])
-        else:permitted = False
-        return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps()), True, {'type': 'agent'})
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        current = runtime.get(job['jobId'])
-        assert calls == ['one'] and current['lastStatus'] == 'cancelled'
-        assert current['lastExecution']['stepExecutions'][1]['attempts'] == []
-    finally:
-        await runtime.close()
-
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            calls.append(effect_key['stepId'])
+            if revoke == 'action':
+                action = h.service.get('action', h.action['id'], actor=USER)
+                h.service.control('action', action['id'], {'operation': 'disable',
+                    'expectedRevision': action['revision'], 'expectedStateRevision': action['stateRevision'],
+                    'parameters': {}, 'requestKey': 'revoke-at-step-boundary'}, actor=USER)
+            else:
+                denied = {kind: {capability: False for capability in row} for kind, row in permissions.items()}
+                h.automation.auth.change_permissions(denied, 1)
+            return {'status': 'queued', 'messageId': 'original-first-receipt'}
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    job = enabled(h, job_def(h, steps=2))
+    admitted = h.service.create_run(job['id'], {'expectedRevision': job['configRevision'],
+        'requestKey': 'revoked-chain', 'input': {}, 'cause': {'type': 'manual'}},
+        actor={'type': 'agent', 'id': 'owned-revocation', 'revision': 1})
+    rid = admitted['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert calls == ['s0'] and state['runs'][rid]['state'] == 'failed'
+    assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['completed', 'failed']
+    assert len(state['attempts']) == len(state['effects']) == 1
+    attempt, = state['attempts'].values()
+    assert attempt['stepId'] == 's0' and attempt['state'] == 'succeeded'
+    assert state['steps'][rid]['s1']['attemptCount'] == 0
+    assert state['effects'][0]['outcome'] == 'succeeded'
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == state and calls == ['s0']
 
 
 
