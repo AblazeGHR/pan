@@ -393,55 +393,95 @@ def test_parallel_runs_have_separate_step_attempts(h):
     assert len(calls) == 4
 
 
-@async_test
-async def test_restart_boundary_reuses_original_run_and_never_reruns_completed(tmp_path):
-    runtime = await _runtime(tmp_path)
-    job = runtime.create(_config(_steps()), True)
-    await runtime.close()
-    # Owned child process writes an actual completed step and immediately exits
-    # without runtime finalization. No HTTP server or production data involved.
-    script = r'''
-import asyncio,sys
+@pytest.mark.parametrize('damage', [None, 'missing_receipt', 'wrong_key', 'wrong_output', 'pending_admission', 'missing_operation'])
+def test_restart_boundary_reuses_original_run_and_never_reruns_completed(h, tmp_path, damage):
+    from packages.jobs.final_service import FinalService
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    job = enabled(h, job_def(h, steps=2))
+    admission = launch(h, job, 'crash-completed-boundary')
+    rid = admission['runId']
+    effects = tmp_path / 'effects.txt'
+    script = r"""
+import asyncio, sys, os
 from pathlib import Path
-from packages.actions.store import Store
-from packages.jobs.action_runtime import Runtime
-from packages.jobs import chains
-root,jid=Path(sys.argv[1]),sys.argv[2]
-async def main():
-    rt=Runtime(root/'jobs',Store(root/'actions'),None)
-    await rt.start()
-    claimed=rt.claim(jid,'jexec_owned_crash',1)
-    steps=claimed['execution']['stepExecutions']
-    chains.start_step(steps[0])
-    rt.chain_save(jid,'jexec_owned_crash',steps,'step_running')
-    with (root/'effects.txt').open('a') as f:f.write('one\n')
-    chains.finish_step(steps[0],'completed',result={'ok':True},output={'value':'one'})
-    rt.chain_save(jid,'jexec_owned_crash',steps,'boundary')
-    import os;os._exit(23)
-asyncio.run(main())
-'''
-    result = await asyncio.to_thread(subprocess.run, [sys.executable, '-c', script, str(tmp_path), job['jobId']],
-                                     cwd=str(Path(__file__).resolve().parents[1]), capture_output=True, text=True, timeout=20)
-    assert result.returncode == 23, result.stderr
-    store = Store(tmp_path / 'actions')
-    calls = []
-    async def pause(sid, args):
-        calls.append(sid)
-        with (tmp_path / 'effects.txt').open('a') as f:f.write('two\n')
-        return {'ok': True}
-    fresh = Runtime(tmp_path / 'jobs', store, pause)
+from contextlib import contextmanager
+from packages.jobs.final_service import FinalService
+from packages.jobs.final_api import CanonicalUserAuth
+from packages.jobs.final_runtime.executor import TypedExecutor
+root, jid, rid, output = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4])
+class Provider:
+    async def send_session(self, session_id, text, **kwargs):
+        with output.open('a') as f: f.write(text+'\n')
+        return {'status':'queued', 'messageId':'message_first'}
+service = FinalService(root, CanonicalUserAuth(root.parent/'automation'), executor=TypedExecutor(session_provider=Provider()))
+original = service.transaction
+@contextmanager
+def transaction(*, readonly=False):
+    with original(readonly=readonly) as db:
+        yield db
+    if not readonly:
+        state = service.final.get(jid)
+        if state['steps'][rid]['s0']['state'] == 'completed' and state['steps'][rid]['s1']['state'] == 'pending':
+            os._exit(23)
+service.transaction = transaction
+asyncio.run(service.dispatch_once())
+raise AssertionError('crash boundary not reached')
+"""
+    child = subprocess.run([sys.executable, '-c', script, str(h.root), job['id'], rid, str(effects)],
+        cwd=str(Path(__file__).resolve().parents[1]), capture_output=True, text=True, timeout=20)
+    assert child.returncode == 23, child.stderr
+    original_state = h.service.final.get(job['id'])
+    first_attempt, = original_state['attempts'].values()
+    first_effect, = original_state['effects']
+    assert first_attempt['state'] == 'succeeded' and first_effect['outcome'] == 'succeeded'
+    assert effects.read_text().splitlines() == ['0']
+    if damage:
+        with h.service.transaction() as db:
+            stored = h.service._get(db, 'job', job['id'])
+            from packages.jobs.final_runtime.ledger import aggregate
+            ledger = aggregate(stored, h.root)
+            if damage == 'missing_receipt':
+                ledger['effects'].clear()
+            elif damage == 'wrong_key':
+                ledger['effects'][0]['receipt']['effectKey']['runId'] = 'run_wrong'
+            elif damage == 'wrong_output':
+                ledger['plans'][rid]['outputs']['s0'] = {'forged': True}
+            elif damage == 'missing_operation':
+                ledger['plans'][rid]['operationId'] = 'op_missing'
+            elif damage == 'pending_admission':
+                ledger['effectAdmissions']['unconfirmed'] = {
+                    'attemptId': first_attempt['attemptId'], 'effectKey': first_effect['effectKey']}
+            h.service._save(db, 'job', job['id'], stored)
+    original_send = h.provider.send_session
+    async def send(session_id, text, **kwargs):
+        with effects.open('a') as f:
+            f.write(text + '\n')
+        return await original_send(session_id, text, **kwargs)
+    h.provider.send_session = send
+    cold = FinalService(h.root, h.automation.auth, executor=h.service.executor)
     try:
-        await fresh.start()
-        recovering = fresh.get(job['jobId']); run_id = recovering['runId']
-        assert recovering['status'] == 'restarting'
-        await fresh.tick({'enabled': True}); await asyncio.gather(*fresh.tasks.values())
-        done = fresh.get(job['jobId'])
-        assert done['status'] == 'completed' and done['runId'] == run_id
-        assert (tmp_path / 'effects.txt').read_text().splitlines() == ['one', 'two']
-        steps = done['lastExecution']['stepExecutions']
-        assert [len(s['attempts']) for s in steps] == [1, 1]
+        cold.recover()
+        asyncio.run(cold.dispatch_once())
+        done = cold.final.get(job['id'])
+        if damage:
+            assert done['runs'][rid]['state'] == 'uncertain'
+            assert done['attempts'][first_attempt['attemptId']] == first_attempt
+            assert done['steps'][rid]['s1']['attemptCount'] == 0
+            assert h.provider.calls == [] and effects.read_text().splitlines() == ['0']
+            asyncio.run(cold.dispatch_once())
+            assert cold.final.get(job['id']) == done
+            return
+        assert done['runs'][rid]['state'] == 'completed'
+        assert set(done['runs']) == {rid}
+        assert effects.read_text().splitlines() == ['0', '1']
+        assert [done['steps'][rid][sid]['attemptCount'] for sid in ('s0', 's1')] == [1, 1]
+        assert done['attempts'][first_attempt['attemptId']] == first_attempt
+        assert first_effect in done['effects']
+        assert cold.operation(admission['operationId'], actor=USER)['status'] == 'completed'
+        asyncio.run(cold.dispatch_once())
+        assert effects.read_text().splitlines() == ['0', '1']
     finally:
-        await fresh.close()
+        asyncio.run(cold.close())
 
 
 @pytest.mark.parametrize('outcome,terminal', [('rejected', 'failed'), ('unknown', 'uncertain')])
@@ -708,30 +748,52 @@ async def test_admitted_fixed_template_step_uses_original_template_revision(tmp_
         release.set(); await runtime.close()
 
 
-@async_test
-async def test_recovering_run_uses_frozen_chain_when_next_config_is_unavailable(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path, ('one', 'two', 'three'))
-    calls = []
-    for aid in ('one', 'two', 'three'):runtime.actions.put('actions', _action(aid, monitoring=True))
-    async def execute(action, *unused):
-        calls.append(action['id'])
-        return {'ok': True, 'processTreeEnded': not (action['id'] == 'two' and calls.count('two') == 1),
-                'panJobCompletion': {'type': 'done', 'completed': True}}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    cfg = _config(_steps(), recovery={'enabled': True, 'monitoring': True, 'maxAttempts': 3,
-        'backoffSec': [0, 0, 0], 'stableResetSec': 300}, completion={'kind': 'monitoring', 'signalType': 'done'})
-    try:
-        job = runtime.create(cfg, True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        assert runtime.get(job['jobId'])['status'] == 'restarting'
-        changed = copy.deepcopy(cfg); changed['steps'][1]['actionId'] = 'three'
-        runtime.update(job['jobId'], changed, 1, True)
-        # A new reference set first requires explicit repair, as for single Jobs.
-        runtime.update(job['jobId'], changed, 2, True)
-        runtime.actions.set_enabled('three', False, runtime.actions.read()['revision'])
-        await runtime.tick({'enabled': True}); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert done['lastStatus'] == 'completed' and calls == ['one', 'two', 'two']
-        assert done['lastExecution']['configRevision'] == 1
-    finally:
-        await runtime.close()
+def test_recovering_run_uses_frozen_chain_when_next_config_is_unavailable(env):
+    import time
+    from packages.jobs.final_service import definition, object_ref
+    from tests.test_job_automatic_recovery import create, job_definition, drive_until, state
+    first, second = env.tmp / 'first-frozen', env.tmp / 'second-frozen'
+    value = job_definition(env, steps=2)
+    value['steps'][0]['arguments']['argv']['value'] = [sys.executable, '-c',
+        f'from pathlib import Path; Path({str(first)!r}).open("a").write("first\\n")']
+    value['steps'][1]['arguments']['argv']['value'] = [sys.executable, '-c',
+        f'from pathlib import Path; p=Path({str(second)!r}); n=int(p.read_text()) if p.exists() else 0; '
+        'p.write_text(str(n+1)); raise SystemExit(7 if n == 0 else 0)']
+    jid, rid = create(env, value)
+    asyncio.run(env.service.dispatch_once())
+    deadline = time.monotonic() + 12
+    while True:
+        asyncio.run(env.service.recover_external_receipts())
+        # Drive the next step only until the original failed receipt has
+        # scheduled recovery; do not consume that pending recovery yet.
+        current = env.service.final.store.get(jid)['finalRuntime']['plans'][rid]
+        if current.get('autoRecovery'):
+            break
+        assert time.monotonic() < deadline
+        if state(env, jid)['steps'][rid]['s1']['attemptCount'] == 0:
+            asyncio.run(env.service.dispatch_once())
+        time.sleep(.025)
+    frozen = copy.deepcopy(current['frozen'])
+    original_action = env.service.get('action', value['steps'][1]['actionRef']['id'], actor={'type':'user','id':'local'})
+    replacement_value = definition('action', original_action)
+    replacement_value['system'] = False
+    replacement = env.service.publish_action('unavailable_next_config', replacement_value)
+    changed = copy.deepcopy(value)
+    changed['steps'][1]['actionRef'] = object_ref('action', replacement)
+    response = env.client.put('/api/jobs/' + jid, json={'definition':changed,
+        'expectedRevision':1, 'requestKey':'change-next-config'})
+    assert response.status_code == 200, response.text
+    response = env.client.post('/api/jobs/actions/' + replacement['id'] + '/operations', json={
+        'operation':'disable', 'expectedRevision':replacement['revision'],
+        'expectedStateRevision':replacement['stateRevision'], 'parameters':{}, 'requestKey':'disable-next-config'})
+    assert response.status_code == 200, response.text
+    asyncio.run(drive_until(env, jid, rid, 'completed'))
+    done = state(env, jid)
+    assert first.read_text().splitlines() == ['first'] and second.read_text() == '2'
+    assert set(done['runs']) == {rid} and done['runs'][rid]['configRevision'] == 1
+    assert [done['steps'][rid][sid]['attemptCount'] for sid in ('s0','s1')] == [1,2]
+    assert len(done['effects']) == 3
+    assert env.service.final.store.get(jid)['finalRuntime']['plans'][rid]['frozen'] == frozen
+    assert env.service.get('job', jid, actor={'type':'user','id':'local'})['configRevision'] == 2
+    asyncio.run(env.service.dispatch_once())
+    assert first.read_text().splitlines() == ['first'] and second.read_text() == '2'

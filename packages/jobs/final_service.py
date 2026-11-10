@@ -2928,6 +2928,50 @@ class FinalService:
                     op["response"].pop("error", None)
                 db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
 
+    @staticmethod
+    def _completed_chain_boundary(state, run_id):
+        """Prove a committed prefix without authorizing any previous effect again."""
+        plan = state["plans"][run_id]
+        steps = plan["frozen"]["steps"]
+        rows = state["steps"][run_id]
+        if set(rows) != {step["stepId"] for step in steps}:
+            return False
+        completed, pending = [], False
+        for step in steps:
+            row = rows[step["stepId"]]
+            if row["state"] == "pending" and row["attemptCount"] == 0:
+                pending = True
+            elif row["state"] == "completed" and not pending:
+                completed.append(step)
+            else:
+                return False
+        if not completed:
+            return False
+        attempts = [a for a in state["attempts"].values() if a["runId"] == run_id]
+        if (len(attempts) != len(completed) or any(a["state"] != "succeeded" for a in attempts)
+                or len([e for e in state["effects"] if e["effectKey"]["runId"] == run_id]) != len(attempts)
+                or any(a["effectKey"]["runId"] == run_id for a in state["effectAdmissions"].values())):
+            return False
+        for step in completed:
+            matches = [a for a in attempts if a["stepId"] == step["stepId"]]
+            if len(matches) != 1:
+                return False
+            effects = [e for e in state["effects"] if e["attemptId"] == matches[0]["attemptId"]]
+            if len(effects) != 1:
+                return False
+            effect = effects[0]
+            receipt = effect["receipt"]
+            if (effect["outcome"] != "succeeded" or effect["effectKey"]["runId"] != run_id
+                    or effect["effectKey"]["stepId"] != step["stepId"]
+                    or effect["effectKey"]["targetId"] != step["actionRef"]["id"]
+                    or effect["effectKey"]["operationOrdinal"] != 0
+                    or receipt.get("effectKey") != effect["effectKey"]
+                    or receipt.get("outcome") != "succeeded"
+                    or step["stepId"] not in plan.get("outputs", {})
+                    or plan["outputs"][step["stepId"]] != receipt.get("receipt", {})):
+                return False
+        return True
+
     def recover(self):
         """Never replay an effect whose host/receipt outcome was lost."""
         with self.transaction() as db:
@@ -2966,6 +3010,19 @@ class FinalService:
                     if (run["state"] == "running" and len(active_attempts) == 1
                             and active_attempts[0]["attemptId"] == pending):
                         continue  # Original detached host is queried, never resubmitted.
+                    if (run["state"] == "running" and not active_attempts and not pending
+                            and run["runId"] not in state.get("cancellations", {})
+                            and self._completed_chain_boundary(state, run["runId"])):
+                        original = db.execute("SELECT document FROM final_operations WHERE id=?",
+                            (state["plans"][run["runId"]].get("operationId"),)).fetchone()
+                        original = json.loads(original[0]) if original else {}
+                        if (original.get("kind") == "job"
+                                and original.get("response", {}).get("runId") == run["runId"]):
+                            # Continue at a committed boundary, never retry or
+                            # reconcile an unfinished Attempt or infer identity.
+                            self.final.ledger.transition_run(job, self.root, run["runId"], "retry_wait")
+                            self._save(db, "job", job["jobId"], job)
+                            continue
                     if run["state"] != "running" and not active_attempts:
                         continue
                     # A cancelling Run can still own an in-flight effect. A
