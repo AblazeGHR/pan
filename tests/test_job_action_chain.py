@@ -232,28 +232,39 @@ def test_admission_freezes_all_steps_inputs_and_definitions(h):
     asyncio.run(run())
 
 
-@async_test
-async def test_event_and_input_and_output_mapping(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path); calls = []
-    async def execute(action, args, event, progress, pause):
-        calls.append(args['value']); return {'ok': True, 'structuredContent': {'value': args['value'] + '!'}}
-    async def resolve(_):return {'ids': ['target'], 'candidateCount': 1}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    monkeypatch.setattr('packages.actions.session_query.resolve', resolve)
-    try:
-        steps = [*_steps(), {'stepId': 'third', 'actionId': 'two', 'arguments': {'value': {'from': 'step', 'stepId': 'second', 'path': 'value'}}}]
-        steps[0]['arguments']['value'] = {'from': 'input', 'path': 'input'}
-        steps[1]['arguments']['value'] = {'from': 'event', 'path': 'payload.text'}
-        cfg = _config(steps, trigger={'kind': 'event', 'eventTypes': ['owned.event'], 'query': {'field': 'name', 'op': 'eq', 'value': 'target'}})
-        job = runtime.create(cfg, True)
-        runtime.queue_event({'id': 'e', 'type': 'owned.event', 'payload': {'text': 'event'}}, runtime.event_targets('owned.event')[0])
-        await runtime.tick({'enabled': True}); await asyncio.gather(*runtime.tasks.values())
-        current = runtime.get(job['jobId'])
-        assert calls == ['seed', 'event', 'event!']
-        assert current['eventReceipts']['e']['status'] == 'completed'
-        assert len(current['lastExecution']['stepExecutions']) == 3
-    finally:
-        await runtime.close()
+def test_event_and_input_and_output_mapping(h):
+    from tests.test_job_final_http_service import enabled, job_def
+    from tests.test_action_unification_p4 import trigger, event
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    calls = []
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            calls.append(text)
+            return {'status': 'queued', 'messageId': text + '!'}
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    value = job_def(h, steps=3)
+    value['inputSchema'] = {'type': 'object', 'properties': {'input': {'type': 'string'}},
+                            'required': ['input'], 'additionalProperties': False}
+    value['arguments'] = {'input': 'seed'}
+    value['steps'][0]['arguments']['text'] = {'from': 'input', 'path': 'input'}
+    value['steps'][1]['arguments']['text'] = {'from': 'event', 'path': 'payload.title'}
+    value['steps'][2]['arguments']['text'] = {'from': 'step', 'stepId': 's1', 'path': 'messageId'}
+    job = enabled(h, value)
+    source = trigger(h, {'type': 'job', 'jobId': job['id'], 'configRevision': job['configRevision']})
+    fact = event('chain-event')
+    admitted = h.service.admit_event(fact, source)
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    run, = state['runs'].values()
+    assert calls == ['seed', 'From event', 'From event!']
+    assert run['state'] == 'completed' and len(state['steps'][run['runId']]) == 3
+    assert len(state['attempts']) == len(state['effects']) == 3
+    assert all(e['effectKey']['runId'] == run['runId'] for e in state['effects'])
+    repeated = h.service.admit_event(fact, source)
+    assert repeated['operationId'] == admitted['operationId'] and repeated['replayed'] is True
+    asyncio.run(h.service.dispatch_once())
+    assert calls == ['seed', 'From event', 'From event!']
+    assert len(h.service.final.get(job['id'])['runs']) == 1
 
 
 @pytest.mark.parametrize('binding', [
@@ -295,39 +306,52 @@ async def test_all_action_references_generations_and_template_chain(tmp_path):
 
 
 @pytest.mark.parametrize('mutation', ['duplicate', 'forward', 'extra', 'bad_literal'])
-@async_test
-async def test_invalid_chain_configuration_rejected(tmp_path, mutation):
-    runtime = await _runtime(tmp_path)
-    try:
-        steps = _steps()
-        if mutation == 'duplicate':steps[1]['stepId'] = 'first'
-        if mutation == 'forward':steps[0]['arguments']['value'] = {'from': 'step', 'stepId': 'second', 'path': 'value'}
-        if mutation == 'extra':steps[0]['arguments']['undeclared'] = 'value'
-        if mutation == 'bad_literal':steps[0]['arguments']['value'] = 5
-        with pytest.raises(ValueError):config_value(_config(steps), runtime.actions.read())
-    finally:
-        await runtime.close()
+def test_invalid_chain_configuration_rejected(h, mutation):
+    from tests.test_job_final_http_service import job_def
+    from tests.test_action_groups import canonical_state
+    value = job_def(h, steps=2)
+    steps = value['steps']
+    if mutation == 'duplicate':
+        steps[1]['stepId'] = 's0'
+    elif mutation == 'forward':
+        steps[0]['arguments']['text'] = {'from': 'step', 'stepId': 's1', 'path': 'messageId'}
+    elif mutation == 'extra':
+        steps[0]['arguments']['undeclared'] = {'from': 'literal', 'value': 'value'}
+    else:
+        steps[0]['arguments']['text'] = {'from': 'literal', 'value': 5}
+    before = canonical_state(h.service)
+    response = h.client.post('/api/jobs', json={
+        'definition': value, 'expectedRevision': 0, 'requestKey': 'invalid-chain'})
+    assert response.status_code == 400, response.text
+    assert response.json()['error']['code'] == 'invalid_schema'
+    assert canonical_state(h.service) == before and h.provider.calls == []
 
 
-@async_test
-async def test_parallel_runs_have_separate_step_attempts(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path); calls = []
-    async def execute(action, args, event, progress, pause):
-        await asyncio.sleep(.01)
-        calls.append((progress.checkpoint['id'], action['id'])); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps(), overlap={'mode': 'parallel', 'parallelLimit': 2}), True)
-        await runtime.launch(job['jobId'], 1); await runtime.launch(job['jobId'], 1)
-        await asyncio.gather(*runtime.tasks.values())
-        from packages.core import background_jobs as jobs
-        records = jobs.list_run_records(registry_root=runtime.root)
-        assert len(records) == 2 and len({r['result']['runId'] for r in records}) == 2
-        assert len({s['id'] for r in records for s in r['result']['stepExecutions']}) == 4
-        assert all([s['status'] for s in r['result']['stepExecutions']] == ['completed'] * 2 for r in records)
-        assert len(calls) == 4
-    finally:
-        await runtime.close()
+def test_parallel_runs_have_separate_step_attempts(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    calls = []
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            await asyncio.sleep(0)
+            calls.append(dict(effect_key))
+            return {'status': 'queued', 'messageId': effect_key['runId'] + effect_key['stepId']}
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    job = enabled(h, job_def(h, steps=2, overlap={'mode': 'parallel', 'maxActive': 2, 'maxPending': 0}))
+    runs = {launch(h, job, key)['runId'] for key in ('parallel-1', 'parallel-2')}
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert set(state['runs']) == runs and len(runs) == 2
+    assert len(state['attempts']) == len(state['effects']) == 4
+    assert len({a['attemptId'] for a in state['attempts'].values()}) == 4
+    for rid in runs:
+        assert state['runs'][rid]['state'] == 'completed'
+        assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['completed'] * 2
+        assert len([a for a in state['attempts'].values() if a['runId'] == rid]) == 2
+        assert [c['stepId'] for c in calls if c['runId'] == rid] == ['s0', 's1']
+    assert len(calls) == 4
+    asyncio.run(h.service.dispatch_once())
+    assert len(calls) == 4
 
 
 @async_test
