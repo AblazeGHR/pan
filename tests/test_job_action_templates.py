@@ -32,6 +32,25 @@ async def setup(root,pause=None):
     return rt,calls
 
 
+def canonical_fixed_template(h, key='fixed', child=None):
+    from tests.test_job_final_http_service import create, control, job_def
+    from packages.jobs.final_service import object_ref
+    from packages.actions.legacy_families import template_successor
+    value = {'name':'fixed', 'jobDefinition':child or job_def(h), 'composition':{'creators':[], 'triggers':[]}}
+    template = create(h, 'job-templates', value, 'template-' + key)
+    published = control(h, 'job-templates', template, 'publish', 'publish-template-' + key)
+    assert published.status_code == 200, published.text
+    template = published.json()['result']['object']
+    raw = action()
+    raw['id'] = 'instantiate'
+    raw['execution'] = {'kind':'job_template', 'templateId':'jtpl_fixed', 'templateRevision':1}
+    canonical = template_successor(raw, object_ref('template', template))
+    published_action = h.service.publish_action('instantiate_' + key, canonical)
+    if h.service.owner.token is None:
+        h.service.owner.claim(0)
+    return template, object_ref('action', published_action), raw
+
+
 async def finished(rt,jid,status='completed'):
     async def ready():
         job=await asyncio.to_thread(rt.get,jid)
@@ -62,16 +81,42 @@ def test_job_fields_are_declared_only(h, extra):
     assert h.provider.calls == []
 
 
-def test_complete_fields_defaults_and_template_revision(tmp_path):
-    store=Store(tmp_path/'actions')
-    a=action();a['input_schema']={'type':'object','properties':{'count':{'type':'integer'},'tag':{'type':'string','default':'fixed'}},'required':['count'],'additionalProperties':False}
-    store.put('actions',a);templates=Templates(store)
-    with pytest.raises(ValueError):templates.put({'name':'hole','config':config()},0)
-    t=templates.put({'name':'complete','config':{**config(),'enabled':False,'arguments':{'count':2}}},0)
-    assert 'enabled' not in t and t['config']['arguments']=={'count':2,'tag':'fixed'}
-    with pytest.raises(ValueError, match='Unknown or invalid Job Template'):
-        templates.put({k:v for k,v in {**t,'enabled':True}.items() if k in {'id','name','enabled','config'}},1)
-    with pytest.raises(Conflict):templates.put({'id':t['id'],'name':'stale','config':t['config']},0,True)
+def test_complete_fields_defaults_and_template_revision(h):
+    from tests.test_job_final_http_service import create, job_def, USER
+    from tests.test_action_groups import canonical_state
+    # Shared definition validation remains useful for inspecting old records;
+    # assembling a definition does not re-enable a retired registry writer.
+    a = action()
+    a['input_schema'] = {'type':'object', 'properties':{'count':{'type':'integer'},
+        'tag':{'type':'string','default':'fixed'}}, 'required':['count'], 'additionalProperties':False}
+    state = Store().read()
+    state['actions']['pause'] = validate_action(a)
+    with pytest.raises(ValueError):
+        config_value(config(), state)
+    filled = config_value({**config(), 'enabled':False, 'arguments':{'count':2}}, state)
+    assert filled['arguments'] == {'count':2, 'tag':'fixed'} and filled['enabled'] is False
+    value = {'name':'complete', 'jobDefinition':job_def(h), 'composition':{'creators':[], 'triggers':[]}}
+    template = create(h, 'job-templates', value, 'complete-template')
+    assert 'enabled' not in template and template['state'] == 'draft'
+    assert template['jobDefinition']['overlap'] == {'mode':'forbid', 'maxActive':1, 'maxPending':0}
+    assert template['jobDefinition']['recovery'] == {'automatic':False, 'retryIf':[], 'maxAttempts':3,
+        'backoffSeconds':['5','15','60'], 'stableResetSeconds':'300'}
+    before = canonical_state(h.service)
+    invalid = h.client.put('/api/job-templates/' + template['id'], json={
+        'definition':{**value,'enabled':True}, 'expectedRevision':template['revision'], 'requestKey':'invalid-template-enabled'})
+    assert invalid.status_code == 400 and invalid.json()['error']['code'] == 'invalid_schema'
+    assert canonical_state(h.service) == before
+    stale = h.client.put('/api/job-templates/' + template['id'], json={
+        'definition':{**value,'name':'stale'}, 'expectedRevision':template['revision'] + 1, 'requestKey':'stale-complete-template'})
+    assert stale.status_code == 409 and stale.json()['error']['code'] == 'revision_conflict'
+    assert canonical_state(h.service) == before
+    saved = h.client.put('/api/job-templates/' + template['id'], json={
+        'definition':{**value,'name':'edited'}, 'expectedRevision':template['revision'], 'requestKey':'edit-complete-template'})
+    assert saved.status_code == 200, saved.text
+    current = h.service.get('template', template['id'], actor=USER)
+    assert current['revision'] == 2 and current['name'] == 'edited'
+    assert current['jobDefinition'] == template['jobDefinition']
+    assert h.provider.calls == []
 
 
 def test_instantiate_copy_revision_display_only_and_idempotence(h):
@@ -171,22 +216,61 @@ def test_reserved_creation_recovers_after_template_delete_and_write_failure(h, m
     assert h.provider.calls == []
 
 
-@async_test
-async def test_template_edit_delete_while_job_write_blocked_uses_admitted_copy(tmp_path,monkeypatch):
-    rt,_=await setup(tmp_path);entered,release=threading.Event(),threading.Event()
-    t=rt.templates.put({'name':'complete','config':config()},0,True)
-    original=jobs._create
-    def blocked(*args,**kwargs):entered.set();assert release.wait(3);return original(*args,**kwargs)
-    monkeypatch.setattr(jobs,'_create',blocked)
-    task=asyncio.create_task(asyncio.to_thread(rt.instantiate,t['id'],1,'interleaved'))
-    try:
-        assert await asyncio.to_thread(entered.wait,2)
-        changed=rt.templates.put({'id':t['id'],'name':'edited','config':{**config(),'name':'new'}},1,True)
-        rt.templates.delete(t['id'],changed['revision'])
-        rt.actions.put('actions',{**action(),'id':'unrelated'})
-        release.set();job=await task
-        assert job['config']['name']=='Reference Job' and job['templateRevision']==1
-    finally:release.set();await asyncio.gather(task,return_exceptions=True);await rt.close()
+def test_template_edit_delete_while_job_write_blocked_uses_admitted_copy(h, monkeypatch):
+    from contextlib import contextmanager
+    from packages.jobs.final_contracts import ContractError
+    from tests.test_job_final_http_service import create, control, job_def, USER
+    value = {'name':'complete', 'jobDefinition':job_def(h), 'composition':{'creators':[], 'triggers':[]}}
+    template = create(h, 'job-templates', value, 'race-template')
+    published = control(h, 'job-templates', template, 'publish', 'publish-race-template')
+    assert published.status_code == 200, published.text
+    template = published.json()['result']['object']
+    with pytest.raises(ContractError) as immutable:
+        h.service.write('template', template['id'], {'definition':{**value,'name':'edited'},
+            'expectedRevision':template['revision'], 'requestKey':'edit-race-source'}, actor=USER)
+    assert immutable.value.code == 'reference_conflict'
+    entered, release, retire_waiting = threading.Event(), threading.Event(), threading.Event()
+    save, writer = h.service._save, h.service.owner.writer
+    retire_thread = []
+    def blocked(db, kind, identity, item):
+        if kind == 'job':
+            entered.set()
+            assert release.wait(4), 'template copy commit barrier timed out'
+        return save(db, kind, identity, item)
+    @contextmanager
+    def fenced(*args, **kwargs):
+        if retire_thread and threading.get_ident() == retire_thread[0]:
+            retire_waiting.set()
+        with writer(*args, **kwargs):
+            yield
+    monkeypatch.setattr(h.service, '_save', blocked)
+    monkeypatch.setattr(h.service.owner, 'writer', fenced)
+    body = {'expectedRevision':template['revision'], 'requestKey':'interleaved-copy'}
+    def retire():
+        retire_thread.append(threading.get_ident())
+        return h.service.control('template', template['id'], {'operation':'retire',
+            'expectedRevision':template['revision'], 'expectedStateRevision':template['stateRevision'],
+            'parameters':{}, 'requestKey':'retire-race-source'}, actor=USER)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        copy_future = pool.submit(h.service.instantiate_template, template['id'], body, actor=USER)
+        retire_future = None
+        try:
+            assert entered.wait(3)
+            retire_future = pool.submit(retire)
+            assert retire_waiting.wait(3)
+            assert not retire_future.done(), 'retirement bypassed the canonical writer fence'
+        finally:
+            release.set()
+        copied = copy_future.result(timeout=4)
+        retired = retire_future.result(timeout=4)
+    jid = copied['result']['objectIds']['job']
+    job = h.service.get('job', jid, actor=USER)
+    assert job['name'] == value['jobDefinition']['name'] and job['steps'] == value['jobDefinition']['steps']
+    assert retired['result']['object']['state'] == 'retired'
+    replay = h.service.instantiate_template(template['id'], body, actor=USER)
+    assert replay['operationId'] == copied['operationId'] and replay['result']['objectIds']['job'] == jid
+    assert len(h.service.list('job', actor=USER)['items']) == 1
+    assert h.provider.calls == [] and h.service.final.runs(jid) == []
 
 
 def test_delete_before_snapshot_atomic_admission_blocks_all_effects(h):
@@ -422,28 +506,54 @@ async def test_terminal_job_write_failure_after_cleanup_recovers_same_run_once(t
     finally:monkeypatch.setattr(jobs,'_write_job',original);await rt.close()
 
 
-@async_test
-async def test_fixed_template_action_capability_idempotence_and_group_gate(tmp_path):
+def test_fixed_template_action_capability_idempotence_and_group_gate(h):
+    from packages.actions.groups import Groups
     from packages.actions.executor import execute_dynamic
-    rt,_=await setup(tmp_path)
-    try:
-        t=rt.templates.put({'name':'fixed','config':{**config(),'enabled':False}},0,True)
-        a={**action(),'id':'instantiate','execution':{'kind':'job_template','templateId':t['id'],'templateRevision':1}}
-        with pytest.raises(PermissionError):rt.actions.put('actions',a)
-        rt.actions.put('actions',a,authorized=True)
-        async def progress(**fields):pass
-        progress.checkpoint={'id':'one-logical-run'};progress.instantiate_template=rt.instantiate_action
-        one=await execute_dynamic(a,{}, {},progress,rt.pause)
-        two=await execute_dynamic(a,{}, {},progress,rt.pause)
-        assert one['jobId']==two['jobId'] and not one['jobCompleted'] and len(jobs.list_jobs(rt.root))==1
-        with pytest.raises(Exception):await execute_dynamic(a,{'text':'override'}, {},progress,rt.pause)
-        rt.actions.put('groups',{'id':'g','name':'g','action_ids':['instantiate']})
-        with pytest.raises(ValueError):rt.actions.build('g')
-        rt.templates.put({'id':t['id'],'name':'new intent','config':{**config(),'name':'new','enabled':False}},1,True)
-        progress.checkpoint={'id':'a-later-run'}
-        with pytest.raises(Conflict):await execute_dynamic(a,{}, {},progress,rt.pause)
-        with pytest.raises(ValueError):validate_action({**a,'input_schema':{'type':'object','properties':{'x':{'type':'string'}},'additionalProperties':False}})
-    finally:await rt.close()
+    from packages.jobs.final_contracts import ContractError
+    from packages.jobs.final_service import definition, object_ref
+    from tests.test_job_final_http_service import USER
+    from tests.test_action_groups import canonical_state
+    template, ref, raw = canonical_fixed_template(h)
+    with pytest.raises(PermissionError, match='retired'):
+        Store().put('actions', raw, authorized=True)
+    with pytest.raises(PermissionError, match='retired'):
+        Store().build('g')
+    async def forbidden(*args, **kwargs):
+        raise AssertionError('retired executor must not call an effect')
+    with pytest.raises(PermissionError, match='retired'):
+        asyncio.run(execute_dynamic(raw, {}, {}, forbidden, forbidden))
+    groups = Groups(h.service)
+    value = definition('action', h.service.get('action', ref['id'], actor=USER))
+    draft = h.service.write('action', None, {'definition':value, 'expectedRevision':0,
+        'requestKey':'draft-template-action'}, actor=USER)['result']['object']
+    before = canonical_state(h.service)
+    with pytest.raises(ContractError) as blocked:
+        groups.put({'id':'draft_template_group', 'name':'Draft', 'tools':[{
+            'alias':'create', 'actionRef':object_ref('action', draft)}]}, 0, 'draft-template-group', actor=USER)
+    assert blocked.value.code == 'reference_conflict' and canonical_state(h.service) == before
+    created = groups.put({'id':'fixed_template_group', 'name':'Fixed', 'tools':[{
+        'alias':'create', 'actionRef':ref}]}, 0, 'fixed-template-group', actor=USER)
+    published = groups.publish('fixed_template_group', created['result']['group']['revision'],
+        'publish-fixed-template-group', actor=USER)['result']['release']
+    body = {'actionRef':ref, 'arguments':{}, 'requestKey':'one-logical-invocation'}
+    before = canonical_state(h.service)
+    with pytest.raises(ContractError) as denied:
+        asyncio.run(h.service.invoke_action(ref['id'], body, actor={'type':'agent','id':'ungranted','revision':1}))
+    assert denied.value.code == 'authorization_denied' and canonical_state(h.service) == before
+    one = asyncio.run(groups.invoke(published['version'], 'create', {}, body['requestKey'], actor=USER))
+    two = asyncio.run(groups.invoke(published['version'], 'create', {}, body['requestKey'], actor=USER))
+    assert two['replayed'] and one['operationId'] == two['operationId']
+    jid = one['result']['output']['jobId']
+    assert one['result']['output']['jobCompleted'] is False
+    assert [j['id'] for j in h.service.list('job', actor=USER)['items']] == [jid]
+    assert h.service.get('job', jid, actor=USER)['state'] == 'disabled'
+    assert h.service.final.runs(jid) == [] and h.provider.calls == []
+    before = canonical_state(h.service)
+    with pytest.raises(ContractError) as invalid:
+        asyncio.run(groups.invoke(published['version'], 'create', {'text':'override'}, 'invalid-template-args', actor=USER))
+    assert invalid.value.code == 'invalid_schema' and canonical_state(h.service) == before
+    with pytest.raises(ValueError):
+        validate_action({**raw, 'input_schema':{'type':'object', 'properties':{'x':{'type':'string'}}, 'additionalProperties':False}})
 
 
 @async_test
