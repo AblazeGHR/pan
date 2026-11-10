@@ -111,6 +111,13 @@ FinalService 与 Job facade 共用环境变量优先级，解析不创建目录�
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
 | `fileManager.reveal` | 运行时探测 | 运行时探测 | 运行时探测 | 需要 Explorer / `open` / xdg-open 与桌面会话；探针为 false 时 API `501`、按钮禁用 |
 
+Canonical global Run-history/log retention reuses the existing FinalService
+pulse, owner fence, execution identities, `ProcessOwner` exit proofs and pinned
+controlled log directory on all three platforms. No new platform capability is
+declared. `test_job_global_retention.py` and `test_job_retention_process_logs.py`
+are required fast-gate nodes; target-platform evidence remains mandatory. See
+[the API and storage contract](../design/job-unification/CANONICAL_GLOBAL_RETENTION_20261110.md).
+
 CP-X3 revision2：Worker 的普通 pipe 启动在 POSIX 通过平台层 `start_new_session` 隔离宿主终端信号，
 Windows 继续使用既有窗口策略；停止仍由 Worker 自有树清理负责。Native Terminal TUI 的创建、配置、
 启动、重启及 React 入口统一要求 `terminal.native=true`，明确 `false` 返回

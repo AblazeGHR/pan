@@ -1111,6 +1111,8 @@ def install(app, *legacy_routers):
       serve answers 410 instead of a bare 404, so a stale client learns it is
       retired rather than that the path never existed.
     """
+    from packages.jobs.retention import install as install_retention
+    install_retention(app)
     from packages.automation.authorization import canonical_path as is_canonical
     canonical = [API_PREFIX + route.path for route in router.routes
                  if getattr(route, "methods", None)]

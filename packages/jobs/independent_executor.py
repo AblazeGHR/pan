@@ -144,6 +144,8 @@ class ExecutionStore:
                 if fence(previous["attempt"]) == current_fence:
                     db.commit()
                     return previous, False
+                if previous.get('historyExpired') or previous.get('historyPurge'):
+                    raise ExecutionConflict('Original Run history expired or cleanup admitted; query retained effect identity')
                 result = previous.get("result") or {}
                 safe_retry = (retry and result.get("outcome") == "rejected"
                               and result.get("receipt", {}).get("code") != "cancelled_before_effect"
@@ -337,6 +339,10 @@ class ExecutionStore:
             db.execute("BEGIN IMMEDIATE")
             doc = self._load(db, identity)
             self._check(doc, attempt)
+            if doc.get('historyExpired'):
+                raise contracts.ContractError('history_expired', 'Original execution history expired; identity is retained')
+            if doc.get('historyPurge'):
+                raise contracts.ContractError('reconciliation_required', 'Original history cleanup admitted; query original identity')
             if doc["frozenPlan"].get("operation") not in {"process", "background-process", "command"}:
                 raise ExecutionConflict("owned-tree cleanup supports process effects only")
             prior = doc.get("cleanupRequest", {})
@@ -438,6 +444,8 @@ class ExecutionStore:
                          if fence(row["attempt"]) == fence(attempt)), None)
         if original is None:
             raise ExecutionConflict("Original log Attempt identity not found")
+        if original.get('logExpired') or original.get('logPurge'):
+            raise contracts.ContractError('log_expired', 'Original process log expired; effect identity is retained')
         return read_log(self.root, original, offset=offset, limit=limit)
 
 

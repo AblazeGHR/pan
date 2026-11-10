@@ -17,6 +17,38 @@ MAX_READ = 65536
 MAX_OFFSET = 2**63 - 1
 
 
+def purge_log(root, doc, *, cutoff):
+    """Unlink only the original controlled, uniquely owned log entry.
+
+    The caller holds the canonical owner and an original durable purge intent.
+    Opening pins the directory and verifies the same file identity used by the
+    reader. No caller-supplied path, recursive deletion or link is accepted.
+    """
+    root = Path(root)
+    if doc.get('logPurge', {}).get('logRef') != reference(doc):
+        raise contracts.ContractError('reference_conflict', 'Original log purge intent required')
+    path = root / 'logs' / (reference(doc)['id'] + '.log')
+    try:
+        with open_log(root, doc, missing_ok=True) as stream:
+            if stream is None:
+                return
+            before = os.fstat(stream.fileno())
+            if before.st_mtime > cutoff:
+                raise contracts.ContractError('reference_conflict', 'Original log is recently modified')
+            latest = path.lstat()
+            if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+                    latest.st_dev, latest.st_ino, latest.st_size, latest.st_mtime_ns):
+                raise contracts.ContractError('reference_conflict', 'Original log changed during purge')
+            # Windows forbids deleting this reader handle. Directory pinning
+            # remains active until open_log exits; close only the file here.
+            stream.close()
+            path.unlink()
+    except FileNotFoundError:
+        # Only an already admitted original purge may confirm absence after a
+        # host stopped between unlink and receipt persistence.
+        return
+
+
 def reference(doc):
     from packages.jobs.independent_executor import fence
     return {"kind": "process-log", "version": 1,
@@ -62,7 +94,7 @@ def validate_page(page, doc, *, offset, limit):
 
 
 @contextmanager
-def open_log(root, doc, *, write=False):
+def open_log(root, doc, *, write=False, missing_ok=False):
     from packages.core.background_jobs import _controlled_logs_dir, _path_has_reparse_component
     from packages.core.logging_setup import _is_plain_file_entry
     from packages.core.workdir_retention import pinned_directories
@@ -85,6 +117,9 @@ def open_log(root, doc, *, write=False):
             if not _is_plain_file_entry(path):
                 raise contracts.ContractError("reference_conflict", "Process log is not a unique plain file")
         elif not write:
+            if missing_ok:
+                yield None
+                return
             raise contracts.ContractError("provider_unavailable", "Original process log file unavailable; execution is not retried")
         flags = os.O_RDWR | os.O_APPEND | os.O_CREAT if write else os.O_RDONLY
         flags |= getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
