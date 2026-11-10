@@ -177,9 +177,9 @@ jobs:
       - name: Real server import, full collection and core contracts
         run: python scripts/platform_fast_gate.py --output evidence/cp-x1-ci
 
-      - name: Run Action unification P1-P6 contracts
+      - name: Run canonical Action and Group contracts
         run: >-
-          python -c "import glob, subprocess, sys; files = sorted(glob.glob('tests/test_action_unification_p*.py')); assert files; sys.exit(subprocess.call([sys.executable, 'scripts/run_tests_isolated.py', '--', sys.executable, '-m', 'pytest', *files, 'tests/test_job_mcp_config.py', '-q', '-ra', '--junitxml=evidence/cp-x1-ci/action-unification.xml']))"
+          python -c "import glob, subprocess, sys; files = sorted(glob.glob('tests/test_action_unification_p*.py')); assert files; sys.exit(subprocess.call([sys.executable, 'scripts/run_tests_isolated.py', '--', sys.executable, '-m', 'pytest', *files, 'tests/test_job_mcp_config.py', 'tests/test_action_groups.py', 'tests/test_plugin_session_config.py', 'tests/test_action_group_directory_reads.py', '-q', '-ra', '--junitxml=evidence/cp-x1-ci/action-unification.xml']))"
 
       - name: Upload fast gate logs, collection errors and platform skips
         if: always()
