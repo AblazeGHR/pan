@@ -586,7 +586,7 @@ MA 的验收记录见 [MA 行为准则](references/ma.md#验收与收尾)，TA �
 | `scheduler_run_now` | `task_id` | Admit manual intent through the original Job; no scheduled cursor advance. |
 | `scheduler_update` | `task_id` | Patch provided legacy configuration fields through the original graph. |
 | `self_queue_consume` | `item_id` | Consume a visible message in your own queue by its original ID, interrupting your task. |
-| `self_queue_read` | (无必填参数) | Read visible own queue messages; child-agent reports expose identity only. |
+| `self_queue_read` | (无必填参数) | Read visible own queue messages; TA reports expose identity only. |
 | `system_fields` | (无必填参数) | Discover canonical Event system fields, aliases and Action target rules. |
 | `terminal_close` | `terminal_id` | Stop an independent terminal; unconfirmed cleanup remains retryable. |
 | `terminal_create` | (无必填参数) | Create an independent terminal. Default scope is the calling Session. |
