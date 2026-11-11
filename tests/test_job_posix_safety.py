@@ -170,6 +170,14 @@ def test_late_success_terminal_does_not_rebuild_retired_parent(canonical):
     c, o = canonical, canonical.owned
     o.evidence['label'] = 'posix-late-success-terminal'
     launch(c)
+    before = c.service.final.get(c.job['id'])
+    attempt_id, = before['attempts']
+    assert before['attempts'][attempt_id]['state'] == 'running'
+    assert before['runs'][c.run_id]['state'] == 'running'
+    assert o.client.get_execution(o.identity)['result'] is None
+    blocked = delete(c, 'retire-before-original-proof')
+    assert blocked.status_code == 409, blocked.text
+    assert blocked.json()['error']['code'] == 'reference_conflict'
     # Cooperative child exit plus retained root wait and read-only absence
     # permits success; no dead leader is authorized to signal the old group.
     o.release.touch()
@@ -177,20 +185,23 @@ def test_late_success_terminal_does_not_rebuild_retired_parent(canonical):
     assert doc['result']['outcome'] == 'succeeded'
     assert doc['result']['cleanupProof']['confirmed'] is True
     o.children[0].wait(5)
-    response = delete(c, 'retire-before-late-success')
-    assert response.status_code == 409, response.text
-    assert response.json()['error']['code'] == 'reference_conflict'
+    # DELETE may reconcile this exact durable terminal receipt while its
+    # original callback remains held. No inferred exit or replacement Run.
+    response = delete(c, 'retire-after-original-proof-before-callback')
+    assert response.status_code == 200, response.text
+    settled = c.service.final.get(c.job['id'])
+    assert list(settled['attempts']) == [attempt_id]
+    assert settled['attempts'][attempt_id]['state'] == 'succeeded'
+    assert settled['runs'][c.run_id]['state'] == 'completed'
+    effect, = settled['effects']
+    assert effect['attemptId'] == attempt_id and effect['effectKey'] == o.key
+    assert effect['receipt'] == doc['result']
+    retired = c.client.get('/api/jobs/' + c.job['id']).json()
+    assert retired['state'] == 'retired'
     c.release_receipt.set()
     c.dispatch.join(10)
     assert not c.dispatch.is_alive() and c.dispatch_errors == []
     assert refresh(c)['state'] == 'completed'
-    # The canonical parent can retire only after its original Run/effect has
-    # settled. A process exit alone must never bypass the owner fence.
-    c.job = c.client.get('/api/jobs/' + c.job['id']).json()
-    response = delete(c, 'retire-after-late-success')
-    assert response.status_code == 200, response.text
-    retired = c.client.get('/api/jobs/' + c.job['id']).json()
-    assert retired['state'] == 'retired'
     for _ in range(2):
         refresh(c)
         asyncio.run(c.service.dispatch_once())
