@@ -693,6 +693,7 @@ describe('AppSettingsModal', () => {
       'Plugins',
       'Data',
       'Authorization',
+      'Search',
     ]);
     expect(tabList.className).toContain('overflow-x-auto');
     expect(tabList.className).toContain('overscroll-x-contain');
@@ -704,12 +705,12 @@ describe('AppSettingsModal', () => {
     expect(panel.className).not.toContain('overflow-x-auto');
 
     fireEvent.keyDown(tabs[0]!, { key: 'End' });
+    expect(tabs[10]!.getAttribute('aria-selected')).toBe('true');
+    expect(tabs[10]!.tabIndex).toBe(0);
+    expect(tabs.slice(0, 10).every((tab) => tab.tabIndex === -1)).toBe(true);
+    fireEvent.keyDown(tabs[10]!, { key: 'ArrowLeft' });
     expect(tabs[9]!.getAttribute('aria-selected')).toBe('true');
-    expect(tabs[9]!.tabIndex).toBe(0);
-    expect(tabs.slice(0, 9).every((tab) => tab.tabIndex === -1)).toBe(true);
-    fireEvent.keyDown(tabs[9]!, { key: 'ArrowLeft' });
-    expect(tabs[8]!.getAttribute('aria-selected')).toBe('true');
-    fireEvent.keyDown(tabs[8]!, { key: 'Home' });
+    fireEvent.keyDown(tabs[9]!, { key: 'Home' });
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     expect(panel.getAttribute('aria-labelledby')).toBe('app-settings-tab-lifecycle');
   });
@@ -739,6 +740,7 @@ describe('AppSettingsModal', () => {
       'plugins',
       'data',
       'authorization',
+      'search',
     ]);
     render(<AppSettingsModal open onClose={() => {}} />);
     expect(document.getElementById('app-settings-tab-shortcuts')).not.toBeNull();
@@ -753,6 +755,7 @@ describe('AppSettingsModal', () => {
       'Plugins',
       'Data',
       'Authorization',
+      'Search',
     ]);
   });
 
@@ -988,7 +991,7 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(panel.querySelector(
       '[aria-label="Keep Completed Jobs for days"]',
     )).not.toBeNull());
-    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(10);
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(11);
     expect(updateUiSettingsMock).not.toHaveBeenCalled();
   });
 
@@ -1172,7 +1175,7 @@ describe('AppSettingsModal', () => {
       'app-settings-tab-appearance',
     ) as HTMLButtonElement;
 
-    expect(tabs).toHaveLength(10);
+    expect(tabs).toHaveLength(11);
     expect(appearanceTab.getAttribute('aria-selected')).toBe('false');
     expect(cardEl().textContent).not.toContain('Message visibility');
     expect(cardEl().textContent).not.toContain('Show meta-agent info');
@@ -2036,6 +2039,7 @@ describe('AppSettingsModal', () => {
     }
 
     function typeQuery(value: string) {
+      clickTab('search');
       fireEvent.change(searchInput(), { target: { value } });
     }
 
@@ -2045,32 +2049,21 @@ describe('AppSettingsModal', () => {
       );
     }
 
-    it('adds a right-hand search entry and leaves the tabbed UI untouched while empty', () => {
+    it('keeps search in its own tab without taking space from the tab bar', () => {
       render(<AppSettingsModal open onClose={() => {}} />);
-
-      const input = searchInput();
-      expect(input.value).toBe('');
-      expect(input.getAttribute('placeholder')).toBe('Search settings');
-      expect(input.getAttribute('aria-label')).toBe('Search settings');
-
-      // The field is the last child of the tab bar row, after the tablist.
-      const field = document.body.querySelector<HTMLElement>('[data-testid="settings-search-field"]');
-      expect(field).toBeTruthy();
-      const fieldRow = field!.parentElement!;
-      const bar = fieldRow.parentElement!;
-      expect(bar.lastElementChild).toBe(fieldRow);
-      expect(bar.querySelector('[role="tablist"]')).toBeTruthy();
-      // Desktop keeps the field on the tab row; narrow screens wrap it full width.
-      expect(fieldRow.className).toContain('w-full');
-      expect(fieldRow.className).toContain('md:w-48');
-      expect(bar.className).toContain('flex-wrap');
-      expect(bar.querySelector('[role="tablist"]')!.className).toContain('overflow-x-auto');
-
-      // No results region and no cleared tab panel while the query is empty.
-      expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
-      expect(document.getElementById('app-settings-tab-lifecycle')?.getAttribute('aria-selected'))
-        .toBe('true');
+      const tabs = document.body.querySelector<HTMLElement>('[role="tablist"]')!;
+      expect(tabs.querySelector('input')).toBeNull();
+      expect(document.body.querySelector('[data-testid="settings-search-input"]')).toBeNull();
       expect(cardEl().textContent).toContain('Restart Pan main service');
+      expect(tabs.className).toContain('[scrollbar-width:none]');
+      expect(tabs.className).toContain('[&::-webkit-scrollbar]:hidden');
+      clickTab('search');
+      expect(searchInput().value).toBe('');
+      expect(panelEl().contains(searchInput())).toBe(true);
+      expect(searchInput().getAttribute('placeholder')).toBe('Search settings');
+      expect(cardEl().textContent).not.toContain('Restart Pan main service');
+      expect(panelEl().textContent).toContain('Enter a setting name or keyword');
+      expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
     });
 
     it('lists hits from every tab with their original group and tab', () => {
@@ -2102,7 +2095,7 @@ describe('AppSettingsModal', () => {
       scrollIntoViewMock.mockClear();
       fireEvent.click(sidebarHit!);
 
-      expect(searchInput().value).toBe('');
+      expect(document.body.querySelector('[data-testid="settings-search-input"]')).toBeNull();
       expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
       expect(document.getElementById('app-settings-tab-appearance')?.getAttribute('aria-selected'))
         .toBe('true');
@@ -2116,7 +2109,7 @@ describe('AppSettingsModal', () => {
       expect(panelEl().textContent).toContain('Show sidebar collapse handle');
     });
 
-    it('shows an empty state for unknown text and restores the tabs when cleared', () => {
+    it('shows an empty state and keeps the Search panel when cleared', () => {
       render(<AppSettingsModal open onClose={() => {}} />);
 
       typeQuery('definitely-not-a-setting');
@@ -2129,7 +2122,8 @@ describe('AppSettingsModal', () => {
       )!);
       expect(searchInput().value).toBe('');
       expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
-      expect(cardEl().textContent).toContain('Restart Pan main service');
+      expect(document.getElementById('app-settings-tab-search')?.getAttribute('aria-selected')).toBe('true');
+      expect(panelEl().textContent).toContain('Enter a setting name or keyword');
     });
 
     it('clears the query on Escape without closing the modal', () => {
@@ -2147,7 +2141,10 @@ describe('AppSettingsModal', () => {
       typeQuery('queue');
       clickTab('shortcuts');
       expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
+      expect(document.body.querySelector('[data-testid="settings-search-input"]')).toBeNull();
+      clickTab('search');
       expect(searchInput().value).toBe('');
+      clickTab('shortcuts');
       expect(panelEl().textContent).toContain('Keyboard shortcuts');
     });
 

@@ -16,6 +16,7 @@ import {
   Globe,
   Keyboard,
   Power,
+  Search,
   Puzzle,
   SlidersHorizontal,
   ToggleLeft,
@@ -177,6 +178,7 @@ function MainLifecycleRunningChoice({
 }
 
 const SETTINGS_TAB_META: Record<SettingsTab, { label: string; Icon: LucideIcon }> = {
+  search: { label: 'Search', Icon: Search },
   lifecycle: { label: SETTINGS_CATEGORY_LABELS.lifecycle, Icon: Power },
   behavior: { label: SETTINGS_CATEGORY_LABELS.behavior, Icon: ToggleLeft },
   remote: { label: SETTINGS_CATEGORY_LABELS.remote, Icon: Globe },
@@ -539,8 +541,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('lifecycle');
   const [behaviorAnchor, setBehaviorAnchor] = useState<BehaviorAnchor | null>(null);
-  // Settings search state: an empty query means "no search", which keeps the
-  // original tabbed layout exactly as before.
+  // Search owns its own tab panel, just like every settings category.
   const [settingsQuery, setSettingsQuery] = useState('');
   const [settingsJump, setSettingsJump] = useState<{ group: string; nonce: number } | null>(null);
   const settingsJumpNonce = useRef(0);
@@ -1414,12 +1415,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           </button>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-default px-4 md:flex-nowrap md:px-6">
+        <div className="shrink-0 min-w-0 border-b border-border-default px-4 md:px-6">
           <div
             ref={tabListRef}
             role="tablist"
             aria-label="App settings sections"
-            className="flex min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x"
+            className="flex min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             onKeyDown={(event) => {
               const currentIndex = SETTINGS_TABS.indexOf(activeTab);
               const nextIndex =
@@ -1452,7 +1453,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   aria-selected={selected}
                   tabIndex={selected ? 0 : -1}
                   onClick={() => activateSettingsTab(tab)}
-                  className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
+                  className={`inline-flex min-w-[70px] shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
                     selected
                       ? 'border-accent text-text-primary'
                       : 'border-transparent text-text-tertiary hover:text-text-primary'
@@ -1463,11 +1464,6 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </button>
               );
             })}
-          </div>
-          {/* Search entry sits at the far right of the tab bar; on narrow
-              screens it wraps onto its own full-width row below the tabs. */}
-          <div className="w-full pb-2 md:w-48 md:shrink-0 md:pb-0 lg:w-56">
-            <SettingsSearchField value={settingsQuery} onChange={setSettingsQuery} />
           </div>
         </div>
 
@@ -1480,12 +1476,19 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           tabIndex={0}
           className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 space-y-6"
         >
-          {settingsSearchActive ? (
-            <SettingsSearchResults
+          {activeTab === 'search' ? (
+            <section className="mx-auto w-full max-w-2xl space-y-4" aria-label="Search settings panel">
+              <div>
+                <h3 className="text-sm font-semibold text-text-primary">Search settings</h3>
+                <p className="mt-1 mb-3 text-xs text-text-tertiary">Find a setting across all categories.</p>
+                <SettingsSearchField value={settingsQuery} onChange={setSettingsQuery} />
+              </div>
+              {settingsSearchActive ? <SettingsSearchResults
               query={settingsQuery}
               results={settingsSearchResults}
               onSelect={openSettingsSearchHit}
-            />
+              /> : <p className="text-xs text-text-tertiary">Enter a setting name or keyword to get started.</p>}
+            </section>
           ) : activeTab === 'authorization' ? (
             <AuthorizationSettings />
           ) : activeTab === 'adapters' ? (

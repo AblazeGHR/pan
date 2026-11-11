@@ -1,7 +1,7 @@
 import {
   SETTINGS_CATEGORY_LABELS,
   SETTINGS_CATEGORY_ORDER,
-  type SettingsTab,
+  type SettingsCategory,
 } from './settingsCategories';
 
 /**
@@ -17,7 +17,7 @@ export interface SettingsSearchContext {
 
 export interface SettingsSearchEntry {
   id: string;
-  tab: SettingsTab;
+  tab: SettingsCategory;
   /** Group heading inside the tab; also the jump target. */
   group: string;
   /** Short row summary shown under the group name. */

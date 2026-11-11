@@ -8,8 +8,7 @@ interface SettingsSearchFieldProps {
 }
 
 /**
- * Right-hand search entry in the App Settings tab bar. Empty by default, so the
- * modal keeps its original tabbed layout until the user types.
+ * Search input inside the dedicated App Settings Search tab.
  */
 export function SettingsSearchField({ value, onChange }: SettingsSearchFieldProps) {
   return (
