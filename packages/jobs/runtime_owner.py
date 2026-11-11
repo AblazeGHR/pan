@@ -11,11 +11,14 @@ from pathlib import Path
 import sqlite3
 import threading
 import uuid
+import weakref
 
 from packages.core.platform.runtime_lock import RuntimeLock, RuntimeLockBusy
 from packages.jobs.final_contracts import ContractError
 
 _local = threading.local()
+_transaction_locks_guard = threading.Lock()
+_transaction_locks = weakref.WeakValueDictionary()
 COOPERATIVE_PROFILE = 'cooperative-profile-v1'
 
 
@@ -74,6 +77,17 @@ class OwnerFence:
         if key in joined:
             yield joined[key]
             return
+        # Queue same-process contenders before starting SQLite's busy timeout.
+        # The database transaction remains the cross-process authority; this
+        # mutex grants no owner token and never bypasses the epoch check.
+        with _transaction_locks_guard:
+            mutex = _transaction_locks.setdefault(key, threading.RLock())
+        with mutex:
+            with self._transaction(joined, key) as db:
+                yield db
+
+    @contextmanager
+    def _transaction(self, joined, key):
         self.root.mkdir(parents=True, exist_ok=True)
         db = sqlite3.connect(self.path, timeout=10)
         try:

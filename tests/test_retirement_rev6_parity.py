@@ -142,7 +142,7 @@ def test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay(o
     assert h.service.events.stats() == events
 
 
-def test_actual_failed_process_revocation_preserves_attempt_budget_without_second_effect(env):
+def test_actual_failed_process_revocation_preserves_attempt_budget_without_second_effect(env, monkeypatch):
     grants = env.auth._default_permissions()
     grants['job']['execute'] = grants['action']['manageSystemActions'] = True
     env.auth.change_permissions(grants, 0)
@@ -150,12 +150,20 @@ def test_actual_failed_process_revocation_preserves_attempt_budget_without_secon
     code = f"from pathlib import Path; Path({str(count)!r}).open('a').write('run\\n'); raise SystemExit(7)"
     jid, rid = create_process(env, job_definition(env, policy(backoffSeconds=['0.3']), code),
         actor={'type': 'agent', 'id': 'owned', 'revision': 1})
+    # Keep the real process/receipt path, but hold admission time before the
+    # durable retry deadline. A slow CI disk may otherwise consume the entire
+    # 300ms backoff in the pulse that first observes the failed process.
+    recovery_time = env.service._recovery_time
+    monkeypatch.setattr(env.service, '_recovery_time',
+        lambda timestamp=None: recovery_time(timestamp) if timestamp else recovery_time('1970-01-01T00:00:00Z'))
     asyncio.run(drive_until(env, jid, rid, 'retry_wait'))
     before = copy.deepcopy(env.service.final.store.get(jid)['finalRuntime'])
     marker = before['plans'][rid]['autoRecovery']
     assert len(before['attempts']) == 1 and count.read_text().splitlines() == ['run']
     env.auth.change_permissions(env.auth._default_permissions(), 1)
-    time.sleep(.35)
+    from decimal import Decimal
+    monkeypatch.setattr(env.service, '_recovery_time',
+        lambda timestamp=None: recovery_time(timestamp) if timestamp else Decimal(marker['eligibleAt']) + 1)
     asyncio.run(env.service.dispatch_once())
     after = env.service.final.store.get(jid)['finalRuntime']
     assert len(after['attempts']) == 1 and count.read_text().splitlines() == ['run']
