@@ -2330,6 +2330,7 @@ def _session_to_api(
             "syncWithGlobal": behavior_sync,
             "autoLockIllegalQueue": effective_auto_lock,
             "globalAutoLockIllegalQueue": global_auto_lock,
+            "revision": getattr(s, "behavior_revision", 0),
         },
         **({"history": _api_history(
             s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
@@ -3671,16 +3672,6 @@ def _apply_session_updates(s: sess.Session, data: dict, *, plugin_config=_PLUGIN
     AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
     """
     _normalize_context_setting_keys(data)
-    behavior_update = None
-    if "behavior" in data:
-        behavior = data["behavior"]
-        if not isinstance(behavior, dict) or set(behavior) - {"syncWithGlobal", "autoLockIllegalQueue"}:
-            raise ValueError("behavior must contain only syncWithGlobal and autoLockIllegalQueue")
-        if type(behavior.get("syncWithGlobal")) is not bool:
-            raise ValueError("behavior.syncWithGlobal must be boolean")
-        if not behavior["syncWithGlobal"] and type(behavior.get("autoLockIllegalQueue")) is not bool:
-            raise ValueError("behavior.autoLockIllegalQueue must be boolean when syncWithGlobal is false")
-        behavior_update = behavior
     prepared_plugins = plugin_config is not _PLUGIN_CONFIG_UNSET
     if not prepared_plugins:
         plugin_config = _validate_plugin_update(s, data)
@@ -3750,11 +3741,6 @@ def _apply_session_updates(s: sess.Session, data: dict, *, plugin_config=_PLUGIN
         s.original_prompt = data["originalPrompt"]
     if "handoffPrompt" in data:
         s.handoff_prompt = data["handoffPrompt"]
-    if behavior_update is not None:
-        s.behavior_override = (
-            None if behavior_update["syncWithGlobal"]
-            else {"auto_lock_illegal_queue": behavior_update["autoLockIllegalQueue"]}
-        )
 
 
 _PAN_ACCESS_FIELDS = (
@@ -9679,6 +9665,33 @@ async def api_update_session(session_id: str, data: dict):
         s = sess.get(session_id)
         if s is None:
             return {'error': 'Session not found'}
+        if 'behavior' in data:
+            if set(data) != {'behavior'}:
+                return {'error': 'Behavior must be saved separately'}
+            behavior = data['behavior']
+            if (not isinstance(behavior, dict)
+                    or set(behavior) != {'syncWithGlobal', 'autoLockIllegalQueue', 'expectedRevision'}
+                    or type(behavior['syncWithGlobal']) is not bool
+                    or type(behavior['autoLockIllegalQueue']) is not bool
+                    or type(behavior['expectedRevision']) is not int
+                    or behavior['expectedRevision'] < 0):
+                return {'error': 'Invalid Behavior or expected revision'}
+            expected = behavior['expectedRevision']
+            if expected != s.behavior_revision:
+                return {'error': 'Behavior revision conflict; refresh and try again', 'code': 'behavior_revision_conflict'}
+            value = None if behavior['syncWithGlobal'] else {'auto_lock_illegal_queue': behavior['autoLockIllegalQueue']}
+            async with worker.queue_lock(session_id):
+                def commit():
+                    if sess.get(session_id, load_history=False) is not s:
+                        raise RuntimeError('Session owner changed before Behavior commit')
+                    if s.behavior_revision != expected:
+                        raise ValueError('Behavior revision conflict; refresh and try again')
+                    sess._save_body(s, behavior_state=(value, expected + 1))
+                await sess._persist_async(session_id, commit)
+            result = _session_to_api(s)
+            await broadcast({'type': 'session.updated', 'sessionId': session_id,
+                             'session': {**_session_summary(s), 'behavior': result['behavior']}})
+            return result
         requested = {b.get('plugin_id', '') for b in data.get('pluginBindings', []) if isinstance(b, dict)}
         requested.update(n for n in data.get('mcpServers', []) if isinstance(n, str))
         async with _plugin_session_claim(s, {p for p in requested if p.startswith('action-group-')}):
@@ -11573,7 +11586,7 @@ async def api_put_settings_ui(data: dict, request: Request = None):
     raw["ui"] = ui
     save_config(raw)
     after_scopes = unread_policy.refresh_unread_recording()
-    if 'errorNotificationExclusions' in data:
+    if 'errorNotificationExclusions' in data or 'behavior' in data:
         await broadcast({'type': 'settings.uiUpdated'})
     if after_scopes != before_scopes:
         await broadcast({
