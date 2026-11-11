@@ -7,6 +7,12 @@ Windows 上新建后台命令 Job 默认 `hideWindow: true`；MCP 参数为
 旧记录缺字段时按隐藏处理，不迁移或改写历史数据；重试保留原策略。
 非 Windows 保留配置但不改变进程窗口行为。配置必须是真布尔值，不接受字符串或数字。
 
+Windows 隐藏桌面创建失败，或旧 runner 在命令创建前启动窗口 guard 失败且清理已确认时，
+同一 Job 使用现有可见路径启动一次。独立 runner 的 guard 在创建进程之后启动，
+该阶段失败不会回退；进程创建或副作用不明、清理失败也不重放。显式 `false` 直接走可见路径。
+回退会在 Job 日志和原 Job 元数据 `effectiveHideWindow=false`、`hiddenWindowFailure` 中记录；
+`hideWindow` 仍表示请求的策略。可见路径可能显示控制台，包括在桌面环境可用时。
+
 隐藏针对 Pan 启动的命令控制台：`CREATE_NO_WINDOW` + `SW_HIDE`。
 显示使用 `CREATE_NEW_CONSOLE` + `SW_SHOWNORMAL`。外层独立 runner 的脱离和
 Job 所有权逻辑不变；不把 `CREATE_NO_WINDOW` 与 `DETACHED_PROCESS` 混用。

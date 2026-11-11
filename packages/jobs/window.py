@@ -3,6 +3,10 @@ import os
 import subprocess
 
 
+class HiddenWindowUnavailable(OSError):
+    """Hidden setup failed before task creation and owned cleanup succeeded."""
+
+
 def validate_hide_window(value):
     if type(value) is not bool:
         raise ValueError("hideWindow must be a boolean")

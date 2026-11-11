@@ -100,6 +100,9 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
 | `fileManager.reveal` | 运行时探测 | 运行时探测 | 运行时探测 | 需要 Explorer / `open` / xdg-open 与桌面会话；探针为 false 时 API `501`、按钮禁用 |
 
+Windows 后台 Job 的隐藏窗口策略属于命令启动行为，具体失败和可见回退边界见
+`docs/design/JOB_WINDOW_POLICY_20261010.md`；POSIX 窗口行为不变。回退不声明隐藏能力成功。
+
 不支持平台的 API 契约（稳定、可判定，不 500、不半启动）：
 
 - 能力查询：`GET /api/platform` → `{"platform": "...", "capabilities": {...}}`；
