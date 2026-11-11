@@ -120,7 +120,7 @@ jobs:
       - name: Install Chromium and Linux system dependencies
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
-        run: python -m playwright install --with-deps --only-shell chromium
+        run: python scripts/install_ci_playwright.py --evidence-dir evidence/cp-x1-ubuntu-browser/dependencies
 
       - name: Run owned authenticated HTTP and production Chromium tests
         env:

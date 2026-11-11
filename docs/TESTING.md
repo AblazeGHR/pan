@@ -168,3 +168,28 @@ detach/重启、归档/删除/外部退出、收尾与旧数据，使用临时�
 Terminal 字段、Session 旧 CLI id、缺失 Rewind sidecar、Job 混合时间戳；读路径
 前后比较文件 bytes。需要写升级字段时，只允许显式用户操作，并验证 PID、raw
 FILETIME、scope 和退出事实未丢失。此测试不是对实用数据的迁移或修改授权。
+
+## Ubuntu browser CI dependency installation
+
+Only the disposable GitHub-hosted Ubuntu browser job uses
+`scripts/install_ci_playwright.py`. It runs the complete pinned Playwright
+`install --with-deps --only-shell chromium` command first and retains the original
+apt source configuration and installer log under
+`evidence/cp-x1-ubuntu-browser/dependencies/`, including when installation fails.
+
+An apt download failure explicitly reporting DNS failure for an Ubuntu archive
+permits one complete retry. The helper replaces the known GitHub mirror list
+with official HTTPS archive/security mirrors, or replaces a direct Azure URI
+while preserving suites, components and signing options. Unknown mirror lists,
+mixed non-DNS failures, invalid signatures, missing packages and timeouts fail.
+Each installation has a 480-second process-group deadline. The browser tests and
+their assertions remain mandatory; dependency failure never counts as browser
+acceptance. Local unit tests do not prove GitHub network recovery.
+
+The source mapping follows the official
+[GitHub runner image configuration](https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/configure-apt-sources.sh)
+and [Ubuntu security archive configuration](https://documentation.ubuntu.com/security/security-updates/).
+The helper checks GitHub's documented
+[hosted-runner environment variables](https://docs.github.com/en/actions/reference/workflows-and-actions/variables).
+It does not run on local or self-hosted machines, change DNS/proxy settings,
+disable package signature checks, remove package requirements or skip tests.
