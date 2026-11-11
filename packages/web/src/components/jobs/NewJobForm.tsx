@@ -27,7 +27,7 @@ import type {
   SessionMessageCreateInput,
   SessionMessageSchedule,
 } from '@/types/jobs';
-import { scheduleEntries } from '@/types/jobs';
+import { RESUME_LEGAL_RUNNING_TEXT, scheduleEntries } from '@/types/jobs';
 import { fetchQqChannels, fetchQqContacts } from '@/services/api';
 import type { QqChannelInfo, QqContact } from '@/types';
 
@@ -342,7 +342,7 @@ export function NewJobForm({
           kind,
           target: { sessionId: null },
           action: { api: 'resume_legal_running' },
-          text: '继续',
+          text: RESUME_LEGAL_RUNNING_TEXT,
           schedule: entries.map(buildScheduleSpec),
           misfirePolicy,
           maxRuns: max,
@@ -518,7 +518,7 @@ export function NewJobForm({
           : { api: actionApi };
       }
       if (actionApi === 'resume_legal_running') {
-        patch.text = initialJob?.text ?? '继续';
+        patch.text = initialJob?.text ?? RESUME_LEGAL_RUNNING_TEXT;
         patch.target = { sessionId: null };
       } else if (actionApi === 'send_qq') {
         if (!text.trim()) {
@@ -831,7 +831,7 @@ export function NewJobForm({
               setKind('scheduled-task');
               setActionApi('resume_legal_running');
               setTargetSessionId('');
-              setText('继续');
+              setText(RESUME_LEGAL_RUNNING_TEXT);
             }
           }}
           className={'flex-1 rounded border px-2.5 py-1.5 text-xs font-medium transition-colors '

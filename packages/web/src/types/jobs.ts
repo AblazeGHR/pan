@@ -1,3 +1,6 @@
+/** Historical recovery action payload; this is user-facing message data, not a UI label. */
+export const RESUME_LEGAL_RUNNING_TEXT = '继续';
+
 /**
  * Job 统一 API（`/api/jobs/*`）的前端类型。
  *
