@@ -6,6 +6,7 @@ import asyncio
 import json
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -119,16 +120,55 @@ def test_concurrent_writes_stay_atomic_and_lose_no_update(tmp_path):
                     return
         errors.append(AssertionError(f'{provider_id} never won its revision'))
 
-    threads = [threading.Thread(target=write, args=(provider_id,)) for provider_id in ids]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    with ThreadPoolExecutor(max_workers=len(ids)) as pool:
+        futures = [pool.submit(write, provider_id) for provider_id in ids]
+        for future in futures:
+            future.result(timeout=15)  # Thread errors must fail this test directly.
     assert errors == []
     stored = json.loads((tmp_path / 'provider-flags.json').read_text(encoding='utf-8'))
     assert set(stored['apps']['codex']['providers']) == set(ids)
     assert stored['apps']['codex']['revision'] == len(ids)
     assert list(tmp_path.glob('provider-flags.*.tmp')) == []
+
+
+def test_empty_bridge_lock_contention_waits_without_writing_locked_byte(tmp_path):
+    from packages.core.platform.runtime_lock import RuntimeLock
+    bridge = bridge_at(tmp_path, FakeCli())
+    lock = RuntimeLock(tmp_path / '.bridge.lock')
+    entered, ended = threading.Event(), threading.Event()
+    def contender():
+        entered.set()
+        try:
+            return config(bridge, 'p-a', True, 0)
+        finally:
+            ended.set()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        lock.acquire()
+        try:
+            assert (tmp_path / '.bridge.lock').stat().st_size == 0
+            future = pool.submit(contender)
+            assert entered.wait(2)
+            finished_while_locked = ended.wait(.2)
+        finally:
+            lock.release()
+        result = future.result(timeout=3)
+    assert not finished_while_locked, 'Contender must wait, not write into the locked byte'
+    assert result['revision'] == 1
+    assert ProviderSettings(tmp_path).gates('codex') == {'p-a': True}
+    assert (tmp_path / '.bridge.lock').read_bytes() == b''
+
+
+def test_bridge_lock_permission_error_is_not_busy_or_retry(tmp_path, monkeypatch):
+    from packages.core.platform.runtime_lock import RuntimeLock
+    bridge = bridge_at(tmp_path, FakeCli())
+    def denied(_):
+        raise PermissionError('owned fixture access denied')
+    monkeypatch.setattr(RuntimeLock, 'acquire', denied)
+    monkeypatch.setattr('packages.cc_switch_bridge.provider.time.sleep',
+                        lambda _: pytest.fail('Permission errors must not enter busy retry'))
+    with pytest.raises(PermissionError, match='owned fixture access denied'):
+        config(bridge, 'p-a', True, 0)
+    assert not (tmp_path / 'provider-flags.json').exists()
 
 
 def test_agent_views_hide_gated_profiles_completely(tmp_path):

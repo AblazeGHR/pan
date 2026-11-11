@@ -10,6 +10,7 @@ import time
 import uuid
 from urllib.parse import urlsplit
 from contextlib import contextmanager
+from packages.core.platform.runtime_lock import RuntimeLock, RuntimeLockBusy
 
 APPS = {'codex', 'claude', 'gemini'}
 SETTINGS_FILE = 'provider-flags.json'
@@ -291,34 +292,23 @@ class Bridge:
     def _lock(self):
         # All helpers of this bridge (Panel and Session MCPs) share this fence.
         # The independently installed cc-switch is intentionally not modified.
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        with (self.data_dir / '.bridge.lock').open('a+b') as stream:
-            if stream.tell() == 0:
-                stream.write(b'\0')
-                stream.flush()
-            until = min(time.monotonic() + 5, self._deadline)
-            while True:
-                stream.seek(0)
-                try:
-                    if os.name == 'nt':
-                        import msvcrt
-                        msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-                    else:
-                        import fcntl
-                        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except OSError:
-                    if time.monotonic() >= until:
-                        raise ValueError('其他 bridge 请求正在进行，请稍后刷新状态')
-                    time.sleep(.05)
+        # LockFileEx/flock can lock an empty file. Never write an initialization
+        # byte before acquiring the lock: a concurrent Windows holder already
+        # owns that byte, so even flush() can fail before CAS is reached.
+        lock = RuntimeLock(self.data_dir / '.bridge.lock')
+        until = min(time.monotonic() + 5, self._deadline)
+        while True:
             try:
-                yield
-            finally:
-                stream.seek(0)
-                if os.name == 'nt':
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-                else:
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+                lock.acquire()
+                break
+            except RuntimeLockBusy:
+                if time.monotonic() >= until:
+                    raise ValueError('其他 bridge 请求正在进行，请稍后刷新状态')
+                time.sleep(.05)
+        try:
+            yield
+        finally:
+            lock.release()
 
     def _invoke(self, operation, arguments):
         if operation == 'switch' and arguments.get('kind') == 'default_account':

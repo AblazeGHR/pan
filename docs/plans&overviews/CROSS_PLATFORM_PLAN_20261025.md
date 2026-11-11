@@ -111,6 +111,14 @@ FinalService 与 Job facade 共用环境变量优先级，解析不创建目录�
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
 | `fileManager.reveal` | 运行时探测 | 运行时探测 | 运行时探测 | 需要 Explorer / `open` / xdg-open 与桌面会话；探针为 false 时 API `501`、按钮禁用 |
 
+The cc-switch bridge reuses the platform `RuntimeLock` for its existing
+`.bridge.lock` fence: Windows LockFileEx and POSIX flock lock the same file
+without writing a padding byte before acquisition. Only confirmed contention
+enters the bounded busy retry; permission and storage errors propagate before
+provider settings or CLI writes. Empty-file contention and concurrent settings
+CAS have Windows and WSL Linux fixture evidence; this bridge change still needs
+the exact candidate's macOS CI. No new capability or runtime owner is created.
+
 Canonical global Run-history/log retention reuses the existing FinalService
 pulse, owner fence, execution identities, `ProcessOwner` exit proofs and pinned
 controlled log directory on all three platforms. No new platform capability is
