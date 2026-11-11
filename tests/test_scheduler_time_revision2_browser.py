@@ -82,10 +82,10 @@ def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_
                         with sqlite3.connect((root / "canonical/event-creators/creators.sqlite3").as_uri() + "?mode=ro", uri=True) as db:
                             stored = json.loads(db.execute("SELECT document FROM creators WHERE id=?", (once["id"],)).fetchone()[0])
                         assert stored["cursor"]["rules"][once["config"]["rules"][0]["ruleId"]]["nextFireAt"] == "2027-11-07T05:30:00.123456789Z"
-                        page.get_by_role("link", name="Canonical Jobs", exact=True).click()
-                        page.get_by_role("button", name="JobTemplates", exact=True).click()
-                        page.get_by_role("button", name="创建 JobTemplates", exact=True).click()
-                        page.get_by_label("名称", exact=True).fill("Native time template")
+                        page.get_by_role("link", name="Jobs", exact=True).click()
+                        page.get_by_role("button", name="Job Templates", exact=True).click()
+                        page.get_by_role("button", name="Create JobTemplates", exact=True).click()
+                        page.get_by_label("Name", exact=True).fill("Native time template")
                         page.get_by_label("Job name", exact=True).fill("Scheduled message")
                         page.get_by_role("button", name="Add step", exact=True).click()
                         page.get_by_label("Action for step 1", exact=True).select_option("product_session_message")
@@ -93,8 +93,8 @@ def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_
                         page.get_by_label("text value", exact=True).fill("owned-message")
                         page.get_by_role("button", name="Add Template Scheduler", exact=True).click()
                         page.get_by_label("Time of day", exact=True).fill("10:00:07")
-                        page.get_by_role("button", name="保存定义", exact=True).click()
-                        expect(page.get_by_role("form", name="编辑 JobTemplates", exact=True)).to_have_count(0)
+                        page.get_by_role("button", name="Save definition", exact=True).click()
+                        expect(page.get_by_role("form", name="Edit JobTemplates", exact=True)).to_have_count(0)
                         template = next(t for t in client.get("/api/job-templates").json()["items"] if t["name"] == "Native time template")
                         composition = template["composition"]
                         assert composition["creators"][0]["definition"]["config"]["rules"][0]["time"] == "10:00:07"

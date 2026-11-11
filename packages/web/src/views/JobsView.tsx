@@ -479,10 +479,13 @@ export default function JobsView() {
   const [detailState, setDetailState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [canonicalDetail, setCanonicalDetail] = useState<{ job: CanonicalObject; actions: Record<string, JsonObject>; missing: string[] } | null>(null);
   const dirtyEditor = useRef(false);
+  const pendingEditor = useRef(false);
+  const [editorPending, setEditorPending] = useState(false);
+  const editorPendingChange = useCallback((pending: boolean) => { pendingEditor.current = pending; setEditorPending(pending); }, []);
   const creationIntent = useRef(crypto.randomUUID());
   const editorDirtyChange = useCallback((dirty: boolean) => { dirtyEditor.current = dirty; }, []);
   const requestTab = (next: Tab) => {
-    if (dirtyEditor.current && !window.confirm('Discard unsaved Job configuration?')) return;
+    if (pendingEditor.current || (dirtyEditor.current && !window.confirm('Discard unsaved Job configuration?'))) return;
     dirtyEditor.current = false; setTab(next);
   };
   const [laneFilters, setLaneFilters] = useState<Record<'list' | 'legacy', {
@@ -1043,12 +1046,12 @@ export default function JobsView() {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-bg-primary">
+    <section aria-label="Jobs management" className="flex flex-col h-full min-h-0 bg-bg-primary [&_button]:min-h-11 sm:[&_button]:min-h-9">
       {/* Header */}
       <div className="flex items-center gap-2 pl-10 md:pl-3 pr-3 py-2.5 border-b border-border-default bg-bg-secondary/50 shrink-0">
         <button
           type="button"
-          onClick={() => navigate('/')}
+          onClick={() => { if (!pendingEditor.current && (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?'))) navigate('/'); }}
           aria-label="Back"
           title="Back"
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -1125,10 +1128,10 @@ export default function JobsView() {
           <div className="mx-auto w-full max-w-4xl p-4">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><p className="text-xs uppercase tracking-wider text-text-tertiary">Job configuration</p><h2 className="text-xl font-semibold text-text-primary">Edit {editJob.name}</h2></div>
-              <Button variant="ghost" size="sm" onClick={() => { if (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?')) { dirtyEditor.current = false; setEditJobId(null); } }}>Cancel</Button>
+              <Button variant="ghost" size="sm" disabled={editorPending} onClick={() => { if (!pendingEditor.current && (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?'))) { dirtyEditor.current = false; setEditJobId(null); } }}>Cancel</Button>
             </div>
             {isUnifiedJob(editJob) && <JobUserAuthorization />}
-            {isActionJob && canonicalDetail?.job.id === editJob.jobId ? <CanonicalJobEditor key={editJob.jobId} item={canonicalDetail.job} onDirtyChange={editorDirtyChange} onSaved={async () => { dirtyEditor.current = false; setEditJobId(null); await loadJobs(); setDetailGeneration((v) => v + 1); }} /> : editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
+            {isActionJob && canonicalDetail?.job.id === editJob.jobId ? <CanonicalJobEditor key={editJob.jobId} item={canonicalDetail.job} onDirtyChange={editorDirtyChange} onPendingChange={editorPendingChange} onSaved={async () => { editorPendingChange(false); dirtyEditor.current = false; setEditJobId(null); await loadJobs(); setDetailGeneration((v) => v + 1); }} /> : editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
               key={editJob.jobId}
               initial={editJob.unified.config}
               actions={actions}
@@ -1380,7 +1383,7 @@ export default function JobsView() {
                   Loading…
                 </div>
               ) : error ? (
-                <div className="flex flex-col items-center gap-2 rounded border border-danger/50 bg-danger/10 px-3 py-6 text-center text-xs text-danger">
+                <div role="alert" className="flex flex-col items-center gap-2 rounded border border-danger/50 bg-danger/10 px-3 py-6 text-center text-xs text-danger">
                   <span>{error}</span>
                   <Button variant="secondary" size="sm" onClick={() => void loadJobs()}>
                     Retry
@@ -1426,8 +1429,8 @@ export default function JobsView() {
               <Button variant="ghost" size="sm" onClick={() => requestTab('list')}>Cancel</Button>
             </div>
             <JobUserAuthorization />
-            <label className="mb-4 block text-sm">Job configuration type<select aria-label="Job configuration type" className={selectClass} value={createMode} onChange={(e) => { if (dirtyEditor.current && !window.confirm('Discard unsaved Job configuration?')) return; dirtyEditor.current = false; setCreateMode(e.target.value as 'practical' | 'action'); }}><option value="practical">Process or message</option><option value="action">Action Job</option></select></label>
-            {createMode === 'action' ? <CanonicalJobEditor onDirtyChange={editorDirtyChange} onSaved={async () => { dirtyEditor.current = false; setTab('list'); await loadJobs(); }} /> : <NewJobForm kindMetas={kindMetas} submitting={submitting} onCreate={(input) => void handleCreate(input)} />}
+            <label className="mb-4 block text-sm">Job configuration type<select aria-label="Job configuration type" className={selectClass} value={createMode} onChange={(e) => { if (pendingEditor.current || (dirtyEditor.current && !window.confirm('Discard unsaved Job configuration?'))) return; dirtyEditor.current = false; setCreateMode(e.target.value as 'practical' | 'action'); }}><option value="practical">Process or message</option><option value="action">Action Job</option></select></label>
+            {createMode === 'action' ? <CanonicalJobEditor onDirtyChange={editorDirtyChange} onPendingChange={editorPendingChange} onSaved={async () => { editorPendingChange(false); dirtyEditor.current = false; setTab('list'); await loadJobs(); }} /> : <NewJobForm kindMetas={kindMetas} submitting={submitting} onCreate={(input) => void handleCreate(input)} />}
           </div>
         </div>
       ) : tab === 'templates' ? (
@@ -1537,6 +1540,6 @@ export default function JobsView() {
         </div>
       </Modal>
 
-    </div>
+    </section>
   );
 }

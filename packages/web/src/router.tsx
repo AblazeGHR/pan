@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import App from './App';
 import ChatRoute from './views/ChatRoute';
 import { deferredView } from './views/deferredView';
+import { DraftBoundary } from './components/automation/DraftBoundary';
 
 const EditorView = deferredView(() => import('./views/EditorView'));
 
@@ -47,7 +48,7 @@ export const router = createBrowserRouter(
         },
         {
           path: 'jobs',
-          element: deferredRoute(<JobsView />),
+          element: deferredRoute(<DraftBoundary><JobsView /></DraftBoundary>),
         },
         {
           path: 'terminals',

@@ -189,6 +189,8 @@ export interface JobKindMeta {
 
 /** 一行 runs.jsonl 记录（snake_case，最新在前）。 */
 export interface JobRunRecord {
+  notifications?: unknown[];
+  deliveryRuntime?: unknown;
   run_id?: string;
   task_id?: string | null;
   fire_at?: string | null;

@@ -151,6 +151,9 @@ try {
   await page.getByRole('button', { name: 'Cancel', exact: true }).first().click();
   const typedDetail = page.getByRole('region', { name: 'Job detail' });
   await typedDetail.getByRole('button', { name: 'Enable Action Job' }).click();
+  await expect(typedDetail.getByRole('button', { name: 'Confirm enable' })).toBeDisabled();
+  await typedDetail.getByLabel('I reviewed this definition, Actions, parameters and source references.').check();
+  await typedDetail.getByRole('button', { name: 'Confirm enable' }).click();
   await expect(typedDetail.getByRole('button', { name: 'Run now' })).toBeEnabled();
   const runResponse = page.waitForResponse(r => r.url().endsWith('/run-now') && r.request().method() === 'POST');
   await typedDetail.getByRole('button', { name: 'Run now' }).click();

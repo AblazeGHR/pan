@@ -108,8 +108,8 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
                         assert client.get('/api/jobs/'+job['id']).json()['state']=='enabled'
                     # Reference picker writes real Creator IDs and reviewed revisions.
                     page.get_by_role('tab',name='Trigger',exact=True).click()
-                    page.get_by_role('button',name='New Trigger',exact=True).click()
-                    page.get_by_label('Trigger name',exact=True).fill('Browser picker subscription')
+                    page.get_by_role('button',name='Create Triggers',exact=True).click()
+                    page.get_by_label('Name',exact=True).fill('Browser picker subscription')
                     page.get_by_label('Target canonical Job').select_option(job['id'])
                     page.get_by_label('Scheduler sources').select_option([source['id']])
                     page.get_by_role('button',name='Save definition',exact=True).click()

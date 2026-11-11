@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JobDetailDrawer } from './JobDetailDrawer';
 import type { Job } from '@/types/jobs';
@@ -21,6 +21,27 @@ const job: Job = {
 
 describe('JobDetailDrawer width', () => {
   afterEach(() => cleanup());
+
+  it('shows structured original notification receipts and only offers target editing for pending notices', () => {
+    const edit = vi.fn();
+    const detail = { job: { id: 'job1', name: 'Action Job', state: 'enabled', revision: 1, stateRevision: 1,
+      notification: { runtime: { owner: 'notification-manager' } } }, actions: {}, missing: [] };
+    render(<JobDetailDrawer inline job={{ ...job, kind: 'scheduled-task' }} kindLabel="Action Job" isActionJob canonicalDetail={detail}
+      definitionStatus="ready" runsLoading={false} runs={[{ run_id: 'run1', status: 'completed', notifications: [
+        { status: 'pending', targetRef: 'session-a', outboxId: 'outbox-pending' },
+        { status: 'unknown', targetRef: 'session-b', outboxId: 'outbox-unknown', runtimeOperationId: 'operation-original' },
+        { status: 'acked', targetRef: 'session-c', outboxId: 'outbox-acked' },
+      ] }]} onLoadMoreRuns={vi.fn()} onClose={vi.fn()} onRunNow={vi.fn()} onTogglePaused={vi.fn()}
+      onDelete={vi.fn()} onChangeTarget={vi.fn()} onEdit={edit} onToggleEntryEnabled={vi.fn()} />);
+    const receipts = within(screen.getByLabelText('Notification receipts run1'));
+    expect(receipts.getByText('Status: pending')).toBeTruthy();
+    expect(receipts.getByText('Target: session-b')).toBeTruthy();
+    expect(receipts.getByText('operation-original')).toBeTruthy();
+    expect(receipts.getByText(/outcome is unknown/)).toBeTruthy();
+    expect(receipts.getAllByRole('button', { name: 'Edit notification target' })).toHaveLength(1);
+    fireEvent.click(receipts.getByRole('button', { name: 'Edit notification target' }));
+    expect(edit).toHaveBeenCalledTimes(1);
+  });
 
   it('fills mobile width and caps the desktop panel at 28rem', () => {
     render(

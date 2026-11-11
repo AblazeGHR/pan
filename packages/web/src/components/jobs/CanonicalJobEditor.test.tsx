@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { CanonicalJobEditor } from './CanonicalJobEditor';
 import { canonicalJobs } from '@/services/canonicalJobs';
+import { ApiRequestError } from '@/services/api';
 import { CanonicalExecutionDetails } from './CanonicalExecutionDetails';
 
 const ref = { id: 'action_process', revision: 2, digest: 'a'.repeat(64) };
@@ -54,4 +55,31 @@ it('uses the exact historical Action schema and retains its reference while edit
   await waitFor(() => expect(write).toHaveBeenCalledOnce());
   expect(write.mock.calls[0]?.[1]).toMatchObject({ id: 'owned', configRevision: 7 });
   expect(write.mock.calls[0]?.[2]).toMatchObject({ name: 'Edited', description: 'kept', retention: { policyRef: 'keep' }, steps: [{ actionRef: previous, arguments: { oldOnly: { from: 'literal', value: 'retained' } } }] });
+});
+
+it('preserves an invalid advanced draft through CAS comparison and explicitly rebases or loads the server', async () => {
+  const item = { id: 'owned', name: 'Original', state: 'draft', stateRevision: 1, configRevision: 4, steps: [{ stepId: 'one', actionRef: ref, arguments: {}, completion: { contract: 'process-exit' } }], retention: { policyRef: 'default' } };
+  const latest = { ...item, name: 'Server Job', configRevision: 5 };
+  const write = vi.spyOn(canonicalJobs, 'write').mockRejectedValue(new ApiRequestError(409, 'conflict'));
+  vi.spyOn(canonicalJobs, 'get').mockResolvedValue(latest);
+  render(<CanonicalJobEditor item={item} onSaved={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Local Job' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save Action Job' }));
+  await screen.findByRole('region', { name: 'Compare canonical configuration' });
+  fireEvent.click(screen.getByText('Advanced definition JSON'));
+  fireEvent.change(screen.getByLabelText('Advanced Job definition'), { target: { value: '{invalid' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Compare server definition' }));
+  await screen.findByText(/Server Job · revision 5/);
+  fireEvent.click(screen.getByRole('button', { name: 'Keep draft against server revision' }));
+  expect((screen.getByLabelText('Advanced Job definition') as HTMLTextAreaElement).value).toBe('{invalid');
+  fireEvent.click(screen.getByRole('button', { name: 'Save Action Job' }));
+  expect(write).toHaveBeenCalledTimes(1);
+  fireEvent.change(screen.getByLabelText('Advanced Job definition'), { target: { value: JSON.stringify({ ...item, name: 'Local Job' }) } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save Action Job' }));
+  await screen.findByRole('button', { name: 'Compare server definition' });
+  expect(write.mock.calls[1]?.[1]).toMatchObject({ configRevision: 5 });
+  fireEvent.click(screen.getByRole('button', { name: 'Compare server definition' }));
+  await screen.findByText(/Server Job · revision 5/);
+  fireEvent.click(screen.getByRole('button', { name: 'Load server definition' }));
+  expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Server Job');
 });

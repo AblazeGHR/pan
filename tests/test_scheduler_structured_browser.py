@@ -65,7 +65,9 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                     page.get_by_label('Local user key',exact=True).fill(key)
                     page.get_by_role('button',name='Log in',exact=True).click()
                     if create_job_with_form:
+                        page.get_by_role('link',name='Jobs',exact=True).click()
                         page.get_by_role('button',name='New Job',exact=True).click()
+                        page.get_by_label('Job configuration type').select_option('action')
                         page.get_by_label('Name',exact=True).fill('Form Job')
                         page.get_by_label('Action for step 1',exact=True).select_option('product_session_message')
                         first = page.get_by_role('group',name='Step 1',exact=True)
@@ -75,31 +77,42 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                         page.get_by_label('Action for step 2',exact=True).select_option('product_session_message')
                         second = page.get_by_role('group',name='Step 2',exact=True)
                         second.get_by_label('sessionId value',exact=True).fill('owned-session')
+                        second.get_by_label('Parameter text for step 2',exact=True).get_by_text('Advanced binding',exact=True).click()
                         second.get_by_label('text source',exact=True).select_option('step')
                         second.get_by_label('text path',exact=True).fill('messageId')
                         page.get_by_role('button',name='Move step 2 up',exact=True).click()
                         expect(page.get_by_label('Chain validation')).to_contain_text('preceding step')
-                        expect(page.get_by_role('button',name='Save definition',exact=True)).to_be_disabled()
+                        expect(page.get_by_role('button',name='Create Action Job',exact=True)).to_be_disabled()
                         page.get_by_role('button',name='Move step 1 down',exact=True).click()
-                        page.get_by_role('button',name='Save definition',exact=True).click()
-                        expect(page.get_by_role('article',name='Jobs Form Job',exact=True)).to_be_visible()
+                        page.get_by_role('button',name='Create Action Job',exact=True).click()
+                        expect(page.get_by_test_id('jobs-list-scroll').get_by_text('Form Job',exact=True)).to_be_visible()
                         job = next(j for j in client.get('/api/jobs?limit=100').json()['items'] if j['name']=='Form Job')
                         assert len(job['steps']) == 2 and job['steps'][1]['arguments']['text']['stepId'] == job['steps'][0]['stepId']
                         stable_steps = [s['stepId'] for s in job['steps']]
-                        page.get_by_role('button',name='Edit Form Job',exact=True).click()
+                        page.get_by_test_id('jobs-list-scroll').get_by_text('Form Job',exact=True).click()
+                        page.get_by_role('region',name='Job detail').get_by_role('button',name='Edit',exact=True).click()
                         first = page.get_by_role('group',name='Step 1',exact=True)
                         first.get_by_label('text value',exact=True).fill('edited plain text')
                         page.get_by_text('Job policies',exact=True).click()
                         page.get_by_label('Pin Job retention',exact=True).check()
-                        page.get_by_role('button',name='Save definition',exact=True).click()
-                        expect(page.get_by_role('form',name='Edit Jobs',exact=True)).to_have_count(0)
+                        page.get_by_role('button',name='Save Action Job',exact=True).click()
+                        expect(page.get_by_label('Action Job editor')).to_have_count(0)
                         updated_job = client.get('/api/jobs/'+job['id']).json()
                         assert [s['stepId'] for s in updated_job['steps']] == stable_steps
                         assert updated_job['retention']['pinned'] is True
-                        page.get_by_role('button',name='Enable Form Job',exact=True).click()
+                        page.get_by_role('button',name='Enable Action Job',exact=True).click()
                         page.get_by_label('I reviewed this definition, Actions, parameters and source references.').check()
                         page.get_by_role('button',name='Confirm enable',exact=True).click()
-                        expect(page.get_by_role('button',name='Pause Form Job',exact=True)).to_be_visible()
+                        expect(page.get_by_role('button',name='Enable Action Job',exact=True)).to_have_count(0)
+                        detail = page.get_by_role('region',name='Job detail')
+                        expect(detail.get_by_role('button',name='Pause',exact=True)).to_be_visible()
+                        detail.get_by_role('button',name='Pause',exact=True).click()
+                        expect(detail.get_by_role('button',name='Resume',exact=True)).to_be_visible()
+                        assert client.get('/api/jobs/'+job['id']).json()['state'] == 'paused'
+                        detail.get_by_role('button',name='Resume',exact=True).click()
+                        expect(detail.get_by_role('button',name='Pause',exact=True)).to_be_visible()
+                        assert client.get('/api/jobs/'+job['id']).json()['state'] == 'enabled'
+                        page.goto(base+'/react/automation?tab=events')
                     else:
                         # Complementary source/Trigger-only browser matrix while
                         # the separately owned Action metadata API is coordinated.
@@ -165,8 +178,8 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                     # Two independently created subscriptions select the same Creator ID.
                     def subscription(name):
                         page.get_by_role('tab',name='Trigger',exact=True).click()
-                        page.get_by_role('button',name='New Trigger',exact=True).click()
-                        page.get_by_label('Trigger name',exact=True).fill(name)
+                        page.get_by_role('button',name='Create Triggers',exact=True).click()
+                        page.get_by_label('Name',exact=True).fill(name)
                         page.get_by_label('Target canonical Job',exact=True).select_option(job['id'])
                         page.get_by_label('Scheduler sources',exact=True).select_option([interval['id']])
                         page.get_by_label('Check State after Event',exact=True).check()

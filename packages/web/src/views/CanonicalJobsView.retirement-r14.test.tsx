@@ -21,7 +21,7 @@ beforeEach(() => {
       return response({ operationId: 'op', status: 'completed', objectRefs: [], links: {} });
     }
     if (url === '/api/jobs/actions') return response({ items: ['product_assign_v2', 'product_assign_runtime_v1', 'product_process_logs_v1'].map((id) => ({ id, system: true, state: 'published', enabled: available, defaultCompletion: id.includes('assign') ? 'durable-queue-accepted' : 'process-exit' })), references: Object.fromEntries(['product_assign_v2', 'product_assign_runtime_v1', 'product_process_logs_v1'].map((id) => [id, ref(id)])) });
-    if (url.includes('operations')) return response({ operationId: 'op', status: 'completed', objectRefs: [], links: {} });
+    if (url.includes('operations')) return response({ operationId: 'op', requestKey: writes[0]?.body.requestKey, status: 'completed', objectRefs: [], links: {} });
     return response({ items: [], nextCursor: null });
   }));
 });

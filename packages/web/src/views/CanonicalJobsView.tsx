@@ -1,3 +1,4 @@
+import { useOperationIdentity } from '@/components/actions/useOperationIdentity';
 import { TriggerTarget } from '@/components/automation/TriggerTarget';
 import { wsClient } from '@/services/ws';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -1109,7 +1110,7 @@ function OperationStatus({
           setError('');
           void canonicalJobs
             .lookup(pending.operation, pending.requestKey, receipt?.operationId)
-            .then((value) => onChange({ ...pending, receipt: value }))
+            .then((value) => { if (value.requestKey !== pending.requestKey) throw new Error('Receipt does not match the original request.'); onChange({ ...pending, receipt: value }); })
             .catch((e: unknown) => setError(canonicalError(e)))
             .finally(() => setBusy(false));
         }}
@@ -1146,17 +1147,26 @@ function ActionCatalog() {
     </details>
   );
 }
-function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }) {
+export function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }) {
   const [runs, setRuns] = useState<CanonicalRun[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [working, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [pending, setPending] = useState<Pending | null>(null);
+  const [savedIdentity, setSavedIdentity] = useOperationIdentity(`run-operations:${job.id}`);
+  const [pending, setPendingState] = useState<Pending | null>(() => savedIdentity);
+  const setPending = (value: Pending | null) => {
+    if (value && unresolved(value)) setSavedIdentity({ operation: value.operation, requestKey: value.requestKey });
+    else setSavedIdentity(null);
+    setPendingState(value);
+  };
   const [selected, setSelected] = useState<{ run: CanonicalRun; operation: RunOperation } | null>(
     null,
   );
   const [parameters, setParameters] = useState('{}');
+  const [advancedParameters, setAdvancedParameters] = useState(false);
+  const [cloneName, setCloneName] = useState('');
+  const [cloneDescription, setCloneDescription] = useState('');
   const [stepId, setStepId] = useState('');
   const busy = working || unresolved(pending);
   const alive = useRef(true);
@@ -1191,7 +1201,7 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
     if (!selected || busy) return;
     let params: JsonObject;
     try {
-      params = objectJson(parameters);
+      params = advancedParameters ? objectJson(parameters) : selected.operation === 'clone-and-run' && (cloneName || cloneDescription) ? { overrides: { ...(cloneName ? { name: cloneName } : {}), ...(cloneDescription ? { description: cloneDescription } : {}) } } : {};
     } catch (e) {
       setError(canonicalError(e));
       return;
@@ -1299,10 +1309,10 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
                 type="button"
                 size="sm"
                 key={operation}
-                disabled={busy}
+                disabled={busy || (operation === 'retry' && run.state !== 'failed') || (operation === 'cancel' && !['queued', 'running', 'retry_wait', 'paused_at_boundary', 'cancelling', 'settling', 'uncertain'].includes(run.state)) || (operation === 'pause' && !['queued', 'retry_wait', 'running'].includes(run.state)) || (operation === 'resume' && !['queued', 'running', 'retry_wait', 'paused_at_boundary'].includes(run.state))}
                 onClick={() => {
                   setSelected({ run, operation });
-                  setParameters('{}');
+                  setParameters('{}'); setAdvancedParameters(false); setCloneName(''); setCloneDescription('');
                   setStepId('');
                 }}
               >
@@ -1338,14 +1348,10 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
             </label>
           )}
           {['run-again', 'clone-and-run'].includes(selected.operation) && (
-            <label className="block text-sm">
-              Run parameters JSON (input; clone may include overrides.name/description)
-              <textarea
-                className={`${field} h-24 font-mono`}
-                value={parameters}
-                onChange={(e) => setParameters(e.target.value)}
-              />
-            </label>
+            <div className="space-y-2">
+              {selected.operation === 'clone-and-run' && <><label className="block">New name (optional)<input className={field} value={cloneName} disabled={advancedParameters} onChange={e => setCloneName(e.target.value)} /></label><label className="block">Description (optional)<input className={field} value={cloneDescription} disabled={advancedParameters} onChange={e => setCloneDescription(e.target.value)} /></label></>}
+              <details onToggle={e => setAdvancedParameters(e.currentTarget.open)}><summary>Advanced run parameters</summary><label className="block text-sm">Run parameters JSON<textarea className={`${field} h-24 font-mono`} value={parameters} onChange={e => setParameters(e.target.value)} /></label></details>
+            </div>
           )}
           <div className="flex flex-wrap gap-2 border-t border-accent/30 pt-3">
             <Button variant="primary" disabled={busy} type="submit">

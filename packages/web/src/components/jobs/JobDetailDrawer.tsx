@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
 import { scheduleEntries, type Job, type JobRunRecord, type JobSource, type JobTimestamp } from '@/types/jobs';
 import { CanonicalJobEnable } from './CanonicalJobEnable';
+import { RunList } from '@/views/CanonicalJobsView';
 import { CanonicalExecutionDetails } from './CanonicalExecutionDetails';
 import type { CanonicalJobDetails } from './CanonicalExecutionDetails';
 import { LegacyJobDetails } from './LegacyJobDetails';
@@ -138,7 +139,11 @@ function scheduleKindLabel(kind: string): string {
   }
 }
 
-function RunRow({ run }: { run: JobRunRecord }) {
+function RunRow({ run, onEditNotification }: { run: JobRunRecord; onEditNotification?: () => void }) {
+  const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const show = (value: unknown) => value == null || value === '' ? 'Not available' : String(value);
+  const delivery = record(run.deliveryRuntime);
+  const steps = record(delivery.steps);
   const result = run.result;
   const [output, setOutput] = useState<string | null>(null);
   const [outputError, setOutputError] = useState('');
@@ -167,6 +172,26 @@ function RunRow({ run }: { run: JobRunRecord }) {
       {run.run_id && <button type="button" aria-label={`View output for run ${run.run_id}`} disabled={loadingOutput} onClick={() => void loadOutput()} className="self-start text-accent">{loadingOutput ? 'Loading output…' : 'View output'}</button>}
       {outputError && <p role="alert">{outputError}</p>}
       {output !== null && <pre aria-label={`Run output for ${run.run_id}`} className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2">{output}</pre>}
+      {Object.keys(steps).length > 0 && <section aria-label={`Delivery receipts ${run.run_id}`} className="mt-2 space-y-2 rounded border border-border-default p-2">
+        <h4 className="font-semibold">Delivery</h4>
+        {Object.entries(steps).map(([id, raw]) => { const step = record(raw); return <div key={id} className="rounded bg-bg-secondary p-2">
+          <p>Step: {id} · Status: {show(step.status)}</p><p>Targets: {Array.isArray(step.effectiveTargets) && step.effectiveTargets.length ? step.effectiveTargets.map(show).join(', ') : show(step.targetRef ?? step.targetSessionId)}</p>
+          {Array.isArray(step.children) && step.children.map((rawChild, childIndex) => { const child = record(rawChild); const receipt = record(child.receipt); return <p key={childIndex}>Target {show(child.targetId)} · {show(child.status ?? receipt.outcome)}</p>; })}
+          {step.holdReason != null && <p>Hold reason: {show(step.holdReason)}</p>}
+          {step.unknownPolicy === 'query-original' && <p>Unknown outcomes keep their original identity and must be queried before any further action.</p>}
+          <details><summary>Technical details</summary><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(step, null, 2)}</pre></details>
+        </div>; })}
+      </section>}
+      {Array.isArray(run.notifications) && run.notifications.length > 0 && <section aria-label={`Notification receipts ${run.run_id}`} className="mt-2 space-y-2 rounded border border-border-default p-2">
+        <h4 className="font-semibold">Notifications</h4>
+        {run.notifications.map((raw, index) => { const notice = record(raw); const receipt = record(notice.receipt); const status = show(notice.status); return <div key={String(notice.outboxId ?? index)} className="space-y-1 rounded bg-bg-secondary p-2">
+          <p>Status: {status}</p><p>Target: {show(notice.targetRef)}</p><p>Receipt: <span className="break-all font-mono">{show(notice.outboxId)}</span></p>
+          {notice.runtimeOperationId != null && <p>Operation: <span className="break-all font-mono">{show(notice.runtimeOperationId)}</span></p>}
+          {status === 'unknown' && <p>The outcome is unknown. Keep the original receipt and query it; do not resend automatically.</p>}
+          {status === 'pending' && onEditNotification && <><p>Before reservation, change the pending notification target in the Job configuration.</p><button type="button" className="text-accent underline" onClick={onEditNotification}>Edit notification target</button></>}
+          <details><summary>Technical details</summary><p>Payload digest: {show(notice.payloadDigest)}</p>{receipt.operationId != null && <p>Receipt operation: {show(receipt.operationId)}</p>}<pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(notice, null, 2)}</pre></details>
+        </div>; })}
+      </section>}
       {hasDetails && (
         <details className="text-text-tertiary">
           <summary className="cursor-pointer">Execution details</summary>
@@ -232,6 +257,7 @@ export function JobDetailDrawer({
   onConfirmRecovery?: () => void;
 }) {
   const [deliveryExpanded, setDeliveryExpanded] = useState(false);
+  const [showRunOperations, setShowRunOperations] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -328,7 +354,7 @@ export function JobDetailDrawer({
             <div className="flex flex-wrap items-center gap-1.5">
               {job.status === 'failed' && onRetry && <button className="rounded border border-warning/50 px-2 py-1 text-xs text-warning" onClick={onRetry}>Confirm failed Run retry</button>}
               {['unknown','uncertain'].includes(job.status) && onConfirmRecovery && <button className="rounded border border-warning/50 px-2 py-1 text-xs text-warning" onClick={onConfirmRecovery}>Confirm uncertain Run recovery</button>}
-              {isActionJob && canonicalDetail?.job.state === 'draft' && onCanonicalChanged && <CanonicalJobEnable item={canonicalDetail.job} onChanged={onCanonicalChanged} />}
+              {isActionJob && ['draft', 'disabled', 'enabled', 'paused'].includes(canonicalDetail?.job.state ?? '') && canonicalDetail && onCanonicalChanged && <CanonicalJobEnable item={canonicalDetail.job} onChanged={onCanonicalChanged} />}
               {!legacyReadOnly && onCancel && (job.kind !== 'scheduled-task' || job.unified && !job.unified.compatibility) && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status) && <button type="button" onClick={onCancel} disabled={cancelling} className="rounded border border-warning/50 px-2 py-1 text-xs text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
               {(isScheduledTask || isActionJob) && !legacyReadOnly && (
                 <button
@@ -342,7 +368,7 @@ export function JobDetailDrawer({
                   Run now
                 </button>
               )}
-              {isScheduledTask && !legacyReadOnly && (
+              {isScheduledTask && !isActionJob && !legacyReadOnly && (
                 <button
                   type="button"
                   onClick={onTogglePaused}
@@ -622,6 +648,9 @@ export function JobDetailDrawer({
 
             {/* 4. Runs history */}
             <Section title={legacyReadOnly ? 'Legacy execution history' : 'Runs'}>
+              {isActionJob && canonicalDetail && <div className="mb-3">
+                {!showRunOperations ? <button type="button" className="rounded border border-border-default px-2 py-1 text-xs" onClick={() => setShowRunOperations(true)}>Manage Run operations</button> : <RunList job={canonicalDetail.job} onClose={() => setShowRunOperations(false)} />}
+              </div>}
               {runs.length === 0 ? (
                 <div className="text-xs text-text-tertiary">
                   {runsLoading ? 'Loading…' : '—'}
@@ -629,7 +658,7 @@ export function JobDetailDrawer({
               ) : (
                 <div className="flex flex-col gap-1.5">
                   {runs.map((r, i) => (
-                    <RunRow key={r.run_id ?? `${r.fire_at}-${i}`} run={r} />
+                    <RunRow key={r.run_id ?? `${r.fire_at}-${i}`} run={r} onEditNotification={isActionJob && canEdit && Boolean((canonicalDetail?.job.notification as { runtime?: unknown } | undefined)?.runtime) ? onEdit : undefined} />
                   ))}
                   <button
                     type="button"

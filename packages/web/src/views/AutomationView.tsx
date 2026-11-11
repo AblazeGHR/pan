@@ -135,12 +135,7 @@ function AutomationContent() {
         {authorization && (
           <div key={String(authorization)} className="space-y-5">
             <section hidden={index !== 0}>
-              <CanonicalCollection
-                kind="jobs"
-                focusId={focusId}
-                refreshToken={workspace.jobs}
-                onChanged={workspace.refresh}
-              />
+              <div className="rounded border border-border-default bg-bg-secondary p-4"><p className="text-sm text-text-secondary">Manage Jobs and their Runs in the Jobs directory.</p><Link className="mt-2 inline-block text-accent" to="/jobs">Open Jobs</Link></div>
             </section>
             <section hidden={index !== 1}>
               <CanonicalCollection

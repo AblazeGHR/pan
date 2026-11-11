@@ -4,6 +4,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { transferableAbortController } from 'node:util';
 import AutomationView from './AutomationView';
+import { CanonicalJobEditor } from '@/components/jobs/CanonicalJobEditor';
+import { CanonicalJobEnable } from '@/components/jobs/CanonicalJobEnable';
+import { DraftBoundary } from '@/components/automation/DraftBoundary';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAutomationAuth } from '@/stores/automationStore';
 import type { EventCreator } from '@/types/automationJobs';
 import { newId } from '@/types/automationJobs';
@@ -22,8 +27,15 @@ let reads: string[], failure:number, network:boolean;
 const response=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
 const receipt=(object:CanonicalObject,key:string)=>({operationId:'op_'+key,requestKey:key,status:'completed',objectRefs:[],links:{},result:{object}});
 function referenceState(id:string) { const refs=triggers.filter(t=>t.state!=='retired' && (t.creatorSelector as {ids:string[]}).ids.includes(id)); return {references:refs.map(t=>({triggerId:t.id,name:t.name,jobId:'job_review',jobName:'Morning review',revision:t.revision,stateRevision:t.stateRevision,enabled:t.state==='enabled'})),referenceDigest:JSON.stringify(refs.map(t=>[t.id,t.revision,t.stateRevision]))}; }
+function JobEditorHarness({ item }: { item?: CanonicalObject }) {
+  const [open, setOpen] = useState(true);
+  return <DraftBoundary><Link to="/actions">Manage Actions</Link>{open && <CanonicalJobEditor item={item} onSaved={() => setOpen(false)} />}</DraftBoundary>;
+}
+function hostJob(item?: CanonicalObject) { const router = createMemoryRouter([{path:'/',element:<JobEditorHarness item={item}/>},{path:'/actions',element:<h1>Actions destination</h1>}]); return render(<RouterProvider router={router}/>); }
+const validStep = () => ({stepId:'kept',actionRef:{id:'action_form',revision:2,digest:'f'.repeat(64)},arguments:{text:{from:'literal',value:'existing message'}},completion:{contract:'durable-queue-accepted'}});
 function host() { const router=createMemoryRouter([{path:'/',element:<AutomationView/>},{path:'/actions',element:<h1>Actions destination</h1>}]); return render(<RouterProvider router={router}/>); }
 beforeEach(()=>{
+  sessionStorage.clear();
   vi.stubGlobal('AbortController', function () { return transferableAbortController(); });
   sources=[{id:'creator_shared',name:'Shared timer',revision:7,stateRevision:2,state:'enabled',...provider,config:structuredClone(fullConfig)}];
   jobs=[{id:'job_review',name:'Morning review',state:'enabled',stateRevision:1,configRevision:4,steps:[],retention:{policyRef:'default'}}];
@@ -115,9 +127,14 @@ it('selects shared Creator IDs and submits the reviewed source revision with a c
   await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.body).toMatchObject({expectedCreatorRevisions:{creator_shared:7},definition:{creatorSelector:{mode:'ids',ids:['creator_shared']},target:{type:'job',jobId:'job_review'},eventTypes:['scheduler.time.v2']}});
 });
 it('preserves simultaneous Job and source drafts behind one navigation guard',async()=>{
-  await editor();fireEvent.change(screen.getByLabelText('Scheduler name'),{target:{value:'Unsaved source'}});fireEvent.click(screen.getByRole('tab',{name:'Job'}));fireEvent.click(screen.getByRole('button',{name:'Create Jobs'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Unsaved Job'}});fireEvent.click(screen.getByRole('tab',{name:'Event Register'}));expect((screen.getByLabelText('Scheduler name') as HTMLInputElement).value).toBe('Unsaved source');
-  vi.mocked(window.confirm).mockReturnValue(false);fireEvent.click(screen.getByRole('link',{name:'Manage Actions'}));await waitFor(()=>expect(window.confirm).toHaveBeenCalledTimes(1));expect(writes).toEqual([]);
+  await editor();fireEvent.change(screen.getByLabelText('Scheduler name'),{target:{value:'Unsaved source'}});
+  const jobView = hostJob(); fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Unsaved Job'}});
+  expect((screen.getByLabelText('Scheduler name') as HTMLInputElement).value).toBe('Unsaved source');
+  expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Unsaved Job');
+  vi.mocked(window.confirm).mockReturnValue(false);fireEvent.click(screen.getAllByRole('link',{name:'Manage Actions'})[0]!);await waitFor(()=>expect(window.confirm).toHaveBeenCalledTimes(1));expect(writes).toEqual([]);
+  expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Unsaved Job');jobView.unmount();
 });
+
 it('keeps stable random request IDs without randomUUID on remote HTTP contexts',()=>{
   vi.stubGlobal('crypto',{getRandomValues:crypto.getRandomValues.bind(crypto)});const ids=Array.from({length:10},()=>newId('step'));expect(new Set(ids).size).toBe(10);expect(ids.every(id=>/^step_[a-f0-9]{32}$/.test(id))).toBe(true);
 });
@@ -125,9 +142,9 @@ it('keeps stable random request IDs without randomUUID on remote HTTP contexts',
 it('preserves typed literals, stable step IDs, input/Event/output mappings and policies in the canonical Job',async()=>{
   const steps=[{stepId:'first',actionRef:{id:'action_a',revision:4,digest:'a'.repeat(64)},arguments:{literal:{from:'literal',value:{enabled:true,count:2,tags:['x']}},text:{from:'input',path:'message'}},completion:{contract:'durable-queue-accepted'}},{stepId:'second',actionRef:{id:'action_b',revision:2,digest:'b'.repeat(64)},arguments:{text:{from:'event',path:'payload.text'},result:{from:'step',stepId:'first',path:'messageId'}},completion:{contract:'process-exit'}}];
   const policies={overlap:{mode:'queue',maxQueued:3},retention:{policyRef:'kept'}};
-  Object.assign(jobs[0]!,{steps,...policies});host();fireEvent.click(await screen.findByRole('button',{name:'Edit Morning review'}));
-  const area=screen.getByLabelText('Definition JSON (name is entered separately)') as HTMLTextAreaElement;
-  expect(JSON.parse(area.value)).toMatchObject({steps,...policies});fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Edited chain'}});fireEvent.click(screen.getByRole('button',{name:'Save definition'}));
+  Object.assign(jobs[0]!,{steps,...policies});hostJob(jobs[0]!);fireEvent.click(screen.getByText('Advanced definition JSON'));
+  const area=screen.getByLabelText('Advanced Job definition') as HTMLTextAreaElement;
+  expect(JSON.parse(area.value)).toMatchObject({steps,...policies});const draft=JSON.parse(area.value);draft.name='Edited chain';fireEvent.change(area,{target:{value:JSON.stringify(draft)}});fireEvent.click(screen.getByRole('button',{name:'Save Action Job'}));
   await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.body).toMatchObject({expectedRevision:4,definition:{name:'Edited chain',steps,...policies}});expect(writes[0]!.body.definition).not.toHaveProperty('stateRevision');
 });
 
@@ -138,20 +155,20 @@ it('keeps OR events, nested OR/NOT conditions and Event arguments while editing 
 });
 
 it('retains invalid local JSON across explicit canonical conflict comparison/rebase and can load the server',async()=>{
-  host();fireEvent.click(await screen.findByRole('button',{name:'Edit Morning review'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Local Job'}});failure=409;fireEvent.click(screen.getByRole('button',{name:'Save definition'}));await screen.findByRole('alert');
-  jobs[0]!.configRevision=5;jobs[0]!.name='Server Job';fireEvent.change(screen.getByLabelText('Definition JSON (name is entered separately)'),{target:{value:'{invalid'}});fireEvent.click(screen.getByRole('button',{name:'Compare server definition'}));await screen.findByText('Server Job');fireEvent.click(screen.getByRole('button',{name:'Keep draft against server revision'}));
-  expect((screen.getByLabelText('Definition JSON (name is entered separately)') as HTMLTextAreaElement).value).toBe('{invalid');fireEvent.click(screen.getByRole('button',{name:'Save definition'}));expect(writes).toHaveLength(1);
-  fireEvent.change(screen.getByLabelText('Definition JSON (name is entered separately)'),{target:{value:'{"steps":[],"retention":{"policyRef":"kept"}}'}});failure=409;fireEvent.click(screen.getByRole('button',{name:'Save definition'}));await screen.findByRole('region',{name:'Compare canonical configuration'});fireEvent.click(screen.getByRole('button',{name:'Load server definition'}));expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Server Job');expect(writes).toHaveLength(2);
+  jobs[0]!.steps=[validStep()];hostJob(jobs[0]!);fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Local Job'}});failure=409;fireEvent.click(screen.getByRole('button',{name:'Save Action Job'}));await screen.findByRole('alert');
+  jobs[0]!.configRevision=5;jobs[0]!.name='Server Job';fireEvent.click(screen.getByText('Advanced definition JSON'));fireEvent.change(screen.getByLabelText('Advanced Job definition'),{target:{value:'{invalid'}});fireEvent.click(screen.getByRole('button',{name:'Compare server definition'}));await screen.findByText(/Server Job · revision 5/);fireEvent.click(screen.getByRole('button',{name:'Keep draft against server revision'}));
+  expect((screen.getByLabelText('Advanced Job definition') as HTMLTextAreaElement).value).toBe('{invalid');fireEvent.click(screen.getByRole('button',{name:'Save Action Job'}));expect(writes).toHaveLength(1);
+  fireEvent.change(screen.getByLabelText('Advanced Job definition'),{target:{value:JSON.stringify({name:'Local Job',steps:[validStep()],retention:{policyRef:'kept'}})}});failure=409;fireEvent.click(screen.getByRole('button',{name:'Save Action Job'}));await screen.findByRole('region',{name:'Compare canonical configuration'});fireEvent.click(screen.getByRole('button',{name:'Compare server definition'}));await screen.findByText(/Server Job · revision 5/);fireEvent.click(screen.getByRole('button',{name:'Load server definition'}));expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Server Job');expect(writes).toHaveLength(2);
 });
 
 it('blocks duplicate submits and departure while the canonical definition receipt is pending',async()=>{
-  host();fireEvent.click(await screen.findByRole('button',{name:'Edit Morning review'}));const original=vi.mocked(fetch).getMockImplementation()!;let finish!:()=>void;
+  jobs[0]!.steps=[validStep()];hostJob(jobs[0]!);const original=vi.mocked(fetch).getMockImplementation()!;let finish!:()=>void;
   vi.mocked(fetch).mockImplementation((url,init)=>init?.method==='PUT'?new Promise<Response>(resolve=>{finish=()=>resolve(response(receipt(jobs[0]!,'held')));return original(url,init).then(()=>undefined);}):original(url,init));
-  const form=screen.getByRole('form',{name:'Edit Jobs'});fireEvent.submit(form);fireEvent.submit(form);await waitFor(()=>expect(writes).toHaveLength(1));fireEvent.click(screen.getByRole('link',{name:'Manage Actions'}));expect(window.confirm).not.toHaveBeenCalled();expect(screen.queryByText('Actions destination')).toBeNull();finish();await waitFor(()=>expect(screen.queryByRole('form')).toBeNull());
+  const submit=screen.getByRole('button',{name:'Save Action Job'});fireEvent.click(submit);fireEvent.click(submit);await waitFor(()=>expect(writes).toHaveLength(1));fireEvent.click(screen.getByRole('link',{name:'Manage Actions'}));expect(window.confirm).not.toHaveBeenCalled();expect(screen.queryByText('Actions destination')).toBeNull();finish();await waitFor(()=>expect(screen.queryByLabelText('Action Job editor')).toBeNull());
 });
 
 it('requires explicit full definition and Action parameter review before canonical enable',async()=>{
-  jobs[0]!.state='draft';host();fireEvent.click(await screen.findByRole('button',{name:'Enable Morning review'}));expect((screen.getByRole('button',{name:'Confirm enable'}) as HTMLButtonElement).disabled).toBe(true);expect(writes).toEqual([]);
+  jobs[0]!.state='draft';render(<CanonicalJobEnable item={jobs[0]!} onChanged={vi.fn()} />);fireEvent.click(screen.getByRole('button',{name:'Enable Action Job'}));expect((screen.getByRole('button',{name:'Confirm enable'}) as HTMLButtonElement).disabled).toBe(true);expect(writes).toEqual([]);
   fireEvent.click(screen.getByLabelText('I reviewed this definition, Actions, parameters and source references.'));fireEvent.click(screen.getByRole('button',{name:'Confirm enable'}));await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.url).toBe('/api/jobs/job_review/operations');expect(writes[0]!.body).toMatchObject({operation:'enable',expectedRevision:4,expectedStateRevision:1});
 });
 
@@ -162,12 +179,12 @@ it('saves an ordinary Scheduler entirely through time-rule fields with canonical
 });
 
 it('creates a Job from Action and typed binding controls then links a Trigger through source and condition controls',async()=>{
-  host();fireEvent.click(await screen.findByRole('button',{name:'Create Jobs'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Plain form Job'}});await screen.findByRole('option',{name:'Form message · Revision 2'});fireEvent.change(screen.getByLabelText('Action for step 1'),{target:{value:'action_form'}});fireEvent.change(screen.getByLabelText('text value'),{target:{value:'plain text, no schema'}});fireEvent.click(screen.getByRole('button',{name:'Save definition'}));await waitFor(()=>expect(writes).toHaveLength(1));
+  hostJob();fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Plain form Job'}});await screen.findByRole('option',{name:'Form message · Revision 2'});fireEvent.change(screen.getByLabelText('Action for step 1'),{target:{value:'action_form'}});fireEvent.change(screen.getByLabelText('text value'),{target:{value:'plain text, no schema'}});fireEvent.click(screen.getByRole('button',{name:'Create Action Job'}));await waitFor(()=>expect(writes).toHaveLength(1));
   expect(writes[0]!.body).toMatchObject({expectedRevision:0,definition:{name:'Plain form Job',steps:[{stepId:'step1',actionRef:{id:'action_form',revision:2,digest:'f'.repeat(64)},arguments:{text:{from:'literal',value:'plain text, no schema'}},completion:{contract:'durable-queue-accepted'}}]}});
-  await waitFor(()=>expect(screen.queryByRole('form')).toBeNull());fireEvent.click(screen.getByRole('tab',{name:'Trigger'}));fireEvent.click(screen.getByRole('button',{name:'Create Triggers'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Plain form subscriber'}});await screen.findByRole('option',{name:/Plain form Job/});fireEvent.change(screen.getByLabelText('Target canonical Job'),{target:{value:'job_new'}});const select=screen.getByLabelText('Scheduler sources') as HTMLSelectElement;select.options[0]!.selected=true;fireEvent.change(select);fireEvent.click(screen.getByLabelText('Check State after Event'));fireEvent.change(screen.getByLabelText('State field'),{target:{value:'workers.runningCount'}});fireEvent.click(screen.getByRole('button',{name:'Save definition'}));await waitFor(()=>expect(writes).toHaveLength(2));expect(writes[1]!.body).toMatchObject({expectedCreatorRevisions:{creator_shared:7},definition:{target:{type:'job',jobId:'job_new'},creatorSelector:{mode:'ids',ids:['creator_shared']},condition:{field:'workers.runningCount',op:'eq',value:0}}});expect(writes.every(w=>!w.url.includes('scheduler/event-sources'))).toBe(true);
+  await waitFor(()=>expect(screen.queryByLabelText('Action Job editor')).toBeNull());cleanup();host();fireEvent.click(screen.getByRole('tab',{name:'Trigger'}));fireEvent.click(screen.getByRole('button',{name:'Create Triggers'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Plain form subscriber'}});await screen.findByRole('option',{name:/Plain form Job/});fireEvent.change(screen.getByLabelText('Target canonical Job'),{target:{value:'job_new'}});const select=screen.getByLabelText('Scheduler sources') as HTMLSelectElement;select.options[0]!.selected=true;fireEvent.change(select);fireEvent.click(screen.getByLabelText('Check State after Event'));fireEvent.change(screen.getByLabelText('State field'),{target:{value:'workers.runningCount'}});fireEvent.click(screen.getByRole('button',{name:'Save definition'}));await waitFor(()=>expect(writes).toHaveLength(2));expect(writes[1]!.body).toMatchObject({expectedCreatorRevisions:{creator_shared:7},definition:{target:{type:'job',jobId:'job_new'},creatorSelector:{mode:'ids',ids:['creator_shared']},condition:{field:'workers.runningCount',op:'eq',value:0}}});expect(writes.every(w=>!w.url.includes('scheduler/event-sources'))).toBe(true);
 });
 
 it('saves retention.pinned through canonical Job definition CAS without a runtime pin override',async()=>{
   jobs[0]!.steps=[{stepId:'kept',actionRef:{id:'action_form',revision:2,digest:'f'.repeat(64)},arguments:{text:{from:'literal',value:'existing message'}},completion:{contract:'durable-queue-accepted'}}];
-  host();fireEvent.click(await screen.findByRole('button',{name:'Edit Morning review'}));fireEvent.click(screen.getByLabelText('Pin Job retention'));fireEvent.click(screen.getByRole('button',{name:'Save definition'}));await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.url).toBe('/api/jobs/job_review');expect(writes[0]!.body).toMatchObject({expectedRevision:4,definition:{retention:{policyRef:'default',pinned:true}}});expect(writes.some(w=>w.url.endsWith('/pin'))).toBe(false);
+  hostJob(jobs[0]!);fireEvent.click(screen.getByText('Job policies'));fireEvent.click(screen.getByLabelText('Pin Job retention'));fireEvent.click(screen.getByRole('button',{name:'Save Action Job'}));await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.url).toBe('/api/jobs/job_review');expect(writes[0]!.body).toMatchObject({expectedRevision:4,definition:{retention:{policyRef:'default',pinned:true}}});expect(writes.some(w=>w.url.endsWith('/pin'))).toBe(false);
 });

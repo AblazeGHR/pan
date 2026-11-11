@@ -184,9 +184,11 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(url + "/react/automation/canonical")
-                expect(page.get_by_text("Sign in required", exact=True)).to_be_visible()
+                expect(page.get_by_role("heading", name="Jobs", exact=True)).to_be_visible()
+                assert page.evaluate("async () => (await fetch('/api/jobs')).status") == 401
+                page.get_by_role("button", name="New Job", exact=True).click()
                 expect(page.get_by_label("Local user key", exact=True)).to_be_visible()
-                expect(page.get_by_role("button", name="New Job", exact=True)).to_have_count(0)
+                expect(page.get_by_role("button", name="Log in", exact=True)).to_be_visible()
                 page.screenshot(path=str(OUT / "unauthorized-canonical-1440.png"), full_page=True)
                 assert errors == []
                 page.close()
@@ -199,8 +201,8 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                     page.goto(url + "/react/automation")
                     _login(page, key)
                     expect(page.get_by_role("heading", name="Automation", exact=True)).to_be_visible()
-                    expect(page.get_by_role("button", name="Edit Nightly session digest", exact=True)).to_be_visible()
-                    expect(page.get_by_role("article", name="Jobs Nightly session digest", exact=True)).to_be_visible()
+                    expect(page.get_by_role("link", name="Open Jobs", exact=True)).to_be_visible()
+                    assert page.get_by_role("article", name="Jobs Nightly session digest", exact=True).count() == 0
                     page.wait_for_timeout(200)
                     _no_overflow(page, "Automation management")
                     _touch_targets(page, "Automation management", 44 if width < 640 else 36)
@@ -212,7 +214,7 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                         page.keyboard.press("ArrowRight")
                         expect(page.get_by_role("tab", name="Trigger", exact=True)).to_have_attribute(
                             "aria-selected", "true")
-                        expect(page.get_by_role("heading", name="Canonical Triggers", exact=True)).to_be_visible()
+                        expect(page.get_by_role("heading", name="Triggers", exact=True)).to_be_visible()
 
                         # Trigger detail form opens with the canonical target selector.
                         page.get_by_role("button", name="Edit Morning digest subscription", exact=True).click()
@@ -221,18 +223,18 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                         page.get_by_role("button", name="Close editor", exact=True).click()
                         expect(page.get_by_role("form", name="Edit Triggers", exact=True)).to_have_count(0)
 
-                        # Enable review remains explicit and cancellation is reachable.
-                        page.get_by_role("tab", name="Job", exact=True).click()
-                        page.get_by_role("button", name="Enable Draft migration rehearsal", exact=True).click()
+                        # The only Jobs directory owns enable review.
+                        page.get_by_role("link", name="Jobs", exact=True).click()
+                        page.get_by_test_id("jobs-list-scroll").get_by_text("Draft migration rehearsal", exact=True).click()
+                        page.get_by_role("button", name="Enable Action Job", exact=True).click()
                         expect(page.get_by_role("region", name="Review before enabling", exact=True)).to_be_visible()
                         confirm = page.get_by_role("button", name="Confirm enable", exact=True)
                         expect(confirm).to_be_disabled()
-                        page.get_by_label(
-                            "I reviewed this definition, Actions, parameters and source references."
-                        ).check()
+                        page.get_by_label("I reviewed this definition, Actions, parameters and source references.").check()
                         expect(confirm).to_be_enabled()
                         page.get_by_role("button", name="Cancel enable review", exact=True).click()
                         expect(page.get_by_role("region", name="Review before enabling", exact=True)).to_have_count(0)
+                        page.goto(url + "/react/automation?tab=events")
 
                         # Event Register list/detail and retained raw rule detail.
                         page.get_by_role("tab", name="Event Register", exact=True).click()
@@ -246,51 +248,44 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                         page.get_by_role("button", name="Close Scheduler editor", exact=True).click()
                         page.screenshot(path=str(OUT / "automation-events-1440.png"), full_page=True)
 
-                        # Canonical page: kind switching, list/detail, empty state, Runs panel.
-                        page.get_by_role("link", name="Canonical Jobs", exact=True).click()
-                        expect(page.get_by_role("heading", name="Canonical Jobs", exact=True, level=1)).to_be_visible()
-                        expect(page.get_by_role("article", name="Jobs Nightly session digest", exact=True)).to_be_visible()
-                        _no_overflow(page, "Canonical management")
-                        _touch_targets(page, "Canonical management", 36)
-                        page.screenshot(path=str(OUT / "canonical-jobs-1440.png"), full_page=True)
-
-                        for label, first in (("Triggers", "Triggers Morning digest subscription"),
-                                             ("EventCreators", "EventCreators Weekday morning tick")):
-                            page.get_by_role("button", name=label, exact=True).click()
-                            expect(page.get_by_role("article", name=first, exact=True)).to_be_visible()
-                        page.get_by_role("button", name="JobTemplates", exact=True).click()
-                        expect(page.get_by_text("No canonical JobTemplates yet.", exact=True)).to_be_visible()
-                        page.screenshot(path=str(OUT / "canonical-empty-templates-1440.png"), full_page=True)
-
-                        page.get_by_role("button", name="Jobs", exact=True).click()
-                        page.get_by_role("button", name="Edit Nightly session digest", exact=True).click()
-                        expect(page.get_by_role("form", name="Edit Jobs", exact=True)).to_be_visible()
+                        # The unified directory owns Jobs, templates, detail and Run operations.
+                        page.get_by_role("link", name="Jobs", exact=True).click()
+                        expect(page.get_by_role("heading", name="Jobs", exact=True, level=1)).to_be_visible()
+                        expect(page.get_by_test_id("jobs-list-scroll").get_by_text("Nightly session digest", exact=True)).to_be_visible()
+                        _no_overflow(page, "Jobs management")
+                        _touch_targets(page, "Jobs management", 36)
+                        page.screenshot(path=str(OUT / "jobs-directory-1440.png"), full_page=True)
+                        page.get_by_role("button", name="Job Templates", exact=True).click()
+                        expect(page.get_by_text("No records JobTemplates.", exact=True)).to_be_visible()
+                        page.screenshot(path=str(OUT / "jobs-empty-templates-1440.png"), full_page=True)
+                        page.get_by_role("button", name="All Jobs", exact=True).click()
+                        page.get_by_test_id("jobs-list-scroll").get_by_text("Nightly session digest", exact=True).click()
+                        detail = page.get_by_role("region", name="Job detail")
+                        detail.get_by_role("button", name="Edit", exact=True).click()
+                        expect(page.get_by_label("Action Job editor")).to_be_visible()
                         page.get_by_text("Advanced definition JSON", exact=True).click()
-                        expect(page.locator("textarea[spellcheck=false]")).to_be_visible()
-                        page.screenshot(path=str(OUT / "canonical-editor-1440.png"), full_page=True)
-                        page.get_by_role("button", name="Close editor", exact=True).click()
-                        expect(page.get_by_role("form", name="Edit Jobs", exact=True)).to_have_count(0)
-                        assert dialogs and all(
-                            message == "Discard this definition draft?" for message in dialogs
-                        )
-
-                        page.get_by_role("button", name="Runs Nightly session digest", exact=True).click()
+                        expect(page.get_by_label("Advanced Job definition")).to_be_visible()
+                        page.screenshot(path=str(OUT / "jobs-editor-1440.png"), full_page=True)
+                        page.get_by_role("button", name="Cancel", exact=True).first.click()
+                        assert dialogs and all("Discard" in message for message in dialogs)
+                        expect(page.get_by_label("Action Job editor")).to_have_count(0)
+                        detail.get_by_role("button", name="Manage Run operations", exact=True).click()
                         expect(page.get_by_role("heading", name="Runs · Nightly session digest", exact=True)).to_be_visible()
-                        expect(page.get_by_text("Unconfirmed results must be queried by original identity; do not retry automatically.", exact=True)).to_be_visible()
+                        expect(page.get_by_text("Query unconfirmed outcomes using the original identity. Do not retry automatically.", exact=True)).to_be_visible()
                         page.get_by_role("button", name="clone-and-run", exact=True).click()
                         expect(page.get_by_role("form", name="Run operation", exact=True)).to_be_visible()
                         expect(page.get_by_role("button", name="Confirm operation", exact=True)).to_be_visible()
-                        page.get_by_role("button", name="Back", exact=True).click()
+                        page.get_by_role("form", name="Run operation").get_by_role("button", name="Back", exact=True).click()
                         expect(page.get_by_role("form", name="Run operation", exact=True)).to_have_count(0)
                     else:
                         page.get_by_role("tab", name="Event Register", exact=True).click()
                         expect(page.get_by_role("article", name="Scheduler Weekday morning tick", exact=True)).to_be_visible()
                         _no_overflow(page, "Automation management")
                         page.screenshot(path=str(OUT / f"automation-events-{width}.png"), full_page=True)
-                        page.get_by_role("link", name="Canonical Jobs", exact=True).click()
-                        expect(page.get_by_role("article", name="Jobs Nightly session digest", exact=True)).to_be_visible()
-                        _no_overflow(page, "Canonical management")
-                        _touch_targets(page, "Canonical management", 44)
+                        page.get_by_role("link", name="Jobs", exact=True).click()
+                        expect(page.get_by_test_id("jobs-list-scroll").get_by_text("Nightly session digest", exact=True)).to_be_visible()
+                        _no_overflow(page, "Jobs management")
+                        _touch_targets(page, "Jobs management", 44)
                         page.wait_for_timeout(200)
                         page.screenshot(path=str(OUT / f"canonical-jobs-{width}.png"), full_page=True)
                     assert errors == []
@@ -299,13 +294,14 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                 # Real transport error after all requests succeeded: stop the owned server,
                 # then ask the loaded production page to refresh its canonical list.
                 page = browser.new_page(viewport={"width": 1440, "height": 1000})
-                page.goto(url + "/react/automation/canonical")
+                page.goto(url + "/react/automation")
                 _login(page, key)
-                expect(page.get_by_role("button", name="Refresh list", exact=True)).to_be_visible()
+                page.get_by_role("link", name="Jobs", exact=True).click()
+                expect(page.get_by_role("button", name="Refresh", exact=True)).to_be_enabled()
                 child.terminate()
                 child.wait(timeout=15)
                 stopped = True
-                page.get_by_role("button", name="Refresh list", exact=True).click()
+                page.get_by_role("button", name="Refresh", exact=True).click()
                 expect(page.get_by_role("alert").first).to_be_visible()
                 page.screenshot(path=str(OUT / "canonical-error-1440.png"), full_page=True)
                 page.close()
