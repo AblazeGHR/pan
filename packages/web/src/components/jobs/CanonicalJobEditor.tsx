@@ -42,7 +42,10 @@ export function CanonicalJobEditor({ item, onSaved, onDirtyChange, onPendingChan
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Definition must be an object.');
         definition = parsed as JsonObject;
       }
-      if (!String(definition.name ?? '').trim()) throw new Error('Name is required.');
+      if (!String(definition.name ?? '').trim()) {
+        if (baseItem) throw new Error('Name is required.');
+        definition = { ...definition }; delete definition.name;
+      }
       const issues = canonicalFormErrors('jobs', definition);
       if (issues.length) throw new Error(issues.join(' '));
     } catch (e) { setError(canonicalError(e)); return; }
@@ -60,7 +63,7 @@ export function CanonicalJobEditor({ item, onSaved, onDirtyChange, onPendingChan
     finally { lock.current = false; setBusy(false); }
   };
   return <div className="space-y-4" aria-label="Action Job editor">
-    <label className="block text-sm">Name<input aria-label="Name" className="mt-1 block w-full rounded border border-border-default bg-bg-primary p-2" value={String(value.name ?? '')} disabled={busy || !!pending || advanced} onChange={e => update({ ...value, name: e.target.value })} /></label>
+    <label className="block text-sm">Name<input aria-label="Name" placeholder={baseItem ? undefined : "Blank uses server-generated job-N"} className="mt-1 block w-full rounded border border-border-default bg-bg-primary p-2" value={String(value.name ?? '')} disabled={busy || !!pending || advanced} onChange={e => update({ ...value, name: e.target.value })} /></label>
     {!advanced && <fieldset disabled={busy || !!pending}><CanonicalDefinitionFields kind="jobs" value={value} onChange={update} /></fieldset>}
     <details open={advanced}><summary onClick={e => {
       e.preventDefault();

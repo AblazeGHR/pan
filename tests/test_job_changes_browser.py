@@ -42,8 +42,10 @@ def test_two_production_pages_refresh_external_commit_and_logout_stays_empty(tmp
                             page.on('pageerror', lambda e: errors.append(str(e)))
                             page.on('websocket', lambda ws: ws.on('framereceived', lambda frame: frames.append(frame)))
                             page.goto(url + '/react/automation/canonical')
+                            page.get_by_role('button', name='Settings', exact=True).click()
                             page.get_by_label('Local user key', exact=True).fill(key)
                             page.get_by_role('button', name='Log in', exact=True).click()
+                            page.get_by_role('button', name='All Jobs', exact=True).click()
                             expect(page.get_by_role('button', name='New Job', exact=True)).to_be_visible()
                         from packages.jobs.final_service import object_ref, definition
                         action = next(a for a in client.get('/api/jobs/actions').json()['items'] if a['id']=='product_session_message')
@@ -62,8 +64,11 @@ def test_two_production_pages_refresh_external_commit_and_logout_stays_empty(tmp
                         job=response.json()['result']['object']
                         for page in pages:
                             expect(page.get_by_text('Remote edit',exact=True)).to_be_visible()
+                        pages[0].get_by_role('button',name='Settings',exact=True).click()
                         pages[0].get_by_role('button',name='Log out',exact=True).click()
                         expect(pages[0].get_by_text('Sign in required',exact=True)).to_be_visible()
+                        pages[0].get_by_role('button',name='All Jobs',exact=True).click()
+                        expect(pages[0].get_by_text('Remote edit',exact=True)).to_have_count(0)
                         cfg=definition('job',job);cfg['name']='After logout'
                         response=client.put('/api/jobs/'+job['id'],json={'definition':cfg,'expectedRevision':job['configRevision'],'requestKey':'browser-external-after-logout'})
                         assert response.status_code==200,response.text

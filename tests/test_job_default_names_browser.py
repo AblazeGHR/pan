@@ -55,30 +55,35 @@ def test_production_blank_name_uses_server_default_and_current_job_editor(h, tmp
             try:
                 page = browser.new_page()
                 page.goto(f"http://127.0.0.1:{port}/react/automation/canonical")
+                page.get_by_role("button", name="Settings", exact=True).click()
                 page.get_by_label("Local user key", exact=True).fill(h.automation.auth.key())
                 page.get_by_role("button", name="Log in", exact=True).click()
+                expect(page.get_by_role("button", name="Log out", exact=True)).to_be_visible()
+                page.get_by_role("button", name="All Jobs", exact=True).click()
                 page.get_by_role("button", name="New Job", exact=True).click()
-
-                editor = page.get_by_role("dialog", name="New Job", exact=True)
-                expect(editor).to_be_visible()
-                name = editor.get_by_label("Name", exact=True)
-                expect(name).to_have_value("")
-                expect(page.get_by_text("Advanced definition JSON", exact=True)).to_have_count(0)
-                expect(name).to_have_attribute("placeholder", "Blank uses server-generated job-N")
-                editor.get_by_role("button", name="Close", exact=True).click()
-                expect(editor).to_have_count(0)
-
-                page.get_by_role("button", name="Definitions", exact=True).click()
-                page.get_by_role("button", name="Create Jobs", exact=True).click()
+                expect(page.get_by_role("heading", name="Create a Job")).to_be_visible()
+                assert page.get_by_role("dialog").count() == 0
+                page.get_by_role("button", name="Cancel", exact=True).click()
+                expect(page.get_by_role("heading", name="Create a Job")).to_have_count(0)
+                page.get_by_role("button", name="New Job", exact=True).click()
+                page.get_by_label("Job configuration type").select_option("action")
                 name = page.get_by_label("Name", exact=True)
                 expect(name).to_have_value("")
                 assert not name.evaluate("e => e.required")
-                page.get_by_label("Action for step 1", exact=True).select_option("test_message")
+                expect(name).to_have_attribute("placeholder", "Blank uses server-generated job-N")
+                assert not page.get_by_text("Advanced definition JSON", exact=True).locator("..").evaluate("e => e.open")
+                action = page.get_by_label("Action for step 1", exact=True)
+                expect(action.locator("option[value=test_message]")).to_have_count(1, timeout=10000)
+                action.select_option("test_message")
                 page.get_by_label("sessionId value", exact=True).fill("owned-test-session")
                 page.get_by_label("text value", exact=True).fill("Owned browser draft")
-                writes, receipts = [], []
+                writes, receipts, lookups = [], [], []
+                page.on("request", lambda request: lookups.append(request.url) if request.method == "GET" and "/api/operations?" in request.url else None)
 
                 def lose_reply(route):
+                    if route.request.method != "POST":
+                        route.continue_()
+                        return
                     writes.append(route.request.post_data_json)
                     response = route.fetch()
                     assert response.status == 201, response.text()
@@ -86,13 +91,15 @@ def test_production_blank_name_uses_server_default_and_current_job_editor(h, tmp
                     route.abort()
 
                 page.route("**/api/jobs", lose_reply)
-                page.get_by_role("button", name="Save definition", exact=True).click()
+                page.get_by_role("button", name="Create Action Job", exact=True).click()
                 query = page.get_by_role("button", name="Query original operation", exact=True)
                 expect(query).to_be_visible()
-                expect(page.get_by_role("button", name="Save definition", exact=True)).to_be_disabled()
+                expect(page.get_by_role("button", name="Create Action Job", exact=True)).to_have_count(0)
                 query.click()
-                expect(page.get_by_role("heading", name="job-1", exact=True)).to_be_visible()
+                expect(page.get_by_test_id("jobs-list-scroll").get_by_text("job-1", exact=True)).to_be_visible()
                 assert len(writes) == len(receipts) == 1
+                from urllib.parse import parse_qs, urlsplit
+                assert [parse_qs(urlsplit(url).query) for url in lookups] == [{"operation": ["create"], "requestKey": [writes[0]["requestKey"]]}]
                 assert "name" not in writes[0]["definition"]
                 receipt = receipts[0]
                 assert receipt["result"]["object"]["name"] == "job-1"
