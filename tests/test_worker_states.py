@@ -16,6 +16,7 @@ import json
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock
+import pytest
 
 # Make packages importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -161,7 +162,8 @@ def test_send_task_seq_survives_respawn():
         _cleanup()
 
 
-def test_init_event_extracts_metadata_only():
+@pytest.mark.parametrize('read_delay', [0, .1], ids=['immediate-init', 'slow-init'])
+def test_init_event_extracts_metadata_only(read_delay):
     """init event extracts cli_session_id/model but leaves status unchanged.
 
     stream mode has no init event on startup; when one does arrive
@@ -169,22 +171,42 @@ def test_init_event_extracts_metadata_only():
     """
     _cleanup()
     s = _setup_session()
+    s.model = ''  # Prove the model came from the real parsed init event.
     w = _setup_worker(s.id, status="running")
-    w.process = MockProcess([_system_init_event()], hold_open=True)
+    init_processed = asyncio.Event()
+    class DelayedInitProcess(MockProcess):
+        async def read(self, n=-1):
+            if self._events:
+                await asyncio.sleep(read_delay)
+            else:
+                # The line iterator asks for another chunk only after the
+                # parsed init event, metadata persistence and event handling.
+                init_processed.set()
+            return await super().read(n)
+    w.process = DelayedInitProcess([_make_event('system', subtype='init',
+        session_id='cbc-123', model='test-model', content='init metadata must not become chat')], hold_open=True)
 
     async def run():
         task = asyncio.create_task(worker._read_stdout(w))
-        await asyncio.sleep(0.05)
-        return task
+        try:
+            await asyncio.wait_for(init_processed.wait(), timeout=5)
+            assert not task.done(), 'metadata-only init must keep the stdout reader alive'
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
-    task = asyncio.run(run())
-    task.cancel()
-
-    assert w.status == "running", f"expected running unchanged, got {w.status}"
-    assert s.cli_session_id == "cbc-123", f"cli_session_id not extracted: {s.cli_session_id}"
-    assert s.model == "test-model", f"model not extracted: {s.model}"
-    print("PASS: init event extracts metadata, keeps status")
-    _cleanup()
+    try:
+        asyncio.run(run())
+        assert w.status == "running", f"expected running unchanged, got {w.status}"
+        assert s.cli_session_id == "cbc-123", f"cli_session_id not extracted: {s.cli_session_id}"
+        assert s.model == "test-model", f"model not extracted: {s.model}"
+        assert s.history == [] and s.last_result is None
+        print("PASS: init event extracts metadata, keeps status")
+    finally:
+        _cleanup()
 
 
 def test_eof_sets_zombie_and_removes():
@@ -409,7 +431,8 @@ if __name__ == "__main__":
     test_send_task_sets_queued()
     test_send_task_does_not_override_running()
     test_send_task_seq_survives_respawn()
-    test_init_event_extracts_metadata_only()
+    test_init_event_extracts_metadata_only(0)
+    test_init_event_extracts_metadata_only(.1)
     test_eof_sets_zombie_and_removes()
     test_eof_normal_exit_still_zombie()
     test_eof_reports_zombie_for_running()
