@@ -19,6 +19,7 @@ HOSTS = ('azure.archive.ubuntu.com', 'archive.ubuntu.com', 'security.ubuntu.com'
 MIRROR_URI = 'mirror+file:/etc/apt/apt-mirrors.txt'
 AZURE = re.compile(r'https?://azure\.archive\.ubuntu\.com/ubuntu/?(?=\s|$)')
 DNS = re.compile(r"Temporary failure resolving ['\"](" + '|'.join(re.escape(h) for h in HOSTS) + r")[ '\"]")
+INSTALL_TIMEOUT_SECONDS = 900
 
 
 def dns_failure_only(output):
@@ -100,7 +101,7 @@ def snapshot(apt_root):
 
 def install_once(evidence, number):
     # GNU timeout bounds the complete installer process group, including apt.
-    command = ['timeout', '--signal=TERM', '--kill-after=10s', '480s', sys.executable,
+    command = ['timeout', '--signal=TERM', '--kill-after=10s', f'{INSTALL_TIMEOUT_SECONDS}s', sys.executable,
                '-m', 'playwright', 'install', '--with-deps', '--only-shell', 'chromium']
     path = evidence / f'install-{number}.log'
     print(f'Full Playwright installation attempt {number}: {command}', flush=True)

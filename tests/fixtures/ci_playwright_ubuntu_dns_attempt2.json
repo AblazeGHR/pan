@@ -1,0 +1,790 @@
+{
+  "source": "https://github.com/AblazeGHR/pan/actions/runs/43033817254/job/130629943715",
+  "runId": 43033817254,
+  "runAttempt": 2,
+  "headSha": "0dbe47e4e00288ac0fb6b44434090a4f6ba8c6c0",
+  "stepStartedAt": "2026-11-11T15:48:06.9302780Z",
+  "redaction": "Removed GitHub command/environment envelope; apt/Playwright stdout and original timestamps retained. Public package URLs only.",
+  "events": [
+    {
+      "timestamp": "2026-11-11T15:48:07.3131546Z",
+      "message": "Installing dependencies...",
+      "elapsedSeconds": 0.382876
+    },
+    {
+      "timestamp": "2026-11-11T15:48:07.3207373Z",
+      "message": "Switching to root user to install dependencies...",
+      "elapsedSeconds": 0.390459
+    },
+    {
+      "timestamp": "2026-11-11T15:48:07.4046959Z",
+      "message": "Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]",
+      "elapsedSeconds": 0.474417
+    },
+    {
+      "timestamp": "2026-11-11T15:48:07.4302261Z",
+      "message": "Get:6 https://packages.microsoft.com/ubuntu/24.04/prod noble InRelease [3600 B]",
+      "elapsedSeconds": 0.499948
+    },
+    {
+      "timestamp": "2026-11-11T15:48:07.5066718Z",
+      "message": "Get:7 https://packages.microsoft.com/ubuntu/24.04/prod noble/main arm64 Packages [690 kB]",
+      "elapsedSeconds": 0.576393
+    },
+    {
+      "timestamp": "2026-11-11T15:48:07.5275917Z",
+      "message": "Get:8 https://packages.microsoft.com/ubuntu/24.04/prod noble/main amd64 Packages [760 kB]",
+      "elapsedSeconds": 0.597313
+    },
+    {
+      "timestamp": "2026-11-11T15:48:07.5349768Z",
+      "message": "Get:9 https://packages.microsoft.com/ubuntu/24.04/prod noble/main armhf Packages [12.6 kB]",
+      "elapsedSeconds": 0.604698
+    },
+    {
+      "timestamp": "2026-11-11T15:48:27.4713093Z",
+      "message": "Ign:2 http://azure.archive.ubuntu.com/ubuntu noble InRelease",
+      "elapsedSeconds": 20.541031
+    },
+    {
+      "timestamp": "2026-11-11T15:48:47.4966261Z",
+      "message": "Ign:3 http://azure.archive.ubuntu.com/ubuntu noble-updates InRelease",
+      "elapsedSeconds": 40.566348
+    },
+    {
+      "timestamp": "2026-11-11T15:49:07.5182866Z",
+      "message": "Ign:4 http://azure.archive.ubuntu.com/ubuntu noble-backports InRelease",
+      "elapsedSeconds": 60.588008
+    },
+    {
+      "timestamp": "2026-11-11T15:49:27.5432445Z",
+      "message": "Ign:5 http://azure.archive.ubuntu.com/ubuntu noble-security InRelease",
+      "elapsedSeconds": 80.612966
+    },
+    {
+      "timestamp": "2026-11-11T15:49:47.5611552Z",
+      "message": "Ign:2 http://azure.archive.ubuntu.com/ubuntu noble InRelease",
+      "elapsedSeconds": 100.630877
+    },
+    {
+      "timestamp": "2026-11-11T15:50:07.5840303Z",
+      "message": "Ign:3 http://azure.archive.ubuntu.com/ubuntu noble-updates InRelease",
+      "elapsedSeconds": 120.653752
+    },
+    {
+      "timestamp": "2026-11-11T15:50:07.5898956Z",
+      "message": "Ign:2 https://archive.ubuntu.com/ubuntu noble InRelease",
+      "elapsedSeconds": 120.659617
+    },
+    {
+      "timestamp": "2026-11-11T15:50:26.8660554Z",
+      "message": "Err:2 https://security.ubuntu.com/ubuntu noble InRelease",
+      "elapsedSeconds": 139.935777
+    },
+    {
+      "timestamp": "2026-11-11T15:50:26.8661316Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 139.935853
+    },
+    {
+      "timestamp": "2026-11-11T15:50:27.6087186Z",
+      "message": "Ign:4 http://azure.archive.ubuntu.com/ubuntu noble-backports InRelease",
+      "elapsedSeconds": 140.67844
+    },
+    {
+      "timestamp": "2026-11-11T15:50:27.6239211Z",
+      "message": "Ign:3 https://archive.ubuntu.com/ubuntu noble-updates InRelease",
+      "elapsedSeconds": 140.693643
+    },
+    {
+      "timestamp": "2026-11-11T15:50:47.6288276Z",
+      "message": "Ign:5 http://azure.archive.ubuntu.com/ubuntu noble-security InRelease",
+      "elapsedSeconds": 160.698549
+    },
+    {
+      "timestamp": "2026-11-11T15:50:47.6624920Z",
+      "message": "Ign:4 https://archive.ubuntu.com/ubuntu noble-backports InRelease",
+      "elapsedSeconds": 160.732214
+    },
+    {
+      "timestamp": "2026-11-11T15:50:47.6635298Z",
+      "message": "Err:3 https://security.ubuntu.com/ubuntu noble-updates InRelease",
+      "elapsedSeconds": 160.733251
+    },
+    {
+      "timestamp": "2026-11-11T15:50:47.6636237Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 160.733345
+    },
+    {
+      "timestamp": "2026-11-11T15:51:07.6868273Z",
+      "message": "Ign:5 https://archive.ubuntu.com/ubuntu noble-security InRelease",
+      "elapsedSeconds": 180.756549
+    },
+    {
+      "timestamp": "2026-11-11T15:51:07.6875324Z",
+      "message": "Err:4 https://security.ubuntu.com/ubuntu noble-backports InRelease",
+      "elapsedSeconds": 180.757254
+    },
+    {
+      "timestamp": "2026-11-11T15:51:07.6875944Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 180.757316
+    },
+    {
+      "timestamp": "2026-11-11T15:51:27.7192057Z",
+      "message": "Err:5 https://security.ubuntu.com/ubuntu noble-security InRelease",
+      "elapsedSeconds": 200.788927
+    },
+    {
+      "timestamp": "2026-11-11T15:51:27.7193504Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 200.789072
+    },
+    {
+      "timestamp": "2026-11-11T15:51:30.4568141Z",
+      "message": "Fetched 1467 kB in 3min 20s (7321 B/s)",
+      "elapsedSeconds": 203.526536
+    },
+    {
+      "timestamp": "2026-11-11T15:51:31.7282331Z",
+      "message": "Reading package lists...",
+      "elapsedSeconds": 204.797955
+    },
+    {
+      "timestamp": "2026-11-11T15:51:31.7438038Z",
+      "message": "W: Failed to fetch mirror+file:/etc/apt/apt-mirrors.txt/dists/noble/InRelease  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 204.813525
+    },
+    {
+      "timestamp": "2026-11-11T15:51:31.7440146Z",
+      "message": "W: Failed to fetch mirror+file:/etc/apt/apt-mirrors.txt/dists/noble-updates/InRelease  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 204.813736
+    },
+    {
+      "timestamp": "2026-11-11T15:51:31.7442169Z",
+      "message": "W: Failed to fetch mirror+file:/etc/apt/apt-mirrors.txt/dists/noble-backports/InRelease  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 204.813938
+    },
+    {
+      "timestamp": "2026-11-11T15:51:31.7445160Z",
+      "message": "W: Failed to fetch mirror+file:/etc/apt/apt-mirrors.txt/dists/noble-security/InRelease  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 204.814238
+    },
+    {
+      "timestamp": "2026-11-11T15:51:31.7446746Z",
+      "message": "W: Some index files failed to download. They have been ignored, or old ones used instead.",
+      "elapsedSeconds": 204.814396
+    },
+    {
+      "timestamp": "2026-11-11T15:51:31.7589658Z",
+      "message": "Reading package lists...",
+      "elapsedSeconds": 204.828687
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.0077275Z",
+      "message": "Building dependency tree...",
+      "elapsedSeconds": 205.077449
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.0085469Z",
+      "message": "Reading state information...",
+      "elapsedSeconds": 205.078268
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1873616Z",
+      "message": "libasound2t64 is already the newest version (1.2.11-1ubuntu0.3).",
+      "elapsedSeconds": 205.257083
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1874889Z",
+      "message": "libasound2t64 set to manually installed.",
+      "elapsedSeconds": 205.25721
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1875823Z",
+      "message": "libatk-bridge2.0-0t64 is already the newest version (2.52.0-1build1).",
+      "elapsedSeconds": 205.257304
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1876775Z",
+      "message": "libatk-bridge2.0-0t64 set to manually installed.",
+      "elapsedSeconds": 205.257399
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1877573Z",
+      "message": "libatk1.0-0t64 is already the newest version (2.52.0-1build1).",
+      "elapsedSeconds": 205.257479
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1878332Z",
+      "message": "libatk1.0-0t64 set to manually installed.",
+      "elapsedSeconds": 205.257555
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1879069Z",
+      "message": "libatspi2.0-0t64 is already the newest version (2.52.0-1build1).",
+      "elapsedSeconds": 205.257628
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1879747Z",
+      "message": "libatspi2.0-0t64 set to manually installed.",
+      "elapsedSeconds": 205.257696
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1880471Z",
+      "message": "libcairo2 is already the newest version (1.18.0-3build1).",
+      "elapsedSeconds": 205.257769
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1880885Z",
+      "message": "libcairo2 set to manually installed.",
+      "elapsedSeconds": 205.25781
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1881313Z",
+      "message": "libcups2t64 is already the newest version (2.4.7-1.2ubuntu7.14).",
+      "elapsedSeconds": 205.257853
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1882111Z",
+      "message": "libcups2t64 set to manually installed.",
+      "elapsedSeconds": 205.257933
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1882530Z",
+      "message": "libdbus-1-3 is already the newest version (1.14.10-4ubuntu4.1).",
+      "elapsedSeconds": 205.257975
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1883237Z",
+      "message": "libdbus-1-3 set to manually installed.",
+      "elapsedSeconds": 205.258045
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1883704Z",
+      "message": "libdrm2 is already the newest version (2.4.125-1ubuntu0.1~24.04.2).",
+      "elapsedSeconds": 205.258092
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1884118Z",
+      "message": "libdrm2 set to manually installed.",
+      "elapsedSeconds": 205.258133
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1884856Z",
+      "message": "libgbm1 is already the newest version (25.2.8-0ubuntu0.24.04.4).",
+      "elapsedSeconds": 205.258207
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1885252Z",
+      "message": "libgbm1 set to manually installed.",
+      "elapsedSeconds": 205.258247
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1885844Z",
+      "message": "libglib2.0-0t64 is already the newest version (2.80.0-6ubuntu3.10).",
+      "elapsedSeconds": 205.258306
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1886378Z",
+      "message": "libglib2.0-0t64 set to manually installed.",
+      "elapsedSeconds": 205.258359
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1886810Z",
+      "message": "libnspr4 is already the newest version (2:4.35-1.1build1).",
+      "elapsedSeconds": 205.258403
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1887211Z",
+      "message": "libnspr4 set to manually installed.",
+      "elapsedSeconds": 205.258443
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1887597Z",
+      "message": "libnss3 is already the newest version (2:3.98-1ubuntu0.3).",
+      "elapsedSeconds": 205.258481
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1887973Z",
+      "message": "libnss3 set to manually installed.",
+      "elapsedSeconds": 205.258519
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1888393Z",
+      "message": "libpango-1.0-0 is already the newest version (1.52.1+ds-1build1).",
+      "elapsedSeconds": 205.258561
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1888901Z",
+      "message": "libpango-1.0-0 set to manually installed.",
+      "elapsedSeconds": 205.258612
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1889592Z",
+      "message": "libx11-6 is already the newest version (2:1.8.7-1ubuntu0.1).",
+      "elapsedSeconds": 205.258681
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1890293Z",
+      "message": "libx11-6 set to manually installed.",
+      "elapsedSeconds": 205.258751
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1890955Z",
+      "message": "libxcb1 is already the newest version (1.15-1ubuntu2).",
+      "elapsedSeconds": 205.258817
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1891577Z",
+      "message": "libxcb1 set to manually installed.",
+      "elapsedSeconds": 205.258879
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1892208Z",
+      "message": "libxcomposite1 is already the newest version (1:0.4.5-1build3).",
+      "elapsedSeconds": 205.258942
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1892652Z",
+      "message": "libxcomposite1 set to manually installed.",
+      "elapsedSeconds": 205.258987
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1893072Z",
+      "message": "libxdamage1 is already the newest version (1:1.1.6-1build1).",
+      "elapsedSeconds": 205.259029
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1893457Z",
+      "message": "libxdamage1 set to manually installed.",
+      "elapsedSeconds": 205.259067
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1893922Z",
+      "message": "libxext6 is already the newest version (2:1.3.4-1build2).",
+      "elapsedSeconds": 205.259114
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1894844Z",
+      "message": "libxext6 set to manually installed.",
+      "elapsedSeconds": 205.259206
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1895586Z",
+      "message": "libxfixes3 is already the newest version (1:6.0.0-2build1).",
+      "elapsedSeconds": 205.25928
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1896314Z",
+      "message": "libxfixes3 set to manually installed.",
+      "elapsedSeconds": 205.259353
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1896730Z",
+      "message": "libxkbcommon0 is already the newest version (1.6.0-1build1).",
+      "elapsedSeconds": 205.259395
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1897132Z",
+      "message": "libxkbcommon0 set to manually installed.",
+      "elapsedSeconds": 205.259435
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1897551Z",
+      "message": "libxrandr2 is already the newest version (2:1.5.2-2build1).",
+      "elapsedSeconds": 205.259477
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1897930Z",
+      "message": "libxrandr2 set to manually installed.",
+      "elapsedSeconds": 205.259515
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1898329Z",
+      "message": "xvfb is already the newest version (2:21.1.12-1ubuntu1.9).",
+      "elapsedSeconds": 205.259554
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1898863Z",
+      "message": "fonts-noto-color-emoji is already the newest version (2.047-0ubuntu0.24.04.1).",
+      "elapsedSeconds": 205.259608
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1899902Z",
+      "message": "libfontconfig1 is already the newest version (2.15.0-1.1ubuntu2).",
+      "elapsedSeconds": 205.259712
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1900670Z",
+      "message": "libfontconfig1 set to manually installed.",
+      "elapsedSeconds": 205.259789
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1901490Z",
+      "message": "libfreetype6 is already the newest version (2.13.2+dfsg-1ubuntu0.2).",
+      "elapsedSeconds": 205.259871
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1902266Z",
+      "message": "libfreetype6 set to manually installed.",
+      "elapsedSeconds": 205.259948
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1903044Z",
+      "message": "fonts-liberation is already the newest version (1:2.1.5-3).",
+      "elapsedSeconds": 205.260026
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1903794Z",
+      "message": "fonts-liberation set to manually installed.",
+      "elapsedSeconds": 205.260101
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1904730Z",
+      "message": "The following additional packages will be installed:",
+      "elapsedSeconds": 205.260195
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1905347Z",
+      "message": "  xfonts-encodings xfonts-utils",
+      "elapsedSeconds": 205.260256
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1905824Z",
+      "message": "Recommended packages:",
+      "elapsedSeconds": 205.260304
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.1906305Z",
+      "message": "  fonts-ipafont-mincho fonts-tlwg-loma",
+      "elapsedSeconds": 205.260352
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.2125225Z",
+      "message": "The following NEW packages will be installed:",
+      "elapsedSeconds": 205.282244
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.2126360Z",
+      "message": "  fonts-freefont-ttf fonts-ipafont-gothic fonts-tlwg-loma-otf fonts-unifont",
+      "elapsedSeconds": 205.282358
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.2140447Z",
+      "message": "  fonts-wqy-zenhei xfonts-cyrillic xfonts-encodings xfonts-scalable",
+      "elapsedSeconds": 205.283766
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.2141158Z",
+      "message": "  xfonts-utils",
+      "elapsedSeconds": 205.283837
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.2369468Z",
+      "message": "0 upgraded, 9 newly installed, 0 to remove and 3 not upgraded.",
+      "elapsedSeconds": 205.306668
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.2370177Z",
+      "message": "Need to get 21.1 MB of archives.",
+      "elapsedSeconds": 205.306739
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.2370626Z",
+      "message": "After this operation, 79.5 MB of additional disk space will be used.",
+      "elapsedSeconds": 205.306784
+    },
+    {
+      "timestamp": "2026-11-11T15:51:32.2371131Z",
+      "message": "Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]",
+      "elapsedSeconds": 205.306835
+    },
+    {
+      "timestamp": "2026-11-11T15:51:51.9167062Z",
+      "message": "Ign:2 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-ipafont-gothic all 00303-21ubuntu1",
+      "elapsedSeconds": 224.986428
+    },
+    {
+      "timestamp": "2026-11-11T15:52:11.9166008Z",
+      "message": "Ign:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 fonts-freefont-ttf all 20211204+svn4273-2",
+      "elapsedSeconds": 244.986322
+    },
+    {
+      "timestamp": "2026-11-11T15:52:31.9366538Z",
+      "message": "Ign:4 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-tlwg-loma-otf all 1:0.7.3-1",
+      "elapsedSeconds": 265.006375
+    },
+    {
+      "timestamp": "2026-11-11T15:52:51.9615917Z",
+      "message": "Ign:5 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-unifont all 1:15.1.01-1build1",
+      "elapsedSeconds": 285.031313
+    },
+    {
+      "timestamp": "2026-11-11T15:53:11.9868475Z",
+      "message": "Ign:6 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-wqy-zenhei all 0.9.45-8",
+      "elapsedSeconds": 305.056569
+    },
+    {
+      "timestamp": "2026-11-11T15:53:31.6192914Z",
+      "message": "Ign:7 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-encodings all 1:1.0.5-0ubuntu2",
+      "elapsedSeconds": 324.689013
+    },
+    {
+      "timestamp": "2026-11-11T15:53:51.6369462Z",
+      "message": "Ign:8 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-utils amd64 1:7.7+6build3",
+      "elapsedSeconds": 344.706668
+    },
+    {
+      "timestamp": "2026-11-11T15:54:11.6618275Z",
+      "message": "Ign:9 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 xfonts-cyrillic all 1:1.0.5+nmu1",
+      "elapsedSeconds": 364.731549
+    },
+    {
+      "timestamp": "2026-11-11T15:54:31.6866199Z",
+      "message": "Ign:10 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-scalable all 1:1.0.3-1.3",
+      "elapsedSeconds": 384.756341
+    },
+    {
+      "timestamp": "2026-11-11T15:54:51.7273479Z",
+      "message": "Ign:2 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-ipafont-gothic all 00303-21ubuntu1",
+      "elapsedSeconds": 404.797069
+    },
+    {
+      "timestamp": "2026-11-11T15:55:11.7516004Z",
+      "message": "Ign:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 fonts-freefont-ttf all 20211204+svn4273-2",
+      "elapsedSeconds": 424.821322
+    },
+    {
+      "timestamp": "2026-11-11T15:55:11.7601895Z",
+      "message": "Ign:2 https://archive.ubuntu.com/ubuntu noble/universe amd64 fonts-ipafont-gothic all 00303-21ubuntu1",
+      "elapsedSeconds": 424.829911
+    },
+    {
+      "timestamp": "2026-11-11T15:55:31.7739596Z",
+      "message": "Ign:4 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-tlwg-loma-otf all 1:0.7.3-1",
+      "elapsedSeconds": 444.843681
+    },
+    {
+      "timestamp": "2026-11-11T15:55:31.7878718Z",
+      "message": "Err:2 https://security.ubuntu.com/ubuntu noble/universe amd64 fonts-ipafont-gothic all 00303-21ubuntu1",
+      "elapsedSeconds": 444.857593
+    },
+    {
+      "timestamp": "2026-11-11T15:55:31.7880342Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 444.857756
+    },
+    {
+      "timestamp": "2026-11-11T15:55:31.7908168Z",
+      "message": "Ign:3 https://archive.ubuntu.com/ubuntu noble/main amd64 fonts-freefont-ttf all 20211204+svn4273-2",
+      "elapsedSeconds": 444.860538
+    },
+    {
+      "timestamp": "2026-11-11T15:55:51.7991019Z",
+      "message": "Ign:5 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-unifont all 1:15.1.01-1build1",
+      "elapsedSeconds": 464.868823
+    },
+    {
+      "timestamp": "2026-11-11T15:55:51.8055069Z",
+      "message": "Ign:4 https://archive.ubuntu.com/ubuntu noble/universe amd64 fonts-tlwg-loma-otf all 1:0.7.3-1",
+      "elapsedSeconds": 464.875228
+    },
+    {
+      "timestamp": "2026-11-11T15:55:51.8120636Z",
+      "message": "Err:3 https://security.ubuntu.com/ubuntu noble/main amd64 fonts-freefont-ttf all 20211204+svn4273-2",
+      "elapsedSeconds": 464.881785
+    },
+    {
+      "timestamp": "2026-11-11T15:55:51.8121747Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 464.881896
+    },
+    {
+      "timestamp": "2026-11-11T15:56:11.8221361Z",
+      "message": "Ign:6 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-wqy-zenhei all 0.9.45-8",
+      "elapsedSeconds": 484.891858
+    },
+    {
+      "timestamp": "2026-11-11T15:56:11.8300103Z",
+      "message": "Ign:5 https://archive.ubuntu.com/ubuntu noble/universe amd64 fonts-unifont all 1:15.1.01-1build1",
+      "elapsedSeconds": 484.899732
+    },
+    {
+      "timestamp": "2026-11-11T15:56:11.8352836Z",
+      "message": "Err:4 https://security.ubuntu.com/ubuntu noble/universe amd64 fonts-tlwg-loma-otf all 1:0.7.3-1",
+      "elapsedSeconds": 484.905005
+    },
+    {
+      "timestamp": "2026-11-11T15:56:11.8354441Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 484.905166
+    },
+    {
+      "timestamp": "2026-11-11T15:56:31.8432094Z",
+      "message": "Ign:7 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-encodings all 1:1.0.5-0ubuntu2",
+      "elapsedSeconds": 504.912931
+    },
+    {
+      "timestamp": "2026-11-11T15:56:31.8523419Z",
+      "message": "Ign:6 https://archive.ubuntu.com/ubuntu noble/universe amd64 fonts-wqy-zenhei all 0.9.45-8",
+      "elapsedSeconds": 504.922063
+    },
+    {
+      "timestamp": "2026-11-11T15:56:31.8535018Z",
+      "message": "Err:5 https://security.ubuntu.com/ubuntu noble/universe amd64 fonts-unifont all 1:15.1.01-1build1",
+      "elapsedSeconds": 504.923223
+    },
+    {
+      "timestamp": "2026-11-11T15:56:31.8535960Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 504.923318
+    },
+    {
+      "timestamp": "2026-11-11T15:56:51.8646400Z",
+      "message": "Ign:8 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-utils amd64 1:7.7+6build3",
+      "elapsedSeconds": 524.934362
+    },
+    {
+      "timestamp": "2026-11-11T15:56:51.8760576Z",
+      "message": "Err:6 https://security.ubuntu.com/ubuntu noble/universe amd64 fonts-wqy-zenhei all 0.9.45-8",
+      "elapsedSeconds": 524.945779
+    },
+    {
+      "timestamp": "2026-11-11T15:56:51.8761358Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 524.945857
+    },
+    {
+      "timestamp": "2026-11-11T15:56:51.8773637Z",
+      "message": "Ign:7 https://archive.ubuntu.com/ubuntu noble/main amd64 xfonts-encodings all 1:1.0.5-0ubuntu2",
+      "elapsedSeconds": 524.947085
+    },
+    {
+      "timestamp": "2026-11-11T15:57:11.8776225Z",
+      "message": "Ign:9 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 xfonts-cyrillic all 1:1.0.5+nmu1",
+      "elapsedSeconds": 544.947344
+    },
+    {
+      "timestamp": "2026-11-11T15:57:11.9041138Z",
+      "message": "Ign:8 https://archive.ubuntu.com/ubuntu noble/main amd64 xfonts-utils amd64 1:7.7+6build3",
+      "elapsedSeconds": 544.973835
+    },
+    {
+      "timestamp": "2026-11-11T15:57:11.9079377Z",
+      "message": "Err:7 https://security.ubuntu.com/ubuntu noble/main amd64 xfonts-encodings all 1:1.0.5-0ubuntu2",
+      "elapsedSeconds": 544.977659
+    },
+    {
+      "timestamp": "2026-11-11T15:57:11.9080417Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 544.977763
+    },
+    {
+      "timestamp": "2026-11-11T15:57:31.8998898Z",
+      "message": "Ign:10 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-scalable all 1:1.0.3-1.3",
+      "elapsedSeconds": 564.969611
+    },
+    {
+      "timestamp": "2026-11-11T15:57:31.9275053Z",
+      "message": "Ign:9 https://archive.ubuntu.com/ubuntu noble/universe amd64 xfonts-cyrillic all 1:1.0.5+nmu1",
+      "elapsedSeconds": 564.997227
+    },
+    {
+      "timestamp": "2026-11-11T15:57:31.9284607Z",
+      "message": "Err:8 https://security.ubuntu.com/ubuntu noble/main amd64 xfonts-utils amd64 1:7.7+6build3",
+      "elapsedSeconds": 564.998182
+    },
+    {
+      "timestamp": "2026-11-11T15:57:31.9285914Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 564.998313
+    },
+    {
+      "timestamp": "2026-11-11T15:57:51.9509332Z",
+      "message": "Ign:10 https://archive.ubuntu.com/ubuntu noble/main amd64 xfonts-scalable all 1:1.0.3-1.3",
+      "elapsedSeconds": 585.020655
+    },
+    {
+      "timestamp": "2026-11-11T15:57:51.9521665Z",
+      "message": "Err:9 https://security.ubuntu.com/ubuntu noble/universe amd64 xfonts-cyrillic all 1:1.0.5+nmu1",
+      "elapsedSeconds": 585.021888
+    },
+    {
+      "timestamp": "2026-11-11T15:57:51.9522493Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 585.021971
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9772049Z",
+      "message": "Err:10 https://security.ubuntu.com/ubuntu noble/main amd64 xfonts-scalable all 1:1.0.3-1.3",
+      "elapsedSeconds": 605.046926
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9772881Z",
+      "message": "  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.04701
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9835787Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/universe/f/fonts-ipafont/fonts-ipafont-gothic_00303-21ubuntu1_all.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.0533
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9838650Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/main/f/fonts-freefont/fonts-freefont-ttf_20211204%2bsvn4273-2_all.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.053587
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9840664Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/universe/f/fonts-tlwg/fonts-tlwg-loma-otf_0.7.3-1_all.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.053788
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9842565Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/universe/u/unifont/fonts-unifont_15.1.01-1build1_all.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.053978
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9844727Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/universe/f/fonts-wqy-zenhei/fonts-wqy-zenhei_0.9.45-8_all.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.054194
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9846510Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/main/x/xfonts-encodings/xfonts-encodings_1.0.5-0ubuntu2_all.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.054373
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9848101Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/main/x/xfonts-utils/xfonts-utils_7.7%2b6build3_amd64.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.054532
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9850046Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/universe/x/xfonts-cyrillic/xfonts-cyrillic_1.0.5%2bnmu1_all.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.054726
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9851598Z",
+      "message": "E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/main/x/xfonts-scalable/xfonts-scalable_1.0.3-1.3_all.deb  Temporary failure resolving 'azure.archive.ubuntu.com'",
+      "elapsedSeconds": 605.054881
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9852692Z",
+      "message": "E: Unable to fetch some archives, maybe run apt-get update or try with --fix-missing?",
+      "elapsedSeconds": 605.054991
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9863986Z",
+      "message": "Failed to install browsers",
+      "elapsedSeconds": 605.05612
+    },
+    {
+      "timestamp": "2026-11-11T15:58:11.9864719Z",
+      "message": "Error: Installation process exited with code: 100",
+      "elapsedSeconds": 605.056193
+    }
+  ]
+}

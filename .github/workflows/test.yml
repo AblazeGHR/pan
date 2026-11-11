@@ -79,7 +79,8 @@ jobs:
   ubuntu-browser:
     name: ubuntu-browser (authenticated production HTTP, Python 3.12)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Two complete 15-minute dependency attempts plus setup/build/cleanup.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:

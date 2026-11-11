@@ -182,7 +182,13 @@ permits one complete retry. The helper replaces the known GitHub mirror list
 with official HTTPS archive/security mirrors, or replaces a direct Azure URI
 while preserving suites, components and signing options. Unknown mirror lists,
 mixed non-DNS failures, invalid signatures, missing packages and timeouts fail.
-Each installation has a 480-second process-group deadline. The browser tests and
+Each installation has a 900-second process-group deadline; the job has a
+35-minute deadline covering two complete attempts plus setup and build. The
+recorded attempt-2 DNS failure took about 605 seconds, so a 480-second timeout
+would interrupt it before its complete fetch errors were available. Timeout
+still fails without fallback; no partial DNS output grants retry permission.
+The timestamped original transcript and accelerated real GNU-timeout replay
+cover this distinction. The browser tests and
 their assertions remain mandatory; dependency failure never counts as browser
 acceptance. Local unit tests do not prove GitHub network recovery.
 

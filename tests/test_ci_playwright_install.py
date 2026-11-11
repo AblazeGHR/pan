@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+import sys
 
 import pytest
 import yaml
@@ -20,6 +21,90 @@ DNS_LOG = ("E: Failed to fetch https://security.ubuntu.com/ubuntu/pool/font.deb 
            "Temporary failure resolving 'azure.archive.ubuntu.com'\n"
            'E: Unable to fetch some archives, maybe run apt-get update\n'
            'Failed to install browsers\nError: Installation process exited with code: 100\n')
+TRANSCRIPT = Path('tests/fixtures/ci_playwright_ubuntu_dns_attempt2.json')
+
+
+def test_classifier_accepts_original_ci_transcript_and_proves_old_deadline_truncates_it():
+    events = json.loads(TRANSCRIPT.read_text(encoding='utf-8'))['events']
+    whole = '\n'.join(event['message'] for event in events)
+    old_deadline = '\n'.join(event['message'] for event in events if event['elapsedSeconds'] <= 480)
+    assert 600 < events[-1]['elapsedSeconds'] < installer.INSTALL_TIMEOUT_SECONDS
+    assert "Temporary failure resolving 'azure.archive.ubuntu.com'" in old_deadline
+    assert not installer.dns_failure_only(old_deadline)
+    assert installer.dns_failure_only(whole)
+    assert not installer.dns_failure_only(whole + '\nE: The repository is not signed.\n')
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='Real GNU timeout process-group replay requires Linux')
+@pytest.mark.parametrize('deadline,expected_calls,expected_code', [(480, [1], 124), (900, [1, 2], 0)])
+def test_slow_original_dns_replay_uses_complete_errors_before_retry(
+        tmp_path, monkeypatch, deadline, expected_calls, expected_code):
+    # Replay the original ~605-second timeline at 100x speed through real GNU
+    # timeout, not an immediate fabricated CompletedProcess or synthetic log.
+    original_run = installer.subprocess.run
+    original_once = installer.install_once
+    root, calls, writes = fixture_runner(tmp_path, monkeypatch, [])
+    sudo = installer.subprocess.run
+    replay = tmp_path / 'replay.py'
+    replay.write_text('''import json,sys,time
+events=json.load(open(sys.argv[1]))['events']
+start=time.monotonic()
+for event in events:
+    time.sleep(max(0,event['elapsedSeconds']/100-(time.monotonic()-start)))
+    print(event['message'],flush=True)
+raise SystemExit(1)
+''')
+    monkeypatch.setattr(installer, 'INSTALL_TIMEOUT_SECONDS', deadline)
+    def execute(command, **kwargs):
+        if command[0] != 'timeout':
+            return sudo(command, **kwargs)
+        calls.append(len(calls) + 1)
+        assert command[5:] == ['-m', 'playwright', 'install', '--with-deps', '--only-shell', 'chromium']
+        if len(calls) == 2:
+            kwargs['stdout'].write('second full installation succeeded')
+            return SimpleNamespace(returncode=0)
+        actual = [*command[:3], f'{deadline/100}s', sys.executable,
+                  str(replay), str(TRANSCRIPT.resolve())]
+        return original_run(actual, **kwargs)
+    monkeypatch.setattr(installer.subprocess, 'run', execute)
+    monkeypatch.setattr(installer, 'install_once', original_once)
+    evidence = tmp_path / 'evidence'
+    assert installer.install(evidence, root) == expected_code
+    assert calls == expected_calls
+    output = (evidence / 'install-1.log').read_text()
+    assert installer.dns_failure_only(output) == (deadline == 900)
+    assert bool(writes) == (deadline == 900)
+    assert json.loads((evidence / 'sources-before.json').read_text())['apt-mirrors.txt'] == MIRRORS
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='Real GNU timeout process-group cleanup requires Linux')
+def test_install_timeout_terminates_its_owned_child_group(tmp_path, monkeypatch):
+    original_run = installer.subprocess.run
+    proof = tmp_path / 'child-ended'
+    script = tmp_path / 'blocked.py'
+    script.write_text('''import signal,subprocess,sys,time
+from pathlib import Path
+child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'])
+def terminate(*_):
+    try:
+        status=child.wait(timeout=2)
+        assert status == -signal.SIGTERM, status
+        Path(sys.argv[1]).write_text(str(status))
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+    raise SystemExit(0)
+signal.signal(signal.SIGTERM,terminate)
+time.sleep(30)
+''')
+    def execute(command, **kwargs):
+        assert command[:4] == ['timeout', '--signal=TERM', '--kill-after=10s', '900s']
+        return original_run([*command[:3], '2s', sys.executable, str(script), str(proof)], **kwargs)
+    monkeypatch.setattr(installer.subprocess, 'run', execute)
+    code, output = installer.install_once(tmp_path, 1)
+    assert code == 124 and not installer.dns_failure_only(output)
+    assert proof.read_text() == '-15'
 
 
 def test_runner_mirror_fallback_preserves_deb822_and_third_party_sources():
@@ -115,7 +200,7 @@ def test_success_non_dns_and_timeout_never_mutate_or_retry(tmp_path, monkeypatch
 
 def test_installer_runs_full_command_and_retains_its_exit(tmp_path, monkeypatch):
     def run(command, *, stdout, **kwargs):
-        assert command[:4] == ['timeout', '--signal=TERM', '--kill-after=10s', '480s']
+        assert command[:4] == ['timeout', '--signal=TERM', '--kill-after=10s', '900s']
         assert command[5:] == ['-m', 'playwright', 'install', '--with-deps', '--only-shell', 'chromium']
         stdout.write('real installer output')
         assert kwargs['check'] is False
