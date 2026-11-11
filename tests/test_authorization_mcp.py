@@ -387,4 +387,3 @@ async def test_template_and_event_creator_reads_map_to_denial_over_ipc(tmp_path,
         assert response['error']['code'] == 'authorization_denied', response
     finally:
         await close(h)
-
