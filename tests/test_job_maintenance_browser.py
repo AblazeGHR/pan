@@ -147,15 +147,17 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
             try:
                 page = browser.new_page()
                 page.goto(f'http://127.0.0.1:{port}/react/automation/canonical')
+                page.get_by_role('button', name='Settings', exact=True).click()
                 page.get_by_label('Local user key').fill(h.automation.auth.key())
                 page.get_by_role('button', name='Log in', exact=True).click()
-                page.get_by_role('button', name='Settings', exact=True).click()
                 page.get_by_role('heading', name='original-history-identity').wait_for()
                 assert page.get_by_role('button', name='Delete source record').is_enabled()
                 for width in (1440, 390, 320):
                     page.set_viewport_size({'width': width, 'height': 900})
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                 calls = []
+                queries = []
+                page.on('request', lambda request: queries.append(request.url) if request.method == 'GET' and '/api/operations?' in request.url else None)
                 def lose_reply(route):
                     calls.append(route.request.post_data_json)
                     response = route.fetch()
@@ -168,6 +170,8 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
                 page.get_by_role('button', name='Query original deletion result').click()
                 page.get_by_text('The source record was deleted. The audit backup is retained.', exact=True).wait_for()
                 assert len(calls) == 1
+                from urllib.parse import parse_qs, urlparse
+                assert any(parse_qs(urlparse(url).query) == {'operation': ['retire'], 'requestKey': [calls[0]['requestKey']]} for url in queries)
                 assert calls[0]['expectedSha256'] == digest
                 assert calls[0]['expectedRevision'] == 1
                 assert calls[0]['expectedSourceFile'] == 'background_jobs/jobs/unknown-history.json'

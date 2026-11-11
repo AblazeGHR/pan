@@ -23,6 +23,7 @@ import { CanonicalCollection } from '@/views/CanonicalJobsView';
 import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
+import { PreservedDataPanel } from '@/components/jobs/JobMaintenanceGate';
 import { entryToSpec } from '@/components/jobs/ScheduleListEditor';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -1438,7 +1439,11 @@ export default function JobsView() {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">
-            <JobRetentionSettings />
+            <div className="space-y-5">
+              <JobUserAuthorization />
+              <JobRetentionSettings />
+              {authorizationToken && <PreservedDataPanel key={String(authorizationToken)} authorization={typeof authorizationToken === 'string' ? authorizationToken : 'cookie'} />}
+            </div>
           </div>
         </div>
       )}

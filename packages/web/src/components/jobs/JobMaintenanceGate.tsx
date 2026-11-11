@@ -65,7 +65,7 @@ export function PreservedDataPanel({ authorization }: { authorization?: string |
     setPending({ id: item.id, key: requestKey }); setBusy(true); setError('');
     try {
       const response = await fetch(`/api/job-maintenance/records/${encodeURIComponent(item.id)}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        method: 'DELETE', headers: { ...(token === 'cookie' ? {} : { Authorization: `Bearer ${token}` }), 'Content-Type': 'application/json' },
         body: JSON.stringify({ expectedRevision: item.revision, expectedSha256: item.sha256,
           expectedSourceFile: item.sourceFile, requestKey }),
       });
@@ -85,7 +85,7 @@ export function PreservedDataPanel({ authorization }: { authorization?: string |
     setBusy(true);
     try {
       const response = await fetch(`/api/operations?operation=retire&requestKey=${encodeURIComponent(pending.key)}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { ...(token === 'cookie' ? {} : { Authorization: `Bearer ${token}` }) },
       });
       if (!response.ok) throw new Error('No confirmed result yet. Preserve the original request identity and query again.');
       const receipt = await response.json() as { result?: { deleted?: boolean } };
