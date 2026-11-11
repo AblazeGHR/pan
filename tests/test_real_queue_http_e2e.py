@@ -154,6 +154,10 @@ class _PanRuntime:
         env["PYTHONPATH"] = str(ROOT) + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
         env.update({
             "PAN_E2E_DATA_ROOT": str(self.data_root),
+            # Explicit roots override inherited Registry settings as well as
+            # module defaults, including copied main.py/sitecustomize startup.
+            "PAN_BACKGROUND_JOBS_DIR": str(self.data_root / "background_jobs"),
+            "PAN_SCHEDULER_DIR": str(self.data_root / "background_jobs"),
             "PAN_E2E_FAKE_CLI": str(FAKE_CLI),
             "PAN_E2E_FAKE_LOG": str(self.log_path),
             "PAN_E2E_GATE_MAP": json.dumps({k: str(v) for k, v in self.gates.items()}),
@@ -631,7 +635,8 @@ def test_real_http_queue_fifo_races_sources_and_restart(isolated_runtime):
     assert runtime.request("GET", f"/api/sessions/{recovery_id}/queue")["items"] == []
     runtime.gates["hold-recovery"].touch()
     _wait_for(lambda: runtime.request("GET", f"/api/sessions/{recovery_id}/queue")["items"] == [], label="recovered item completion")
-    final_recovery_data = json.loads(recovery_path.read_text(encoding="utf-8"))
+    from test_delayed_restart_locked_queue_http import _read_session_metadata
+    final_recovery_data = _read_session_metadata(recovery_path)
     assert final_recovery_data["queue_delivery_ledger"][recovery_qid]["deliveryState"] == "sent_to_cli"
 
     evidence["eventSummary"] = [

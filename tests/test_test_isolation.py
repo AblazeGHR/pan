@@ -78,3 +78,29 @@ def test_direct_pytest_from_poisoned_parent_keeps_decoy_store_unchanged(tmp_path
     assert "1 passed" in result.stdout
     after = {str(p.relative_to(decoy)): p.read_bytes() for p in decoy.rglob("*") if p.is_file()}
     assert after == before
+
+
+def test_cold_http_fixture_overrides_inherited_job_roots_without_touching_decoy(tmp_path, monkeypatch):
+    import socket
+    import test_real_queue_http_e2e as real
+    decoy = tmp_path / 'foreign-profile'
+    decoy.mkdir()
+    sentinel = decoy / 'sentinel.json'
+    sentinel.write_bytes(b'{"foreign":"unchanged"}')
+    before = {str(p.relative_to(decoy)): p.read_bytes() for p in decoy.rglob('*') if p.is_file()}
+    monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(decoy / 'jobs'))
+    monkeypatch.setenv('PAN_SCHEDULER_DIR', str(decoy / 'scheduler'))
+    with socket.socket() as reserved:
+        reserved.bind(('127.0.0.1', 0))
+        port = reserved.getsockname()[1]
+    assert port not in {8767, 8768}
+    monkeypatch.setattr(real, 'PORT', port)
+    runtime = real._PanRuntime(tmp_path / 'owned-runtime')
+    try:
+        runtime.start()
+        assert (runtime.data_root / 'job-runtime-owner.sqlite3').is_file()
+        assert runtime.request('GET', '/api/sessions') == {'sessions': []}
+    finally:
+        runtime.stop()
+    assert {str(p.relative_to(decoy)): p.read_bytes() for p in decoy.rglob('*') if p.is_file()} == before
+    assert not (decoy / 'jobs').exists() and not (decoy / 'scheduler').exists()
