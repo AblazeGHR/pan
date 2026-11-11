@@ -1,5 +1,6 @@
 """P2 real isolated effects and original-identity crash/owner controls."""
 import asyncio
+import json
 from contextlib import contextmanager
 from dataclasses import replace
 import shutil
@@ -44,19 +45,30 @@ def test_direct_git_partial_receipts_idempotency_conflict_no_hidden_job(h, tmp_p
     assert git
     subprocess.run([git, "init", str(tmp_path / "git")], check=True, capture_output=True)
     root = tmp_path / "git"
+    trace = tmp_path / 'push-trace.jsonl'
     (root / "file.txt").write_text("first")
     args = {"cwd": str(root), "commands": [
         {"argv": [git, "add", "file.txt"]},
         {"argv": [git, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "fixture"]},
-        {"argv": [git, "push", "missing-remote", "HEAD"]},
+        # Use Git's explicit local-transport rejection as the known failure.
+        # A missing path alone can spawn a short-lived receive-pack helper;
+        # uncertain helper cleanup must remain uncertain in the product.
+        {"argv": [git, "-c", "protocol.file.allow=never", "push", "missing-remote", "HEAD"],
+         "env": {"GIT_TRACE2_EVENT": str(trace)}},
         {"argv": [sys.executable, "-c", "open('must-not-run','w').write('x')"]}]}
     response = call(h, args)
     assert response.status_code == 200, response.text
     doc = response.json()
     rows = doc["result"]["commands"]
-    assert [r["status"] for r in rows] == ["completed", "completed", "failed"]
+    assert [r["status"] for r in rows] == ["completed", "completed", "failed"], rows
     assert [r["exitCode"] for r in rows[:2]] == [0, 0]
     assert rows[1]["stdout"] and rows[2]["stderr"] and rows[2]["exitCode"] != 0
+    assert rows[2]["exitCode"] == 128 and "not allowed" in rows[2]["stderr"], rows[2]
+    assert rows[2]["cleanupProof"]["confirmed"] is True, rows[2]
+    assert rows[2]["cleanupProof"]["ownedTree"]["remaining"] == [], rows[2]
+    events = [json.loads(line) for line in trace.read_text(encoding='utf-8').splitlines()]
+    assert not any(event['event'] == 'child_start' for event in events), events
+    assert any(event['event'] == 'exit' and event['code'] == 128 for event in events), events
     assert not (root / "must-not-run").exists()
     assert call(h, args).json()["operationId"] == doc["operationId"]
     assert call(h, {**args, "timeout": 17}).status_code == 409
