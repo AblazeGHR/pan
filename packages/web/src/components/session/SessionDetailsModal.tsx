@@ -476,7 +476,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             <label className="flex items-start gap-2 text-sm text-text-primary">
               <input type="checkbox" checked={sessionBehavior.syncWithGlobal ? globalBehavior.autoLockIllegalQueue : sessionBehavior.autoLockIllegalQueue} disabled={behaviorSaving || sessionBehavior.syncWithGlobal || !currentDetailSession}
                 onChange={(event) => void saveSessionBehavior(false, event.target.checked)} />
-              <span><span className="block">Automatically lock new messages while Illegal</span><span className="block text-xs text-text-tertiary">Session override; existing safety locks and recovery gates remain unchanged.</span></span>
+              <span><span className="block">Automatically lock queued messages when Illegal</span><span className="block text-xs text-text-tertiary">Locks messages already queued when this Session enters Illegal and new messages added while Illegal. Turning this off does not unlock existing locks.</span></span>
             </label>
           </div>
         </section>

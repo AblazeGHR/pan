@@ -84,7 +84,7 @@ def test_production_chromium_behavior_settings(runtime, tmp_path):
             page.get_by_role("button", name="Details", exact=True).click()
             page.get_by_role("tab", name="Behavior", exact=True).click()
             sync = page.get_by_role("checkbox", name="Sync with global behavior")
-            lock = page.get_by_role("checkbox", name="Automatically lock new messages while Illegal")
+            lock = page.get_by_role("checkbox", name="Automatically lock queued messages when Illegal")
             expect(sync).to_be_checked()
             expect(lock).not_to_be_checked()
             other = browser.new_page(viewport={"width": 1440, "height": 960})

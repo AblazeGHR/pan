@@ -2070,8 +2070,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Automatically lock new messages while Illegal"
-                    hint="Keeps the historical safety lock for newly queued messages; existing incident locks remain authoritative."
+                    label="Automatically lock queued messages when Illegal"
+                    hint="Locks messages already queued when the Session enters Illegal and new messages added while Illegal. Turning this off does not unlock existing locks."
                     checked={behavior.autoLockIllegalQueue}
                     disabled={behaviorSaving}
                     onChange={(v) => void toggleIllegalAutoLock(v)}
