@@ -36,14 +36,14 @@ def test_api_distinguishes_storage_and_user_authorization(monkeypatch):
             def permission_allowed(self, kind, capability): return True, 0
         app.state.automation=SimpleNamespace(auth=Auth())
         install(SimpleNamespace(app=app))
-        def fail(*a,**k):raise store.PersistenceError('owned disk failure')
+        calls=[]
+        def fail(*a,**k):
+            calls.append(1)
+            raise AssertionError('retired writer must not be called')
         monkeypatch.setattr(store.Store,'put',fail)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://fixture') as client:
             headers={'Authorization':'Bearer test'}
             response=await client.post('/api/actions/actions',headers=headers,json={'item':{}})
-            assert response.status_code==503
-            def unauthorized(*a,**k):raise PermissionError('user capability required')
-            monkeypatch.setattr(store.Store,'put',unauthorized)
-            response=await client.post('/api/actions/actions',headers=headers,json={'item':{}})
-            assert response.status_code==401
+            assert response.status_code==410
+            assert calls == []
     asyncio.run(run())

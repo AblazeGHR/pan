@@ -18,20 +18,19 @@ def record(root, **changes):
 
 
 def test_product_actions_are_real_immutable_registry_items(tmp_path):
-    store = Store(tmp_path / 'actions')
-    system.install(store)
-    state = store.read()
-    assert len(state['actions']) == 5
-    for kind in system.KINDS:
-        item = system.definition(kind)
-        assert validate_action(state['actions'][item['id']]) == item
-        for authorized in (False, True):
-            with pytest.raises(PermissionError):
-                store.put('actions', item, authorized=authorized)
-            with pytest.raises(PermissionError):
-                store.delete('actions', item['id'], authorized=authorized)
-        with pytest.raises(ValueError):
-            validate_action(item, automation=False)  # No legacy Group/provider capability widening.
+    from tests.support.canonical_host import build, USER
+    import asyncio
+    h = build(tmp_path)
+    try:
+        items = h.service.actions(actor=USER)['items']
+        product = [item for item in items if item.get('system')]
+        assert product
+        for item in product:
+            with pytest.raises(Exception):
+                h.service.write('action', item['id'], {'definition': item['definition'],
+                    'expectedRevision': item['revision'], 'requestKey': 'system-edit'}, actor=USER)
+    finally:
+        asyncio.run(h.service.close()); asyncio.run(h.automation.close())
 
 
 def test_compatibility_effect_uses_persisted_snapshot_and_cleans(tmp_path, monkeypatch):

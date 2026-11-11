@@ -137,12 +137,14 @@ def test_store_engine_bridge_imports_and_old_api_reads_survive_cutover(tmp_path,
             lambda: store.delete_task(task['id']), lambda: store.replace_task_schedule(task['id'], []),
             lambda: store.set_task_misfire_policy(task['id'], 'skip'), lambda: store.append_run({}),
             store.migrate_legacy_tasks, store._merge_legacy_runs,
-            lambda: asyncio.run(bridge.switch(task['id'])), lambda: asyncio.run(bridge.update(task['id'], {})),
+            lambda: asyncio.run(bridge.update(task['id'], {})),
             lambda: asyncio.run(bridge.run_now(task['id'])), lambda: asyncio.run(bridge.delete(task['id'])),
             lambda: bridge.project_cursor('old'),
         ):
             with pytest.raises(fc.ContractError, match='fence'):
                 operation()
+        with pytest.raises(PermissionError, match='retired'):
+            asyncio.run(bridge.switch(task['id']))
         import importlib
         with pytest.raises(ModuleNotFoundError):
             importlib.import_module("packages.scheduler.engine")

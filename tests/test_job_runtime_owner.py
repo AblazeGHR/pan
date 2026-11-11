@@ -32,7 +32,8 @@ class Executor:
 
     async def execute(self, **kwargs):
         self.calls.append(copy.deepcopy(kwargs))
-        return {"outcome": "succeeded", "receipt": {"fixture": True}}
+        return {"outcome": "succeeded", "effectKey": copy.deepcopy(kwargs["effect_key"]),
+                "receipt": {"fixture": True}}
 
 
 def test_owner_epoch_cas_competition_and_stale_writers(tmp_path):
@@ -120,7 +121,7 @@ def test_old_stores_are_readable_and_all_new_writes_refused(h, tmp_path):
     asyncio.run(check())
 
 
-def migration_fixture(tmp_path, source=None):
+def migration_fixture(tmp_path, source=None, *, notify=False):
     profile = tmp_path / "profile"
     source = source or _message_job()
     _write_json(profile / "background_jobs" / "jobs" / (source["jobId"] + ".json"), source)
@@ -129,6 +130,8 @@ def migration_fixture(tmp_path, source=None):
     context["profileId"] = service.profile_id
     provider = TimeProvider()
     for record in context["records"].values():
+        if notify:
+            record["policies"]["notification"]["on"] = ["completed"]
         record["scheduler"].update(pausePolicy="advance", dstPolicy="strict", providerRef={"type": "time", "id": provider.provider_id,
             "releaseDigest": provider.release_digest, "generation": provider.generation},
             configSchemaRef=provider.config_schema_ref, requiredCapabilities=list(provider.capabilities))
@@ -313,7 +316,7 @@ def test_dual_runtime_start_only_one_enters_active(h):
 
 
 def test_creator_event_single_admission_execution_notification_and_restart(tmp_path):
-    service, spec, bundle = migration_fixture(tmp_path)
+    service, spec, bundle = migration_fixture(tmp_path, notify=True)
     spec["active_ids"] = [record["object"]["id"] for record in bundle["canonical"]]
     from packages.scheduler.providers import instant
     service.creators.clock = lambda: instant("2030-01-01T00:00:00+00:00")

@@ -200,7 +200,10 @@ async def test_real_stdio_crud_operations_permissions_and_legacy(h, tmp_path, pr
                 result = await call(TOOL_PREFIXES[resource] + "_retire", object_id=obj["id"],
                     expected_revision=obj[fc.VERSION_FIELD[RESOURCES[resource]]],
                     expected_state_revision=obj["stateRevision"], request_key=resource + "-retire")
-                assert result["result"]["object"]["state"] == "retired", result
+                if resource == "jobs":
+                    assert result["ok"] is True and result["retired"] is True and result["job"]["status"] == "retired", result
+                else:
+                    assert result["result"]["object"]["state"] == "retired", result
     finally:
         await bridge.close()
 
@@ -272,9 +275,13 @@ def test_cli_real_tcp_401_and_user_crud(h, tcp, tmp_path, resource):
         "expectedRevision": 1, "requestKey": "cli-update"})
     assert code == 0, result
     obj = result["result"]["object"]
-    code, result = cli("retire", obj["id"], {"expectedRevision": 2,
+    code, result = cli("retire", obj["id"], {"expectedRevision": obj.get("configRevision", obj.get("revision")),
         "expectedStateRevision": obj["stateRevision"], "requestKey": "cli-retire"})
-    assert code == 0 and result["result"]["object"]["state"] == "retired", result
+    assert code == 0, result
+    if resource == "jobs":
+        assert result["ok"] is True and result["retired"] is True and result["job"]["status"] == "retired", result
+    else:
+        assert result["result"]["object"]["state"] == "retired", result
 
 
 @pytest.mark.parametrize("resource", RESOURCES)

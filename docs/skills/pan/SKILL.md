@@ -1,6 +1,6 @@
 ---
 name: pan
-description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理 Session（持久编排对象，承载 meta-agent/MA 或 task-agent/TA 身份）及其 Worker 进程（cbc/kimi/opencode/claude/codex 等多 CLI adapter）。当需要创建会话、并行派发任务（agent_assign）、订阅完成通知（report_subscribe → queue_pending）、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。收到未答卡片提醒（user card reminder）需要查询或回答用户卡片时同样适用。执行预计超过 3 分钟的长命令（全量测试、build、长脚本等）前自主判断是否改用持久后台 Job（agent_background_start）并核验终态通知时同样适用。
+description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理 Session（持久编排对象，承载 meta-agent/MA 或 task-agent/TA 身份）及其 Worker 进程（cbc/kimi/opencode/claude/codex 等多 CLI adapter）。当需要创建会话、并行派发任务（agent_assign）、订阅完成通知（report_subscribe → queue_pending）、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。收到未答卡片提醒（user card reminder）需要查询或回答用户卡片时同样适用。执行预计超过 3 分钟的长命令前，按 canonical Job/Run/Attempt/effect/receipt 创建并核验终态通知；旧 agent_background_start/retry/cancel 与 agent_message_job_create/update/cancel 已 retired。
 ---
 
 # Pan — CLI Agent 编排中间层（冷启动操作手册）
@@ -126,7 +126,7 @@ Bearer/revision。Action 显式 idempotent 与 Trigger retry 显式开启才允�
 2. MA 的任务派发、依赖与收尾流程见 [MA 行为准则](references/ma.md)。
 3. 完成报告经 `report_subscribe` 落入订阅者的持久队列 `queue_pending`（§3）；MA 如何等待与接收见角色文档。外部 WS 是测试/排障/外部协调者接口。
 4. 端口约定：代码默认/应用端口保持 **8768**；main/test 的测试或隔离运行使用 **8767 或 8765**，按运行实例配置。MCP server 默认连 `PAN_API_URL`（8768）。**关键**：MCP server 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务**同实例**（§3 三对齐），否则 `report_subscribe` / `qq_bind` 失效（§10.2 G9）。端口不符时用 `PAN_API_URL` 覆盖。
-5. **长命令先判后台 Job（MA/TA 均适用，执行前自主判断）**：准备执行 OS 命令时，若**预计超过 3 分钟**（全量测试、build、长脚本等典型场景），默认直接用 `agent_background_start` 起持久后台 Job——这是执行者自己的判断，**不需要 MA 提醒，也不需要 MA 另行授权**（命令本身仍遵守既有权限/审批/安全/managed 隔离）。要点：`target_session_id` 用自己；`cwd` 与 argv（可执行文件/文件参数）用绝对路径；Windows 默认 `hide_window=True` 隐藏控制台；stdout/stderr 落持久日志，Registry 记终态。启动成功且无其它可独立推进的工作 → **立刻 final 结束回合进入 idle**；终态通知（`noticeKind=background_job_terminal` 入 `queue_pending`）唤醒后再核验状态/日志/exitcode，**不轮询**。例外：交互式命令（需 stdin/TTY）、或用户明确要实时观察 → 不走后台 Job。完整政策见 §5「持久后台 Job、通知与报告订阅」。
+5. **长命令先判 canonical Job**：预计超过 3 分钟的 OS 命令可使用已授权的 canonical process Action、Job 和 Run；先配置通知目标并保留原 request_key/operationId，再核验原 Run/Attempt/effect/receipt。旧 agent_background_start/retry/cancel 与 agent_message_job_create/update/cancel 已 retired。不得通过旧工具、旧 Job ID 或 PID 恢复写路径。需要交互或实时观察时使用前台工具。通知未知时按原身份查询，不自动重发。
 
 ## 0.5 面向最终用户：怎么回复「怎么玩转 Pan」
 
@@ -370,9 +370,9 @@ MA 的验收记录见 [MA 行为准则](references/ma.md#验收与收尾)，TA �
 
 ## 5. 可用 MCP 工具
 
-> 调用方式见 §0.1：`--mcp-config` 注入路径下工具 **直接可调**（无需 ToolSearch）；仅项目级 `.mcp.json` 发现路径才是 deferred（`ToolSearch("pan")` → `DeferExecuteTool`）。工具命名空间 `mcp__pan__`。**当前共 67 个实际暴露工具**（对照 `packages/mcp/server.py` 的 `@mcp.tool()` 全量核对）。其中 60 个是一等工具，7 个 `worker_*` 是仅为兼容旧调用保留的别名，不应作为新编排 API 使用。可重复执行 `python scripts/check_pan_skill_tools.py` 自检数量和清单完整性。
+> 当前共 123 个实际暴露工具（以动态注册后的 tools/list 为准，退休行另列且不可调用）。工具目录与参数以当前 tools/list 和 schema 为准。下表列常用入口及明确退休边界；canonical job_*、event_creator_*、trigger_* 由现有目录动态注册，不能用源码 decorator 数推断可用能力。旧文件可保留，退休工具不得重新注册。
 >
-> **命名分层（agent-naming 确立）**：`agent_*` 是**一等工具**（编排对象 = Session，承载 MA/TA 身份，以 session_id 寻址，无活进程也容忍）；`worker_*` 是**兼容别名（DEPRECATED）**，内部委托同一实现，仅 `worker_id` 进程寻址为别名独有遗留路径——新代码一律用 `agent_*`。`agent_background_*` 管理的是独立于 Session Worker 的持久 Job，不会把后台进程误算成 Worker。当前共 67 个实际暴露工具；其中时间类 Session 消息 Job 与 OS 进程 Job 使用不同工具族。
+> 工具目录与参数以当前 tools/list 和 schema 为准。下表列常用入口及明确退休边界；canonical job_*、event_creator_*、trigger_* 由现有目录动态注册，不能用源码 decorator 数推断可用能力。旧文件可保留，退休工具不得重新注册。
 >
 > **巡检优先 `session_list(summary=true)`**：旧版 `session_list` 返回全部 session 完整 history，实测 310KB 会撑爆工具输出上限（§10.2 G8）。**现在 `session_list(summary=true)` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），用于巡检/查归属**；确认某个 session 详情再用 `session_get(session_id, limit=15)`。查"自己管了哪些"直接用 `session_managed()`。
 >
@@ -426,24 +426,21 @@ MA 的验收记录见 [MA 行为准则](references/ma.md#验收与收尾)，TA �
 | `agent_send_to_queue` | `session_id`, `text` | 向 Session 发消息（多轮协作，§2.3）；**仅用于明确留待当前任务结束的独立后续事项**：消息排队送达，不打断进行中任务；**无活 worker 不报错**——入持久队列（返回 `pendingSpawn=true`），watchdog 自动 spawn 后分发；更新当前任务默认用 `agent_send`，无须判断是否紧急；Pan 内 session 自动加 `////by agent` 前缀（§7.5） |
 | `agent_send` | `session_id`, `text`, `client_message_id?` | 当前任务更新的默认工具（补充、澄清、纠正、约束与验收条件、相关证据），无须判断紧急程度；按 adapter 能力 Steer 优先，idle 普通 handoff，无能力才 restart+send。返回 queued/accepted/rejected/unknown；accepted 不是已消费，unknown 禁止重发或降级重启。稳定 client_message_id 用于事务对账。保留 delayed restart、pause/锁/租约门禁及身份前缀（§2.3/§7.5） |
 | `agent_send_many` | `session_ids`, `text` | 对选定 Session 逐个复用 `agent_send_to_queue` 的持久 FIFO 语义；返回每个目标结果 |
-| `agent_notify` | `target_session_id`, `text` | **持久化通知**：用于异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或长时间任务（nohup、长时测试、编译、外部脚本等），后台命令完成后事后回报；不要求 SMA 轮询或阻塞等待。通知进入目标 `queue_pending`，原 worker 退出不丢；无活 worker 自动唤醒/spawn。仅自己或自己 managed 的 Agent 可投递。它不是普通任务派发替代品，新任务用 `agent_assign`，当前任务更新用 `agent_send`，独立延迟事项用 `agent_send_to_queue`；后台命令仍须遵守权限、审批、安全和结果验证规则，不能绕过审批或隔离。**需要完成通知的长命令优先用 `agent_background_start`**（自带终态通知，见下文使用政策）；`agent_notify` 用于手动事后回报 |
-| `agent_background_start` | `argv`, `cwd`, `name`, `target_session_id?`, `label?`, `hide_window?` | 启动持久后台 Job（独立 Runner，终态自动通知目标 Session）。适用对象：预计**超过 3 分钟**的 OS 命令——3 分钟是一般选择门槛，不是运行 timeout，也不硬性禁止短任务或附带新 API 校验。**MA/TA 均适用：执行前自主判断（入口规则 §0 第 5 条），不需要 MA 提醒或另行授权。** 启动后**不轮询**（见下文使用政策）。创建者由当前 `PAN_AGENT_SESSION_ID` 记录为 `creatorSessionId`，目标记录为 `targetSessionId`；A 可为 managed 的 B 创建 Job，但终态通知只投递给 B。argv 不经过 shell，`cwd` 可为任意已存在目录（Agent 应传绝对路径，含仓库外 worktree）；Job 由独立 Runner 执行，不占用当前 Session 的 Worker 生命周期。Windows 默认 `hide_window=True` 隐藏命令控制台；显式 `False` 显示。HTTP 对应字段为 `hideWindow`，必须是真布尔值 |
-| `agent_background_get` | `job_id` | 读取 Job Registry 事实，包括状态、PID 身份、日志路径和通知状态；只允许当前或 managed Session 目标，不消费目标的 `queue_pending`。**用途 = 终态通知后的结果核验 + 用户明确要求的一次性诊断/取消/异常修复**；不要循环调用它等待运行进度（见下文使用政策） |
+| `agent_notify` | `target_session_id`, `text` | **持久化通知**：用于异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或长时间任务（nohup、长时测试、编译、外部脚本等），后台命令完成后事后回报；不要求 SMA 轮询或阻塞等待。通知进入目标 `queue_pending`，原 worker 退出不丢；无活 worker 自动唤醒/spawn。仅自己或自己 managed 的 Agent 可投递。它不是普通任务派发替代品，新任务用 `agent_assign`，当前任务更新用 `agent_send`，独立延迟事项用 `agent_send_to_queue`；后台命令仍须遵守权限、审批、安全和结果验证规则，不能绕过审批或隔离。需要完成通知的长命令使用 canonical Job 的通知配置并核验原 Run receipt；`agent_notify` 用于手动事后回报 |
+| `agent_background_start` | 旧参数（不可调用） | **Retired / undiscoverable**；返回 capability_unsupported。新建/执行使用 canonical Job，取消使用原 Run 的 job_run_cancel；unknown 仅查询原 operation/key |
+| `agent_background_get` | `job_id` | 只读旧 Job 的状态、身份与日志事实；不提供旧取消或重试写路径，不消费目标 Session 的 queue_pending |
 | `agent_background_list` | `target_session_id?` | 列出后台 Job（盘点/诊断用，不作进度等待循环）；省略目标时默认列出当前 Agent Session，显式目标必须是当前或 managed Session。目标 Session 删除后 Job 事实仍可保留 |
-| `agent_background_cancel` | `job_id` | 取消已拥有的 Job 并终止经身份校验的进程树；Runner/任务 PID 创建时间无法验证时返回 `cancel_unsafe`，绝不按不明 PID 强杀。定位为**一次性取消/异常处理**，不是例行进度干预 |
-| `agent_background_retry` | `job_id` | 重试已终态 Job（`completed`/`failed`/`cancelled`）；创建新的 Job ID。`starting`/`running` 返回 `job_not_retryable`，须先取消 |
-| `agent_message_job_create` | `text`, `schedule`, `target_session_id?`, `target_session_ids?`, `description?` | 创建单 Session 时间消息或定时群发 Job；目标列表去重并保持稳定顺序；支持一次性 `at`/`delaySeconds`、固定 `intervalSeconds`、每周 `weekday`+`time`/`timezone`；正文只发送给 Session，不执行 OS shell |
+| `agent_background_cancel` | 旧参数（不可调用） | **Retired / undiscoverable**；返回 capability_unsupported。新建/执行使用 canonical Job，取消使用原 Run 的 job_run_cancel；unknown 仅查询原 operation/key |
+| `agent_background_retry` | 旧参数（不可调用） | **Retired / undiscoverable**；返回 capability_unsupported。新建/执行使用 canonical Job，取消使用原 Run 的 job_run_cancel；unknown 仅查询原 operation/key |
+| `agent_message_job_create` | 旧参数（不可调用） | **Retired / undiscoverable**；返回 capability_unsupported。新建/执行使用 canonical Job，取消使用原 Run 的 job_run_cancel；unknown 仅查询原 operation/key |
 | `agent_message_job_get` | `job_id` | 查询时间消息/定时群发 Job 的 Session 归属、描述、调度、状态和逐目标最近投递结果 |
 | `agent_message_job_list` | `target_session_id?` | 查询当前或 managed Session 的时间消息/定时群发 Job |
-| `agent_message_job_update` | `job_id`, `schedule?`, `text?`, `description?`, `target_session_ids?` | 调整未终态 Job；群发目标列表和调度编辑会重新进入 `pending` |
-| `agent_message_job_cancel` | `job_id` | 取消未终态时间消息/定时群发 Job；已开始的目标发送无法撤回 |
+| `agent_message_job_update` | 旧参数（不可调用） | **Retired / undiscoverable**；返回 capability_unsupported。新建/执行使用 canonical Job，取消使用原 Run 的 job_run_cancel；unknown 仅查询原 operation/key |
+| `agent_message_job_cancel` | 旧参数（不可调用） | **Retired / undiscoverable**；返回 capability_unsupported。新建/执行使用 canonical Job，取消使用原 Run 的 job_run_cancel；unknown 仅查询原 operation/key |
 | `agent_kill` | `session_id` | 终止 Session 的 worker 进程（Session 数据保留）；**无活 worker 时无害 no-op**（返回 `killed=false`） |
 | `agent_list` | `summary?` | 列出全部 Session 摘要；`session_list` 的别名，参数/返回一致 |
 
-> 定时群发示例：调用 `agent_message_job_create` 时传入
-> `schedule={type: once, delaySeconds: 60}` 和
-> `target_session_ids=[ses_b, ses_c]`。Job 另存调用方 `creatorSessionId`，
-> 实际投递只使用 `targetSessionIds`；目标列表会去重并保持顺序。
+> 周期消息使用 canonical Session Action、Job、Time Creator 和 Trigger；通知目标与创建者身份分开配置，保留原 request_key 和 receipt。旧消息 Job 不自动映射为新执行身份。
 
 ### Worker 管理（兼容别名，DEPRECATED → agent_*）
 
@@ -461,31 +458,14 @@ MA 的验收记录见 [MA 行为准则](references/ma.md#验收与收尾)，TA �
 
 ### 持久后台 Job、通知与报告订阅
 
-`agent_background_*` 与 `agent_notify` 是两条不同的链路：
+新建与执行只走 canonical FinalService/Run/Attempt/effect/receipt。旧记录允许只读；没有原 canonical 身份时保持 Invalid/Retired，不能按 PID、名称或旧 Job ID 推断新的执行/取消权限。
 
-- **后台 Job**：`agent_background_start` 创建可查询、可取消、可重试的独立 Runner 任务；stdout/stderr 写入持久日志，Job 事实写入 Registry。Runner 不依赖 Pan Worker、Worker stdout 或 live WebSocket。
-- **后台通知**：`agent_notify` 只是把调用方已经得到的状态/结果写入目标 Session 的 `queue_pending`，不是命令执行器，也不提供额外权限。
-
-后台 Job 进入终态后，Pan 通过稳定事件键 `<jobId>:terminal` 将一次终态通知投影到 `targetSessionId` 的 `queue_pending`。通知 envelope 结构化携带 `noticeKind=background_job_terminal`、`jobId`、`status`、`targetSessionId`/`targetSessionIds` 和可选 `creatorSessionId`；格式化后使用固定 `////by pan system` 前缀，不再从缺失来源推导 `@@@@by agent : unknown | unknown`。A 创建、B 接收时，`creatorSessionId` 只作所有权/审计/权限元数据，不会把通知复制回 A。Pan 重启会 reconcile 未完成 Job，并重试尚未投递的终态通知；只有投递成功后才标记 `notificationState=delivered`。Job 的 Registry 事实独立于目标 Session，目标被删除或暂时不存在时不会被静默删除。Windows 取消要求 PID 创建时间匹配并杀完整子进程树；跨进程 Registry 更新使用 Job 锁和原子替换。
-后台 Job 进入终态后，Pan 通过稳定事件键 `<jobId>:terminal` 将一次终态通知投影到持久化 target Session 的 `queue_pending`。通知 queue item 的 envelope 结构化携带 `noticeKind=background_job_terminal`、`jobId`、`status`、`targetSessionId`/`targetSessionIds` 和可选 `creatorSessionId`；格式化后使用固定 `////by pan system` 前缀，不再从缺失来源推导 `@@@@by agent : unknown | unknown`。creator 只用于来源、所有权、审计和权限，不会被自动当作通知目标。Pan 重启会 reconcile 未完成 Job，并重试尚未投递的终态通知；只有投递成功后才标记 `notificationState=delivered`。Job 的 Registry 事实独立于目标 Session，目标被删除或暂时不存在时不会被静默删除。Windows 取消要求 PID 创建时间匹配并杀完整子进程树；跨进程 Registry 更新使用 Job 锁和原子替换。Session-message/broadcast Job 复用普通 send，不自动复制终态通知回 creator。
-
-当前产品边界：argv 不经过 shell，`cwd` 可为任意已存在目录（相对路径按服务进程工作目录解析，Agent 应传绝对路径）；尚未提供命令白名单、结果文件契约或 Remote/Tunnel 认证。不要把后台 Job 当成绕过权限、审批、managed 隔离或远程安全边界的通道。
-
-Windows 窗口边界：旧 Job 缺 `hideWindow` 仍默认隐藏，显式 `hide_window=False`
-保留可见控制台。公共 helper 仅约束我们拥有的单次后台创建；Pan 的后台 Python
-bridge、管道 CLI 与辅助启动逐调用点设置策略，不保证任意第三方后代隐藏。
-`DETACHED_PROCESS` 混入 `CREATE_NO_WINDOW` 会使 Windows 忽略后者；独立 Runner、
-ConPTY 和 takeover/用户交互窗口保持专用启动与生命周期语义。真实窗口验收须看
-自有进程的 Windows API 证据，不能仅由 flags、配置或截图反推来源。
-
-**使用政策（MA 与 TA 均适用。仅适用于 `agent_background_*` 这类执行 OS 命令、带终态通知的持久后台 Job——独立 Runner；不适用于 `agent_message_job_*` 时间消息/定时群发 Job、Scheduler 定时任务，也不改变普通 `agent_assign`/`agent_send_to_queue` 派发流程）**：
-
-1. **执行前自主判断（入口规则）**：准备执行 OS 命令时先按本政策过一遍——**预计超过 3 分钟**（全量测试、build、长脚本等典型场景）默认 `agent_background_start`。这是执行者自己的决定：**不等 MA 提醒、不需 MA 另行授权**（命令本身仍遵守既有权限/审批/安全/managed 隔离，Job 不是绕过通道）。参数要点：`target_session_id` 用自己（自用场景，终态通知才能叫醒自己）；`cwd` 与 argv 中的可执行文件/文件参数用绝对路径；Windows `hide_window=True` 隐藏控制台（显式 `False` 才显示）；stdout/stderr 落持久日志，Registry 记终态。本规则随本 skill 被加载阅读而生效——不存在未加载 skill 也自动触发的机制。
-2. **选择门槛**：这类后台 Job 为承载长时任务、避免轮询而设，一般**预计超过 3 分钟**的命令才用。3 分钟是一般选择门槛，不是运行 timeout，也不是硬性禁止短任务或新增 API 校验。
-3. **启动后禁止轮询**：使用带完成通知的后台 Job 后，**不可轮询查看任务进程/运行进度**——不可循环 `agent_background_get`/`agent_background_list`、不可读日志/tail/logtail、不可 sleep/watch/PID 查询来维持等待。确认启动成功、通知目标和必要状态记录后，若没有其它无关且可独立推进的任务，**立刻 final 结束当前回合进入 idle**；终态通知（`noticeKind=background_job_terminal` 入 `queue_pending`）唤醒后再核验 status/exitcode 与持久日志进行验收。结果入队与当前 Agent 实际接收是两步。
-4. **要实时观察或需交互就别选后台 Job**：如需实时观察执行进度，或命令需要交互式 stdin/TTY，就不要选这种后台 Job，改用适合前台/交互观察的执行方式；不能一边用后台 Job 一边轮询。
-5. **保留能力**：收到终态通知后的结果核验（读日志、用 `agent_background_get` 对账 status/exitcode），以及用户明确要求的一次性诊断/取消/异常修复（`agent_background_cancel`/`agent_background_retry`）。这些不构成例行进度轮询的许可。
-6. **通知不可用先修通知**：终态通知链路不可用时，先解决通知问题或改用非后台执行方式；**不引入"后台 Job + 轮询兜底"的组合**。
+1. 使用 job_action_list 选取已发布 process Action 的固定引用，通过 job_create 保存结构化 argv/cwd、窗口、timeout、通知目标与保留策略；按工具 schema 传 expected_revision 和稳定 request_key。
+2. 用 job_control(enable) 后 job_run 准入，保留 operationId、runId 和原 request_key。accepted 只表示准入；原 Run/Attempt/effect/receipt 终态才证明执行结果。
+3. 终态通知与 agent_notify 的普通消息保持各自原身份。通知不可用时先修通知或选择前台执行，不用旧 Runner + 轮询恢复写路径。
+4. 取消使用 job_run_get(original run_id) → job_run_cancel(original run_id, expected_state_revision, request_key)。只取消该原身份；owner、CAS、权限、受管范围与 cleanup proof 仍由 canonical 入口检查。
+5. 响应丢失或 unknown/uncertain 时，用 job_operation_find 按原 operation/key 查询；不得自动重发执行或取消。没有 receipt 不能视作成功，也不能创建第二个身份兜底。
+6. agent_background_get/list 与 agent_message_job_get/list 只读旧历史。agent_background_start/retry/cancel、agent_message_job_create/update/cancel 不在工具目录中，兼容调用明确返回 capability_unsupported。
 
 `agent_notify(target_session_id, text)` 是“事后回报”原语，不是派发原语。典型顺序是：
 
@@ -498,7 +478,7 @@ ConPTY 和 takeover/用户交互窗口保持专用启动与生命周期语义。
 `agent_notify` 与后台 Job 终态通知必须按来源区分：`agent_notify` 仍保留
 调用方的 `sourceSessionId` 和现有 `@@@@by agent` 渲染；只有 Scheduler/Runner
 使用显式 `noticeKind=background_job_terminal` 时才渲染 `////by pan system`。
-Agent 创建的定时 Session-message Job 继续走普通 `agent_send_to_queue`，保留
+历史 Session-message Job 的既有来源记录保留
 `////by agent : <creatorSessionId> | <title>` 前缀和 `sourceSessionId`，不会被
 误分类为系统通知。旧 Job JSON 缺失 `creatorSessionId` 时按无创建者兼容读取。
 
@@ -552,6 +532,76 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send_to_queue`�
 | `model_list` | `adapter`（必填） | 列出指定的**任一已注册 adapter** 的模型与默认模型；省略、空串或空白值不会选择 CBC，而是返回 `adapter_required`、`availableAdapters` 和可执行提示。示例：`model_list(adapter="codex")` 查询 Codex（如 `gpt-5.6-luna`）模型 |
 | `codex_quota` | `window?`(`all`/`first`/`secondary`), `session_id?` | 查询 live Codex Worker 的事件快照；`first` = 五小时窗口，`secondary` = 周窗口。MCP caller 层先做 `_check_access`，受限 caller 只能查 managed graph；底层 loopback HTTP 直连是无 manager 认证的本机受信管理接口，两者不是同一权限契约。`updatedAt`（兼容字段）与 `receivedAt` 都是 Pan Worker 接收 `account/rateLimits/updated` 的本地时间，不是 provider 原始更新时间；不会主动执行 `account/rateLimits/read`，绝对 used/remaining/limit 缺失时返回 `null`。错误码：`invalid_window`、`session_not_found`、`unsupported_provider`、`quota_unavailable`、`quota_ambiguous` |
 | `pan_handbook` | (无) | **返回本 SKILL.md 全文**（读文件实时返回，单一事实源，立项 C）。冷启动 agent 不确定编排流程时先调它；内容与 §0–§11 完全一致 |
+
+### Canonical 与补充目录入口
+
+以下入口与当前 MCP 目录对应；参数、能力与权限以本次 schema 为准。结构化定义必须引用已发布 Action，持久准入与执行仍只走 FinalService/Run/Attempt/effect/receipt。Scheduler 兼容写名只可进入已有 canonical 适配，不能恢复旧执行器或以旧 ID 绕过 owner/CAS。
+
+| 工具 | 必填参数 | 说明 |
+|------|----------|------|
+| `action_drafts` | (无必填参数) | Read preserved Action/Group sources. Legacy put/delete are retired. |
+| `agent_inbox` | (无必填参数) | Shared Agent Inbox: list/read/consume/subscriptions/subscribe/mode/backlog/recover. |
+| `agent_restart_delayed` | `session_id` | Request a delayed restart of the Session's existing live Worker. |
+| `agent_restart_delayed_status` | `session_id` | Read delayed restart state without requesting, starting or restarting a Worker. |
+| `authorization_objects` | `kind`, `operation` | Compatibility reads for Trigger/Action/Job Template/Job via canonical pages. |
+| `event_creator_control` | `object_id`, `operation`, `expected_revision`, `expected_state_revision`, `request_key` | Canonical event-creators: control via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `event_creator_create` | `definition`, `request_key` | Canonical event-creators: create via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `event_creator_get` | `object_id` | Canonical event-creators: get via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `event_creator_list` | (无必填参数) | Canonical event-creators: list via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `event_creator_retire` | `object_id`, `expected_revision`, `expected_state_revision`, `request_key` | Canonical event-creators: retire via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `event_creator_update` | `object_id`, `definition`, `expected_revision`, `request_key` | Canonical event-creators: update via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `interaction_card` | `operation` | Session→User cards (you create, the user answers). To answer user-created cards, use `reminding_card`. |
+| `job_action_list` | (无必填参数) | Read published canonical Actions and pinned Action refs for Job definitions. |
+| `job_config_drafts` | (无必填参数) | Unified Action-reference Job/complete Template drafts (never execute or enable). |
+| `job_control` | `object_id`, `operation`, `expected_revision`, `expected_state_revision`, `request_key` | Canonical jobs: control via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_create` | `definition`, `request_key` | Canonical jobs: create via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_get` | `object_id` | Canonical jobs: get via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_list` | (无必填参数) | Canonical jobs: list via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_operation_find` | `operation`, `request_key` | Recover original operation by operation + requestKey in the same principal/profile. |
+| `job_operation_get` | `operation_id` | Query an original canonical operation; no replay. |
+| `job_retire` | `object_id`, `expected_revision`, `expected_state_revision`, `request_key` | Canonical jobs: retire via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_run` | `job_id`, `expected_revision`, `request_key` | Canonical manual admission. accepted is not effect success; query the original receipt. |
+| `job_run_again` | `run_id`, `expected_state_revision`, `expected_revision`, `request_key` | Canonical run-again. Explicit scope and CAS; query receipts, never infer completion from acceptance. |
+| `job_run_cancel` | `run_id`, `expected_state_revision`, `request_key` | Canonical cancel. Explicit scope and CAS; query receipts, never infer completion from acceptance. |
+| `job_run_clone_and_run` | `run_id`, `expected_state_revision`, `expected_revision`, `request_key` | Canonical clone-and-run. Explicit scope and CAS; query receipts, never infer completion from acceptance. |
+| `job_run_get` | `run_id` | Read canonical Run state by original Run identity. |
+| `job_run_pause` | `run_id`, `expected_state_revision`, `request_key` | Canonical pause. Explicit scope and CAS; query receipts, never infer completion from acceptance. |
+| `job_run_resume` | `run_id`, `expected_state_revision`, `request_key` | Canonical resume. Explicit scope and CAS; query receipts, never infer completion from acceptance. |
+| `job_run_retry` | `run_id`, `expected_state_revision`, `request_key` | Canonical retry. Explicit scope and CAS; query receipts, never infer completion from acceptance. |
+| `job_runs` | `job_id` | Canonical Job Run page; cursor/limit, no admission. |
+| `job_template_control` | `object_id`, `operation`, `expected_revision`, `expected_state_revision`, `request_key` | Canonical job-templates: control via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_template_create` | `definition`, `request_key` | Canonical job-templates: create via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_template_get` | `object_id` | Canonical job-templates: get via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_template_list` | (无必填参数) | Canonical job-templates: list via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_template_retire` | `object_id`, `expected_revision`, `expected_state_revision`, `request_key` | Canonical job-templates: retire via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_template_update` | `object_id`, `definition`, `expected_revision`, `request_key` | Canonical job-templates: update via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `job_update` | `object_id`, `definition`, `expected_revision`, `request_key` | Canonical jobs: update via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `locker_message` | `operation` | Create/get an ordinary Locker Message for this profile user, from own Session. |
+| `reminding_card` | `operation` | User→Session cards (created by the user, answered by you). To ask the user, use `interaction_card`. |
+| `scheduler_cancel` | `task_id`, `job_id`, `run_id`, `expected_revision`, `expected_state_revision`, `request_key` | Cancel a reviewed successor Run by original Scheduler ID. |
+| `scheduler_create` | `target_session_id`, `text`, `kind` | Create via the canonical owner, preserving original flat arguments. |
+| `scheduler_delete` | `task_id` | Retire one handed-off task; unknown execution/publication blocks deletion. |
+| `scheduler_pause` | `task_id` | Pause the original handed-off clock; preserve in-flight Runs and cursor policy. |
+| `scheduler_resume` | `task_id` | Resume the original handed-off clock without replaying paused occurrences. |
+| `scheduler_run_now` | `task_id` | Admit manual intent through the original Job; no scheduled cursor advance. |
+| `scheduler_update` | `task_id` | Patch provided legacy configuration fields through the original graph. |
+| `self_queue_consume` | `item_id` | Consume a visible message in your own queue by its original ID, interrupting your task. |
+| `self_queue_read` | (无必填参数) | Read visible own queue messages; child-agent reports expose identity only. |
+| `system_fields` | (无必填参数) | Discover canonical Event system fields, aliases and Action target rules. |
+| `terminal_close` | `terminal_id` | Stop an independent terminal; unconfirmed cleanup remains retryable. |
+| `terminal_create` | (无必填参数) | Create an independent terminal. Default scope is the calling Session. |
+| `terminal_detach` | `terminal_id` | Request durable detach; refusal leaves the session unchanged. |
+| `terminal_get` | `terminal_id` | Get public terminal state without secrets or channel handles. |
+| `terminal_input` | `terminal_id`, `data_b64` | Send bytes only with explicit take_control=True. |
+| `terminal_list` | (无必填参数) | List public terminal records within the caller's permitted scope. |
+| `terminal_read` | `terminal_id` | Read absolute raw output. Cursor is decimal text; gaps are explicit. |
+| `terminal_snapshot` | `terminal_id` | Get serialized screen plus applied cursor. Partial is not full fidelity. |
+| `trigger_control` | `object_id`, `operation`, `expected_revision`, `expected_state_revision`, `request_key` | Canonical triggers: control via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `trigger_create` | `definition`, `request_key` | Canonical triggers: create via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `trigger_get` | `object_id` | Canonical triggers: get via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `trigger_list` | (无必填参数) | Canonical triggers: list via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `trigger_retire` | `object_id`, `expected_revision`, `expected_state_revision`, `request_key` | Canonical triggers: retire via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
+| `trigger_update` | `object_id`, `definition`, `expected_revision`, `request_key` | Canonical triggers: update via /api. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay. |
 
 ## 6. 状态判断
 

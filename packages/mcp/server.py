@@ -2402,14 +2402,11 @@ def agent_message_job_update(job_id: str, schedule: dict | None = None,
 
 @mcp.tool()
 def agent_message_job_cancel(job_id: str) -> dict:
-    """Cancel a pending or recurring Session-message Job.
+    """Retired legacy cancellation; use job_run_cancel with original Run identity.
 
     完整编排流程见 /pan skill。
     """
-    job = agent_message_job_get(job_id)
-    if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:
-        return job
-    return _api("POST", f"/api/background-jobs/{quote(job_id, safe='')}/cancel")
+    return legacy_mcp_compatibility("agent_message_job_cancel", {"job_id": job_id})
 
 
 @mcp.tool()
@@ -2457,17 +2454,11 @@ def agent_background_list(target_session_id: str | None = None) -> dict:
 
 @mcp.tool()
 def agent_background_cancel(job_id: str) -> dict:
-    """Cancel an owned Job and terminate its verified process tree.
-
-    The Runner PID/task PID creation time must be verifiable; otherwise the
-    operation returns ``cancel_unsafe`` and never kills an unrelated PID.
+    """Retired legacy cancellation; use job_run_cancel with original Run identity.
 
     完整编排流程见 /pan skill。
     """
-    job = agent_background_get(job_id)
-    if not isinstance(job, dict) or job.get("error") or job.get("ok") is False:
-        return job
-    return _api("POST", f"/api/background-jobs/{quote(job_id, safe='')}/cancel")
+    return legacy_mcp_compatibility("agent_background_cancel", {"job_id": job_id})
 
 
 @mcp.tool()
@@ -3424,6 +3415,7 @@ RETIRED_MCP_TOOLS = (
     "agent_message_job_create",
     "agent_message_job_update",
     "agent_background_cancel",
+    "agent_message_job_cancel",
     *REMOVED_SCHEDULER_MCP_TOOLS,
 )
 RETAINED_LEGACY_MCP_TOOLS = (
@@ -3431,7 +3423,6 @@ RETAINED_LEGACY_MCP_TOOLS = (
     "agent_background_list",
     "agent_message_job_get",
     "agent_message_job_list",
-    "agent_message_job_cancel",
     "scheduler_list",
     "scheduler_get",
     "scheduler_runs",
@@ -3445,6 +3436,8 @@ LEGACY_MCP_COMPATIBILITY = {
     "agent_background_retry": "old retry creates a legacy Job identity; canonical retry requires an original Run/Step/effect and owner fence",
     "agent_message_job_create": "old message backlog/schedule envelope lacks a canonical Creator/Trigger reference and source admission envelope",
     "agent_message_job_update": "old message Job update mutates legacy schedule state; canonical definitions are immutable/CAS-bound",
+    "agent_message_job_cancel": "old message cancel has no canonical Run/Attempt/effect receipt; use job_run_cancel with the original Run identity",
+    "agent_background_cancel": "old cancel path has no canonical Run/Attempt/effect receipt; use job_run_cancel with the original Run identity",
 }
 
 LEGACY_MCP_GUIDANCE = {
@@ -3452,6 +3445,8 @@ LEGACY_MCP_GUIDANCE = {
     "agent_background_retry": "job_run_get(original run_id) -> job_run_retry(original run_id, expected_state_revision, request_key); unknown/partial: query original, do not replay",
     "agent_message_job_create": "job_create(definition, request_key) with immutable Session Action ref; event_creator_create + trigger_create for scheduling, or job_template_create for a complete composition",
     "agent_message_job_update": "job_get -> job_update(object_id, definition, expected_revision, request_key); edit schedule via event_creator_update with its own revision",
+    "agent_message_job_cancel": "job_run_get(original run_id) -> job_run_cancel(original run_id, expected_state_revision, request_key); unknown: query original, do not replay",
+    "agent_background_cancel": "job_run_get(original run_id) -> job_run_cancel(original run_id, expected_state_revision, request_key); unknown: query original, do not replay",
 }
 
 

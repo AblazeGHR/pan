@@ -1,7 +1,7 @@
 """Check that the Pan skill lists every registered Pan MCP tool.
 
-This is intentionally stdlib-only and derives the authoritative set from
-packages/mcp/server.py rather than maintaining a second hand-written list.
+The import-only FastMCP catalog is authoritative after dynamic registration
+and retirement. No lifespan, listener, HTTP call or application write is used.
 """
 
 from __future__ import annotations
@@ -40,28 +40,34 @@ def listed_tools() -> list[str]:
 
 
 def main() -> int:
-    actual = source_tools()
+    # Inspect the actual post-registration catalog: decorators also occur on
+    # historical tombstones, while canonical tools are dynamically registered.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from packages.mcp import server
+    actual = [tool.name for tool in server.mcp._tool_manager.list_tools()]
+    retired = set(server.RETIRED_MCP_TOOLS)
     listed = listed_tools()
     actual_set, listed_set = set(actual), set(listed)
-    aliases = {name for name in actual if name.startswith("worker_")}
-    first_class = actual_set - aliases
-    declared = re.search(
-        r"当前共 (\d+) 个实际暴露工具", SKILL.read_text(encoding="utf-8")
-    )
+    declared = re.search(r"当前共 (\d+) 个实际暴露工具", SKILL.read_text(encoding="utf-8"))
     declared_count = int(declared.group(1)) if declared else None
-    missing = sorted(actual_set - listed_set)
-    extra = sorted(listed_set - actual_set)
-    print(f"source @mcp.tool(): {len(actual)}")
-    print(f"skill tool rows: {len(listed)}")
-    print(f"first-class tools: {len(first_class)}; worker aliases: {len(aliases)}")
-    print(f"declared count: {declared_count}")
-    if len(actual) != 67 or len(actual_set) != len(actual):
-        print("FAIL: source tool set is not the expected 67 unique tools")
+    expected = actual_set | retired
+    missing, extra = sorted(expected - listed_set), sorted(listed_set - expected)
+    print(f"registered catalog: {len(actual)}; retired tombstones: {len(retired)}")
+    print(f"skill rows: {len(listed)}; declared exposed count: {declared_count}")
+    if not retired or retired & actual_set or len(actual_set) != len(actual):
+        print("FAIL: retired tools registered, empty retirement coverage or duplicate registration")
         return 1
-    if declared_count != len(actual) or listed_set != actual_set or len(listed) != len(actual):
+    if declared_count != len(actual) or listed_set != expected or len(listed) != len(expected):
         print(f"FAIL: missing={missing}, extra={extra}")
         return 1
-    print("PASS: source count, declared count, and every tool row agree")
+    rows = SKILL.read_text(encoding="utf-8").splitlines()
+    for name in retired:
+        row = next((line for line in rows if line.startswith("| `" + name + "` |")), "")
+        if "Retired / undiscoverable" not in row:
+            print(f"FAIL: missing explicit retired disposition: {name}")
+            return 1
+    print("PASS: exact registered catalog and retired dispositions match the handbook")
     return 0
 
 

@@ -132,13 +132,11 @@
   "tools": [
     "action_drafts",
     "agent_assign",
-    "agent_background_cancel",
     "agent_background_get",
     "agent_background_list",
     "agent_inbox",
     "agent_kill",
     "agent_list",
-    "agent_message_job_cancel",
     "agent_message_job_get",
     "agent_message_job_list",
     "agent_notify",

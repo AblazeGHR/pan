@@ -11,7 +11,8 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from packages.actions.executor import execute_dynamic
+from tests.test_job_final_http_service import h, USER, create, enabled, job_def
+from packages.actions.executor import canonical_session_pause
 from packages.actions.store import validate_action
 from packages.automation.api import install
 from packages.automation.engine import arguments
@@ -197,17 +198,17 @@ def test_action_selector_uses_only_trusted_system_targets():
     async def progress(**fields):
         return None
     event = fact(system={"sessionId": "ses_trusted"}, payload={"sessionId": "ses_payload"})
-    result = run(execute_dynamic(action({"mode": "event", "path": "system.sessionId"}),
+    result = run(canonical_session_pause(action({"mode": "event", "path": "system.sessionId"}),
                                  {}, event, progress, pause))
     assert result["ok"] is True and calls == [("ses_trusted", {"paused": True})]
     calls.clear()
     with pytest.raises(SystemFieldError, match="unavailable"):
-        run(execute_dynamic(action({"mode": "event", "path": "system.sourceSessionId"}),
+        run(canonical_session_pause(action({"mode": "event", "path": "system.sourceSessionId"}),
                             {}, event, progress, pause))
     assert calls == []
     forged = fact(payload={"sessionId": "ses_payload"})
     with pytest.raises(SystemFieldError, match="unavailable"):
-        run(execute_dynamic(action({"mode": "event", "path": "system.sessionId"}),
+        run(canonical_session_pause(action({"mode": "event", "path": "system.sessionId"}),
                             {}, forged, progress, pause))
     assert calls == []
 
@@ -324,26 +325,50 @@ def test_service_persists_runtime_issue_and_keeps_quota_observer(tmp_path):
     run(scenario())
 
 
-def test_trigger_system_binding_fails_closed_when_only_payload_has_id(tmp_path):
-    async def scenario():
-        from tests.test_automation_core import setup as engine_setup, settled
-        engine, calls, _ = await engine_setup(tmp_path)
-        owner = engine.bus.activate("core", "runtime")
-        engine.bus.register(owner, "runtime.issue.v1", {"type": "object"})
-        engine.ledger.put(dict(id="t", name="t", eventTypes=["runtime.issue.v1"],
-                               actionId="pause", enabled=True, arguments={
-                                   "targetSessionId": {"from": "system", "path": "sessionId"}}), 0, True)
-        try:
-            await engine.match({"id": "forged", "type": "runtime.issue.v1",
-                                "payload": {"sessionId": "ses_forged"}})
-            rows = await settled(engine, 1)
-            assert rows[0]["status"] == "failed"
-            assert "System field unavailable" in rows[0]["error"]
-            assert calls == []
-        finally:
-            await engine.close()
-
-    run(scenario())
+def test_trigger_system_binding_fails_closed_when_only_payload_has_id(h):
+    from tests.test_action_unification_p4 import trigger, event, plans
+    from tests.test_action_groups import canonical_state
+    value = job_def(h)
+    value['steps'][0]['arguments']['sessionId'] = {'from': 'system', 'path': 'system.sessionId'}
+    job = enabled(h, value)
+    target = trigger(h, {'type': 'job', 'jobId': job['id'], 'configRevision': job['configRevision']})
+    forged = event('forged')
+    forged['payload']['sessionId'] = 'ses_forged'
+    before = canonical_state(h.service)
+    from packages.jobs.final_contracts import ContractError
+    with pytest.raises(ContractError, match='Step input mapping cannot be resolved') as denied:
+        h.service.admit_event(forged, target)
+    assert denied.value.code == 'invalid_schema'
+    assert isinstance(denied.value.__context__, SystemFieldError)
+    assert 'System field unavailable: sessionId' in str(denied.value.__context__)
+    assert canonical_state(h.service) == before
+    assert h.service.final.runs(job['id']) == []
+    assert h.service.final.get(job['id'])['effects'] == []
+    assert h.provider.calls == []
+    # Only the host's structured identity may select the Session, even when
+    # the payload attempts to replace it. The original event remains replayable.
+    trusted = copy.deepcopy(forged)
+    trusted['eventId'] = 'trusted'
+    trusted['system'] = {'sessionId': 'ses_trusted'}
+    selected = []
+    original_send = h.provider.send_session
+    async def send(session_id, text, **kwargs):
+        selected.append(session_id)
+        return await original_send(session_id, text, **kwargs)
+    h.provider.send_session = send
+    receipt = h.service.admit_event(trusted, target)
+    run(h.service.dispatch_once())
+    result = h.service.get_run(receipt['result']['runId'], actor=USER)
+    assert result['state'] == 'completed'
+    state = h.service.final.get(job['id'])
+    assert len(state['effects']) == 1 and len(state['attempts']) == 1
+    frozen = plans(h, job['id'])[result['runId']]['frozen']
+    assert frozen['event']['system']['sessionId'] == 'ses_trusted'
+    assert frozen['event']['payload']['sessionId'] == 'ses_forged'
+    assert h.service.admit_event(trusted, target)['operationId'] == receipt['operationId']
+    run(h.service.dispatch_once())
+    assert len(h.provider.calls) == 1
+    assert selected == ['ses_trusted']
 
 
 def _service_stub(tmp_path, limit):

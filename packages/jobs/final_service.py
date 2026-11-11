@@ -266,6 +266,8 @@ class FinalService:
 
     @contextmanager
     def transaction(self, *, readonly=False):
+        if not readonly and self.closed:
+            error('provider_unavailable', 'Canonical service is closed')
         if readonly:
             with self.creators.connection(readonly=True) as db:
                 yield db
@@ -276,6 +278,8 @@ class FinalService:
             changes = self._change_local.pending
             try:
                 with self.owner.writer(canonical=True), self.creators.transaction() as db:
+                    if self.closed:
+                        error('provider_unavailable', 'Canonical service is closed')
                     yield db
                     if outer and changes:
                         committed = copy.deepcopy(changes)
@@ -1282,6 +1286,12 @@ class FinalService:
                     if old["state"] == "retired" or (kind == "template" and old["state"] == "published"):
                         error("reference_conflict", "Immutable or retired definition")
                 self._references(db, kind, value["definition"], object_id=object_id)
+                if kind == "job" and old and value["definition"]["overlap"]["maxActive"] < old["overlap"]["maxActive"]:
+                    stored = self._get(db, "job", object_id)
+                    occupied = sum(run["state"] in {"running", "uncertain", "settling", "cancelling"}
+                        for run in aggregate(stored, self.root)["runs"].values())
+                    if occupied > value["definition"]["overlap"]["maxActive"]:
+                        error("reference_conflict", "Active Run count exceeds the requested concurrency limit")
                 if kind == "event_creator":
                     if old is None:
                         item = self.creators.create(value["definition"], request_key=operation_id,
@@ -1593,6 +1603,37 @@ class FinalService:
         self._permit(actor, "job", "read")
         return result
 
+    def _admission_order(self, db, job, rows):
+        """Read original receipt insertion order; random IDs never imply age.
+
+        Operation rows and the Run plan are committed by one owner transaction.
+        Updates preserve their rowids, and retention keeps these same receipts.
+        No new sequence, metadata writer or ledger is introduced here.
+        """
+        state = aggregate(job, self.root)
+        operation_ids = {rid: state.get('plans', {}).get(rid, {}).get('operationId')
+                         for rid in state['runs']}
+        ids = list({identity for identity in operation_ids.values() if identity})
+        receipts = {}
+        if ids:
+            for ordinal, identity, raw in db.execute(
+                    'SELECT rowid,id,document FROM final_operations WHERE id IN '
+                    '(SELECT value FROM json_each(?))', (fc.canonical_json(ids),)):
+                record = json.loads(raw)
+                if record.get('kind') == 'job' and record.get('operation') in {'create', 'run-again', 'clone-and-run'}:
+                    receipts[identity] = (ordinal, record.get('response', {}).get('runId'))
+        ordinals = {}
+        for rid, identity in operation_ids.items():
+            original = receipts.get(identity)
+            if original is not None and original[1] == rid:
+                ordinals[rid] = original[0]
+        if all(row['runId'] in ordinals for row in rows):
+            return sorted(rows, key=lambda row: ordinals[row['runId']]), True
+        # Historical missing receipts cannot prove which equal-time admission
+        # was newest. Stable listing is still possible; callers must preserve
+        # unknown when choosing a latest state from an ambiguous timestamp.
+        return sorted(rows, key=lambda row: (row['createdAt'], row['runId'])), False
+
     def runs(self, job_id, *, actor, cursor=None, limit=100):
         self._permit(actor, "job", "read")
         with self.transaction(readonly=True) as db:
@@ -1601,6 +1642,7 @@ class FinalService:
             if job is None:
                 raise KeyError(job_id)
             rows = [self._run_notification_projection(job, row) for row in self.final.runs(job_id)]
+            rows, _ = self._admission_order(db, job, rows)
         return self._page(rows, "runs:" + job_id, cursor, limit, actor)
 
     @staticmethod
@@ -1919,10 +1961,16 @@ class FinalService:
         args = {key: copy.deepcopy(value.get("value")) for key, value in step.get("arguments", {}).items()
                 if isinstance(value, dict) and value.get("from") == "literal"}
         runs = self.runs(job_id, actor=actor).get("items", [])
-        latest = runs[-1] if runs else None
+        # A page is bounded and stored maps sort random IDs. Select the latest
+        # admission from the original aggregate, including beyond page one.
+        with self.transaction(readonly=True) as db:
+            stored = self._get(db, 'job', job_id)
+            ordered, proven = self._admission_order(db, stored, list(aggregate(stored, self.root)['runs'].values()))
+        latest = ordered[-1] if ordered else None
         status = item.get("state", "draft")
         if latest:
-            status = latest.get("state", status)
+            ambiguous = not proven and sum(row['createdAt'] == latest['createdAt'] for row in ordered) > 1
+            status = 'uncertain' if ambiguous else latest.get('state', status)
         return {"jobId": job_id, "kind": "background-process", "executionOwner": "final-service",
                 "status": status, "argv": args.get("argv", []), "cwd": args.get("cwd"),
                 "hideWindow": args.get("hideWindow", True), "name": item.get("name"),
@@ -2794,7 +2842,8 @@ class FinalService:
                     return
                 self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
                     expected_epoch=attempt["ownerEpoch"], expected_generation=attempt["generation"])
-                self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "partial" if outcome == "partial" else mapped, receipt)
+                self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "partial" if outcome == "partial" else mapped, receipt,
+                    expected_attempt=attempt if mapped in {"completed", "failed"} else None)
                 state = aggregate(job, self.root)
                 if run_id in state.get("cancellations", {}):
                     rows = receipt.get("receipt", {}).get("commands", [])
@@ -2886,6 +2935,53 @@ class FinalService:
                     op["response"].pop("error", None)
                 db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
 
+    def _completed_chain_boundary(self, state, run_id):
+        """Prove a committed prefix without authorizing any previous effect again."""
+        plan = state["plans"][run_id]
+        steps = plan["frozen"]["steps"]
+        rows = state["steps"][run_id]
+        if set(rows) != {step["stepId"] for step in steps}:
+            return False
+        completed, pending = [], False
+        for step in steps:
+            row = rows[step["stepId"]]
+            if row["state"] == "pending" and row["attemptCount"] == 0:
+                pending = True
+            elif row["state"] == "completed" and not pending:
+                completed.append(step)
+            else:
+                return False
+        if not completed:
+            return False
+        attempts = [a for a in state["attempts"].values() if a["runId"] == run_id]
+        if (len(attempts) != len(completed) or any(a["state"] != "succeeded" for a in attempts)
+                or len([e for e in state["effects"] if e["effectKey"]["runId"] == run_id]) != len(attempts)
+                or any(a["effectKey"]["runId"] == run_id for a in state["effectAdmissions"].values())):
+            return False
+        for step in completed:
+            matches = [a for a in attempts if a["stepId"] == step["stepId"]]
+            if len(matches) != 1:
+                return False
+            effects = [e for e in state["effects"] if e["attemptId"] == matches[0]["attemptId"]]
+            if len(effects) != 1:
+                return False
+            effect = effects[0]
+            receipt = effect["receipt"]
+            from packages.jobs.independent_executor import fence
+            try:
+                if fence(effect.get("attempt")) != fence(matches[0]):
+                    return False
+            except (ValueError, TypeError):
+                return False
+            if (effect["outcome"] != "succeeded"
+                    or effect["effectKey"] != self.final.ledger.effect_key(run_id, step["stepId"], step["actionRef"]["id"], 0)
+                    or receipt.get("effectKey") != effect["effectKey"]
+                    or receipt.get("outcome") != "succeeded"
+                    or step["stepId"] not in plan.get("outputs", {})
+                    or plan["outputs"][step["stepId"]] != receipt.get("receipt", {})):
+                return False
+        return True
+
     def recover(self):
         """Never replay an effect whose host/receipt outcome was lost."""
         with self.transaction() as db:
@@ -2924,6 +3020,26 @@ class FinalService:
                     if (run["state"] == "running" and len(active_attempts) == 1
                             and active_attempts[0]["attemptId"] == pending):
                         continue  # Original detached host is queried, never resubmitted.
+                    if (run["state"] == "running" and not active_attempts and not pending
+                            and run["runId"] not in state.get("cancellations", {})
+                            and self._completed_chain_boundary(state, run["runId"])):
+                        original = db.execute("SELECT document FROM final_operations WHERE id=?",
+                            (state["plans"][run["runId"]].get("operationId"),)).fetchone()
+                        original = json.loads(original[0]) if original else {}
+                        response = original.get("response", {})
+                        if (original.get("kind") == "job"
+                                and original.get("operation") in {"create", "run-again", "clone-and-run"}
+                                and response.get("runId") == run["runId"]
+                                and response.get("admissionId") == run["admissionId"]
+                                and response.get("result", {}).get("runId") == run["runId"]
+                                and response.get("result", {}).get("admissionId") == run["admissionId"]
+                                and run["jobId"] == job["jobId"]
+                                and any(ref.get("id") == job["jobId"] for ref in response.get("objectRefs", []))):
+                            # Continue at a committed boundary, never retry or
+                            # reconcile an unfinished Attempt or infer identity.
+                            self.final.ledger.transition_run(job, self.root, run["runId"], "retry_wait")
+                            self._save(db, "job", job["jobId"], job)
+                            continue
                     if run["state"] != "running" and not active_attempts:
                         continue
                     # A cancelling Run can still own an in-flight effect. A
@@ -2969,7 +3085,8 @@ class FinalService:
                 error("revision_conflict", "Original admission missing")
             self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], outcome,
                 expected_epoch=expected["ownerEpoch"], expected_generation=expected["generation"])
-            self.final.ledger.record_effect(job, self.root, attempt["attemptId"], outcome, receipt)
+            self.final.ledger.record_effect(job, self.root, attempt["attemptId"], outcome, receipt,
+                expected_attempt=expected)
         elif attempt["state"] == "uncertain":
             self.final.ledger.reconcile_attempt(job, self.root, expected_attempt=expected, effect_key=key, receipt=receipt)
         else:
@@ -2980,11 +3097,13 @@ class FinalService:
             state["plans"][expected["runId"]].setdefault("outputs", {})[expected["stepId"]] = copy.deepcopy(receipt.get("receipt", {}))
         return outcome
 
-    async def recover_external_receipts(self):
+    async def recover_external_receipts(self, *, job_id=None):
         # Query only. Never submit execution or repeat a cleanup request here.
         with self.transaction(readonly=True) as db:
             pending = []
             for job in self._all(db, "job"):
+                if job_id is not None and job['jobId'] != job_id:
+                    continue
                 state = aggregate(job, self.root)
                 cancelled = state.get("cancellations", {})
                 for rid, intent in cancelled.items():

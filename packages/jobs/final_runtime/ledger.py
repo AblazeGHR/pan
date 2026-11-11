@@ -354,7 +354,7 @@ class Ledger:
         ledger["effectAdmissions"][effect_id] = {"attemptId": attempt_id, "effectKey": key, "createdAt": now()}
         return key
 
-    def record_effect(self, job: dict[str, Any], root: Any, attempt_id: str, outcome: str, receipt: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    def record_effect(self, job: dict[str, Any], root: Any, attempt_id: str, outcome: str, receipt: Mapping[str, Any] | None = None, *, expected_attempt=None) -> dict[str, Any]:
         ledger = aggregate(job, root)
         attempt = ledger["attempts"][attempt_id]
         effect_id, key = next(
@@ -373,6 +373,13 @@ class Ledger:
             "createdAt": now(),
             "updatedAt": now(),
         }
+        if expected_attempt is not None:
+            from packages.jobs.independent_executor import fence
+            if fence(expected_attempt) != fence(attempt) or (receipt or {}).get("effectKey") != key:
+                raise contracts.ContractError("revision_conflict", "Original effect receipt Attempt fence rejected")
+            # Capture the caller's original execution identity, never infer a
+            # historical fence from the current mutable aggregate on recovery.
+            effect["attempt"] = copy.deepcopy(dict(expected_attempt))
         ledger["effects"].append(contracts.validate_record("effect", effect))
         ledger["effectAdmissions"].pop(effect_id, None)
         return effect

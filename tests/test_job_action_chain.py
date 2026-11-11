@@ -15,6 +15,8 @@ from packages.jobs import chains
 from packages.jobs.action_templates import Conflict, config_value, references
 import packages.actions.executor as executor
 from tests.test_automation_core import async_test
+from tests.test_job_final_http_service import h
+from tests.test_job_automatic_recovery import env
 
 
 def _action(action_id, *, monitoring=False):
@@ -50,32 +52,46 @@ async def _runtime(tmp_path, ids=('one', 'two')):
     return runtime
 
 
-def test_chain_mapping_order_and_step_audit(tmp_path, monkeypatch):
-    async def run():
-        runtime = await _runtime(tmp_path)
-        calls = []
+def test_chain_mapping_order_and_step_audit(h):
+    from tests.test_job_final_http_service import create, control, job_def
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    calls = []
 
-        async def execute(action, args, event, progress, pause):
-            calls.append((action['id'], args['value']))
-            return {'ok': True, 'structuredContent': {'value': args['value'] + '!'}}
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            calls.append((effect_key['stepId'], text))
+            return {'status': 'queued', 'messageId': text + '!'}
 
-        monkeypatch.setattr(executor, 'execute_dynamic', execute)
-        try:
-            job = runtime.create(_config([
-                {'stepId': 'first', 'actionId': 'one', 'arguments': {'value': {'from': 'input', 'path': 'input'}}},
-                {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': {'from': 'step', 'stepId': 'first', 'path': 'value'}}},
-            ]), True)
-            await runtime.launch(job['jobId'], 1)
-            await asyncio.gather(*runtime.tasks.values())
-            current = runtime.get(job['jobId'])
-            assert calls == [('one', 'seed'), ('two', 'seed!')]
-            assert current['status'] == 'completed'
-            assert [s['status'] for s in current['lastExecution']['stepExecutions']] == ['completed', 'completed']
-            assert all(s['attempts'] for s in current['lastExecution']['stepExecutions'])
-        finally:
-            await runtime.close()
-
-    asyncio.run(run())
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    value = job_def(h, steps=2)
+    value['steps'][0]['arguments']['text'] = {'from': 'input', 'path': 'input'}
+    value['steps'][1]['arguments']['text'] = {'from': 'step', 'stepId': 's0', 'path': 'messageId'}
+    value['inputSchema'] = {'type': 'object', 'properties': {'input': {'type': 'string'}},
+                            'required': ['input'], 'additionalProperties': False}
+    value['arguments'] = {'input': 'seed'}
+    job = create(h, value=value)
+    response = control(h, 'jobs', job, 'enable')
+    assert response.status_code == 200, response.text
+    job = response.json()['result']['object']
+    admitted = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+        'expectedRevision': job['configRevision'], 'requestKey': 'chain-mapping',
+        'input': {'input': 'seed'}, 'cause': {'type': 'manual'}})
+    assert admitted.status_code == 202, admitted.text
+    rid = admitted.json()['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert calls == [('s0', 'seed'), ('s1', 'seed!')]
+    assert state['runs'][rid]['state'] == 'completed'
+    assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['completed', 'completed']
+    attempts = list(state['attempts'].values())
+    assert len(attempts) == 2 and {a['stepId'] for a in attempts} == {'s0', 's1'}
+    assert all(a['runId'] == rid and a['state'] == 'succeeded' for a in attempts)
+    assert len(state['effects']) == 2
+    assert {e['attemptId'] for e in state['effects']} == {a['attemptId'] for a in attempts}
+    assert all(e['effectKey']['runId'] == rid and e['outcome'] == 'succeeded' for e in state['effects'])
+    # Repeated dispatch observes terminal identity and never repeats providers.
+    asyncio.run(h.service.dispatch_once())
+    assert calls == [('s0', 'seed'), ('s1', 'seed!')]
 
 
 def _steps():
@@ -83,412 +99,711 @@ def _steps():
             {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': 'second'}}]
 
 
-@async_test
-async def test_legacy_single_step_equivalent_and_no_legacy_rewrite(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    calls = []
-    async def execute(action, args, event, progress, pause):
-        calls.append((action['id'], args)); return {'ok': True, 'structuredContent': {'accepted': True}}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        legacy = _config(_steps(), arguments={'value': 'same'})
-        legacy.pop('steps')
-        chain = _config([{'stepId': 'fixed', 'actionId': 'one', 'arguments': {'value': 'same'}}])
-        jobs = [runtime.create(cfg, True) for cfg in (legacy, chain)]
-        for job in jobs:
-            await runtime.launch(job['jobId'], 1)
-        await asyncio.gather(*runtime.tasks.values())
-        current = [runtime.get(j['jobId']) for j in jobs]
-        assert calls == [('one', {'value': 'same'})] * 2
-        assert [j['status'] for j in current] == ['completed'] * 2
-        assert 'steps' not in current[0]['config'] and 'stepExecutions' not in current[0]['lastExecution']
-        assert [n['status'] for n in current[0]['terminalOutbox'].values()] == [n['status'] for n in current[1]['terminalOutbox'].values()]
-    finally:
-        await runtime.close()
+def test_legacy_single_step_equivalent_and_no_legacy_rewrite(h, tmp_path):
+    from tests.test_job_final_http_service import enabled, job_def, launch
+    from packages.core import background_jobs
+    root = tmp_path / 'historical'
+    cfg = _config(_steps(), arguments={'value': 'same'})
+    cfg.pop('steps')
+    historical = {'jobId': 'job_old_single', 'kind': 'scheduled-task',
+                  'status': 'completed', 'config': cfg, 'lastExecution': {'result': {'accepted': True}}}
+    path = root / 'jobs' / 'job_old_single.json'
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(historical), encoding='utf-8')
+    before = path.read_bytes()
+    old = Runtime(root, Store(tmp_path / 'retired-actions'), None)
+    with pytest.raises(PermissionError, match='retired'):
+        old.create(cfg, True)
+    restored = background_jobs.get('job_old_single', root)
+    assert {key: restored[key] for key in historical} == historical
+    assert 'steps' not in background_jobs.get('job_old_single', root)['config']
+    # A fresh one-step Job executes through the same canonical chain machinery.
+    value = job_def(h)
+    value['steps'][0]['arguments']['text']['value'] = 'same'
+    job = enabled(h, value)
+    rid = launch(h, job, 'canonical-single')['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'completed'
+    assert [text for text, _ in h.provider.calls] == ['same']
+    assert len(state['attempts']) == len(state['effects']) == 1
+    assert state['steps'][rid]['s0']['state'] == 'completed'
+    asyncio.run(h.service.dispatch_once())
+    assert len(h.provider.calls) == 1 and path.read_bytes() == before
 
 
-@async_test
-async def test_chain_is_serial_and_cancel_stops_next_step(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    entered, release = asyncio.Event(), asyncio.Event()
-    calls = []
-    async def execute(action, *args):
-        calls.append(action['id']); entered.set(); await release.wait(); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps()), True)
-        await runtime.launch(job['jobId'], 1)
-        await asyncio.wait_for(entered.wait(), 2)
-        assert calls == ['one']
-        done = await runtime.cancel(job['jobId'], 1)
-        assert done['status'] == 'cancelled' and calls == ['one']
-        steps = done['lastExecution']['stepExecutions']
-        assert [s['status'] for s in steps] == ['cancelled', 'pending']
-        assert steps[0]['attempts'][0]['status'] == 'cancelled' and not steps[1]['attempts']
-    finally:
-        release.set(); await runtime.close()
+def test_chain_is_serial_and_cancel_stops_next_step(h, tmp_path):
+    from tests.test_action_unification_p2 import install, py
+    from tests.test_job_final_http_service import enabled, launch, USER
+    install(h)
+    commands = [py(tmp_path, "from pathlib import Path;import time;Path('started').write_text('yes');time.sleep(30)"),
+                py(tmp_path, "from pathlib import Path;Path('forbidden').write_text('second')")]
+    value = {'name': 'cancel serial chain', 'retention': {'policyRef': 'test'}, 'steps': [
+        {'stepId': sid, 'actionRef': h.action,
+         'arguments': {key: {'from': 'literal', 'value': val} for key, val in args.items()},
+         'completion': {'contract': 'process-exit'}}
+        for sid, args in zip(('first', 'second'), commands)]}
+    job = enabled(h, value)
+    rid = launch(h, job, 'cancel-chain')['runId']
+    async def scenario():
+        task = asyncio.create_task(h.service.dispatch_once())
+        try:
+            async with asyncio.timeout(5):
+                while not (tmp_path / 'started').exists():
+                    await asyncio.sleep(.01)
+            assert not (tmp_path / 'forbidden').exists()
+            run = h.service.get_run(rid, actor=USER)
+            response = await h.service.control_run_postcommit(rid, {
+                'operation': 'cancel', 'requestKey': 'cancel-original-chain',
+                'expectedStateRevision': run['stateRevision']}, actor=USER)
+            await asyncio.wait_for(task, 5)
+            return response
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+    response = asyncio.run(scenario())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'cancelled'
+    # Persisted cancellation closes the command's running fence; its original
+    # receipt retains that rejection while the Run carries cancelled state.
+    assert [state['steps'][rid][sid]['state'] for sid in ('first', 'second')] == ['failed', 'pending']
+    attempt, = state['attempts'].values()
+    assert attempt['stepId'] == 'first' and attempt['state'] == 'failed'
+    assert state['steps'][rid]['second']['attemptCount'] == 0
+    assert not (tmp_path / 'forbidden').exists()
+    effect, = state['effects']
+    assert effect['outcome'] == 'rejected'
+    command = effect['receipt']['receipt']['commands'][0]
+    assert command['code'] == 'revision_conflict'
+    assert command['error'] == 'Original Attempt is no longer executable'
+    assert command['cleanupProof']['confirmed'] is True
+    assert effect['receipt']['cleanupProof']['confirmed'] is True
+    assert h.service.operation(response['operationId'], actor=USER)['status'] == 'completed'
+    asyncio.run(h.service.dispatch_once())
+    assert not (tmp_path / 'forbidden').exists() and h.service.final.get(job['id']) == state
 
 
 @pytest.mark.parametrize('status', ['unknown', 'uncertain', 'unconfirmed'])
-@async_test
-async def test_unknown_step_blocks_and_never_replays(tmp_path, monkeypatch, status):
-    runtime = await _runtime(tmp_path); calls = []
-    async def execute(action, *args):
-        calls.append(action['id']); return {'ok': True, 'status': status}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps()), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        for _ in range(2):await runtime.tick({'enabled': True})
-        current = runtime.get(job['jobId'])
-        assert current['status'] == 'uncertain' and calls == ['one']
-        assert [s['status'] for s in current['lastExecution']['stepExecutions']] == ['uncertain', 'pending']
-        with pytest.raises(Conflict, match='reconciliation'):
-            await runtime.confirm_recovery(job['jobId'], 1)
-    finally:
-        await runtime.close()
+def test_unknown_step_blocks_and_never_replays(h, status):
+    from tests.test_job_final_http_service import enabled, job_def, launch, run_control
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    calls = []
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            calls.append(effect_key['stepId'])
+            return {'status': status}
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    job = enabled(h, job_def(h, steps=2))
+    rid = launch(h, job, 'unknown-chain')['runId']
+    for _ in range(3):
+        asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'uncertain' and calls == ['s0']
+    assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['uncertain', 'pending']
+    attempt, = state['attempts'].values()
+    effect, = state['effects']
+    assert attempt['state'] == 'uncertain' and attempt['runId'] == rid
+    assert effect['attemptId'] == attempt['attemptId'] and effect['outcome'] == 'unknown'
+    response = run_control(h, rid, 'retry', 'no-replay-unknown')
+    assert response.status_code == 409, response.text
+    assert response.json()['error']['code'] == 'reconciliation_required'
+    asyncio.run(h.service.dispatch_once())
+    assert calls == ['s0'] and h.service.final.get(job['id']) == state
 
 
-@async_test
-async def test_admission_freezes_all_steps_inputs_and_definitions(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    entered, release = asyncio.Event(), asyncio.Event(); calls = []
-    async def execute(action, args, event, progress, pause):
-        calls.append((action['id'], action['name'], args['value']))
-        if action['id'] == 'one':entered.set(); await release.wait()
-        return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        steps = _steps(); steps[1]['arguments']['value'] = {'from': 'input', 'path': 'input'}
-        cfg = _config(steps)
-        job = runtime.create(cfg, True); await runtime.launch(job['jobId'], 1); await entered.wait()
-        # Neither a changed later definition nor a changed Job chain/input is
-        # allowed into the admitted Run, even before step two has started.
-        runtime.actions.put('actions', {**_action('two'), 'name': 'new definition'})
-        changed = _config(_steps(), arguments={'input': 'changed'})
-        runtime.update(job['jobId'], changed, 1, True)
-        release.set(); await asyncio.gather(*runtime.tasks.values())
-        current = runtime.get(job['jobId'])
-        assert calls == [('one', 'one', 'first'), ('two', 'two', 'seed')]
-        assert current['configRevision'] == 2 and current['lastExecution']['configRevision'] == 1
-        assert current['lastExecution']['stepExecutions'][1]['actionRevision'] == 1
-        assert not runtime.actions.read().get('jobExecutions')
-        public = runtime.view(current)
+def test_admission_freezes_all_steps_inputs_and_definitions(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    from tests.test_action_unification_p4 import plans, upgrade
+    from packages.jobs.final_runtime.executor import TypedExecutor
+
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+        calls = []
+        class Provider:
+            async def send_session(self, session_id, text, *, effect_key, source):
+                calls.append((effect_key['stepId'], text))
+                if effect_key['stepId'] == 's0':
+                    entered.set()
+                    await release.wait()
+                return {'status': 'queued', 'messageId': 'accepted'}
+        h.service.executor = TypedExecutor(session_provider=Provider())
+        value = job_def(h, steps=2)
+        value['steps'][1]['arguments']['text'] = {'from': 'input', 'path': 'input'}
+        value['inputSchema'] = {'type': 'object', 'properties': {'input': {'type': 'string'}},
+                                'required': ['input'], 'additionalProperties': False}
+        value['arguments'] = {'input': 'seed'}
+        job = enabled(h, value)
+        admitted = h.client.post('/api/jobs/' + job['id'] + '/runs', json={
+            'expectedRevision': job['configRevision'], 'requestKey': 'frozen-chain',
+            'input': {'input': 'seed'}, 'cause': {'type': 'manual'}})
+        assert admitted.status_code == 202, admitted.text
+        rid = admitted.json()['runId']
+        frozen = copy.deepcopy(plans(h, job['id'])[rid]['frozen'])
+        dispatch = asyncio.create_task(h.service.dispatch_once())
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            old_ref, new_ref = upgrade(h)
+            assert new_ref != old_ref
+            changed = copy.deepcopy(value)
+            changed['arguments']['input'] = 'changed'
+            changed['steps'][1]['actionRef'] = new_ref
+            response = h.client.put('/api/jobs/' + job['id'], json={
+                'definition': changed, 'expectedRevision': job['configRevision'], 'requestKey': 'edit-active-chain'})
+            assert response.status_code == 200, response.text
+            assert plans(h, job['id'])[rid]['frozen'] == frozen
+            release.set()
+            await asyncio.wait_for(dispatch, 5)
+        finally:
+            release.set()
+            if not dispatch.done():
+                dispatch.cancel()
+                await asyncio.gather(dispatch, return_exceptions=True)
+        state = h.service.final.get(job['id'])
+        current = h.service.get('job', job['id'], actor=USER)
+        assert calls == [('s0', '0'), ('s1', 'seed')]
+        assert current['configRevision'] == 2 and state['runs'][rid]['configRevision'] == 1
+        assert state['runs'][rid]['state'] == 'completed'
+        assert frozen['steps'][1]['actionRef'] == old_ref
+        assert len(state['attempts']) == len(state['effects']) == 2
+        public = h.client.get('/api/jobs/' + job['id']).json()
         assert 'chainSnapshot' not in json.dumps(public) and 'chainRecovery' not in json.dumps(public)
-    finally:
-        release.set(); await runtime.close()
+        assert 'frozen' not in public
+    asyncio.run(run())
 
 
-@async_test
-async def test_event_and_input_and_output_mapping(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path); calls = []
-    async def execute(action, args, event, progress, pause):
-        calls.append(args['value']); return {'ok': True, 'structuredContent': {'value': args['value'] + '!'}}
-    async def resolve(_):return {'ids': ['target'], 'candidateCount': 1}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    monkeypatch.setattr('packages.actions.session_query.resolve', resolve)
-    try:
-        steps = [*_steps(), {'stepId': 'third', 'actionId': 'two', 'arguments': {'value': {'from': 'step', 'stepId': 'second', 'path': 'value'}}}]
-        steps[0]['arguments']['value'] = {'from': 'input', 'path': 'input'}
-        steps[1]['arguments']['value'] = {'from': 'event', 'path': 'payload.text'}
-        cfg = _config(steps, trigger={'kind': 'event', 'eventTypes': ['owned.event'], 'query': {'field': 'name', 'op': 'eq', 'value': 'target'}})
-        job = runtime.create(cfg, True)
-        runtime.queue_event({'id': 'e', 'type': 'owned.event', 'payload': {'text': 'event'}}, runtime.event_targets('owned.event')[0])
-        await runtime.tick({'enabled': True}); await asyncio.gather(*runtime.tasks.values())
-        current = runtime.get(job['jobId'])
-        assert calls == ['seed', 'event', 'event!']
-        assert current['eventReceipts']['e']['status'] == 'completed'
-        assert len(current['lastExecution']['stepExecutions']) == 3
-    finally:
-        await runtime.close()
+def test_event_and_input_and_output_mapping(h):
+    from tests.test_job_final_http_service import enabled, job_def
+    from tests.test_action_unification_p4 import trigger, event
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    calls = []
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            calls.append(text)
+            return {'status': 'queued', 'messageId': text + '!'}
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    value = job_def(h, steps=3)
+    value['inputSchema'] = {'type': 'object', 'properties': {'input': {'type': 'string'}},
+                            'required': ['input'], 'additionalProperties': False}
+    value['arguments'] = {'input': 'seed'}
+    value['steps'][0]['arguments']['text'] = {'from': 'input', 'path': 'input'}
+    value['steps'][1]['arguments']['text'] = {'from': 'event', 'path': 'payload.title'}
+    value['steps'][2]['arguments']['text'] = {'from': 'step', 'stepId': 's1', 'path': 'messageId'}
+    job = enabled(h, value)
+    source = trigger(h, {'type': 'job', 'jobId': job['id'], 'configRevision': job['configRevision']})
+    fact = event('chain-event')
+    admitted = h.service.admit_event(fact, source)
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    run, = state['runs'].values()
+    assert calls == ['seed', 'From event', 'From event!']
+    assert run['state'] == 'completed' and len(state['steps'][run['runId']]) == 3
+    assert len(state['attempts']) == len(state['effects']) == 3
+    assert all(e['effectKey']['runId'] == run['runId'] for e in state['effects'])
+    repeated = h.service.admit_event(fact, source)
+    assert repeated['operationId'] == admitted['operationId'] and repeated['replayed'] is True
+    asyncio.run(h.service.dispatch_once())
+    assert calls == ['seed', 'From event', 'From event!']
+    assert len(h.service.final.get(job['id'])['runs']) == 1
 
 
 @pytest.mark.parametrize('binding', [
     {'from': 'input', 'path': 'missing'}, {'from': 'input', 'path': ''},
 ])
-@async_test
-async def test_mapping_missing_or_type_error_fails_before_effect(tmp_path, monkeypatch, binding):
-    runtime = await _runtime(tmp_path); calls = []
-    async def execute(*args):calls.append(1); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        steps = _steps(); steps[0]['arguments']['value'] = binding
-        job = runtime.create(_config(steps), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert done['status'] == 'failed' and not calls
-        assert done['lastExecution']['stepExecutions'][0]['error']
-        assert not done['lastExecution']['stepExecutions'][0]['attempts']
-    finally:
-        await runtime.close()
+def test_mapping_missing_or_type_error_fails_before_effect(h, binding):
+    from tests.test_job_final_http_service import job_def
+    from tests.test_action_groups import canonical_state
+    value = job_def(h, steps=2)
+    value['inputSchema'] = {'type': 'object', 'properties': {'input': {'type': 'string'}},
+                            'additionalProperties': False}
+    value['steps'][0]['arguments']['text'] = binding
+    before = canonical_state(h.service)
+    response = h.client.post('/api/jobs', json={
+        'definition': value, 'expectedRevision': 0, 'requestKey': 'invalid-mapping'})
+    assert response.status_code == 400, response.text
+    assert response.json()['error']['code'] == 'invalid_schema'
+    assert canonical_state(h.service) == before and h.provider.calls == []
+    assert h.client.get('/api/jobs').json()['items'] == []
 
 
-@async_test
-async def test_all_action_references_generations_and_template_chain(tmp_path):
-    runtime = await _runtime(tmp_path)
-    try:
-        cfg = _config(_steps(), enabled=False)
-        template = runtime.templates.put({'name': 'all steps', 'config': cfg}, 0)
-        job = runtime.instantiate(template['id'], template['revision'], 'stable-key')
-        assert job['config']['steps'] == _steps()
-        assert references(runtime.actions.read(), 'two')
-        with pytest.raises(PermissionError):runtime.actions.delete('actions', 'two')
-        runtime.actions.delete('actions', 'two', authorized=True, confirm_references=True)
-        runtime.actions.put('actions', _action('two'))
-        assert runtime.view(runtime.get(job['jobId']))['integrity']['approvalRequired']
-        assert not runtime.templates.view(template, runtime.actions.read())['usable']
-    finally:
-        await runtime.close()
+@pytest.mark.parametrize('retired_step', [0, 1])
+def test_all_action_references_generations_and_template_chain(h, retired_step):
+    from tests.test_job_final_http_service import create, control, job_def, launch, USER
+    from packages.jobs.final_service import definition, object_ref
+    from packages.jobs.final_contracts import ContractError
+    from tests.test_action_groups import canonical_state
+    first = h.service.get('action', h.action['id'], actor=USER)
+    second = h.service.publish_action('second_chain_action', definition('action', first))
+    cfg = job_def(h, steps=2)
+    cfg['steps'][1]['actionRef'] = object_ref('action', second)
+    template_value = {'name':'all steps', 'jobDefinition':cfg, 'composition':{'creators':[], 'triggers':[]}}
+    template = create(h, 'job-templates', template_value, 'create-all-step-template')
+    published = control(h, 'job-templates', template, 'publish', 'publish-all-step-template')
+    assert published.status_code == 200, published.text
+    template = published.json()['result']['object']
+    copied = h.service.instantiate_template(template['id'], {'expectedRevision':template['revision'],
+        'requestKey':'copy-all-step-template'}, actor=USER)
+    jid = copied['result']['objectIds']['job']
+    job = h.service.get('job', jid, actor=USER)
+    assert job['steps'] == cfg['steps']
+    activated = control(h, 'jobs', job, 'enable', 'enable-all-step-copy')
+    assert activated.status_code == 200, activated.text
+    job = activated.json()['result']['object']
+    rid = launch(h, job, 'all-step-run')['runId']
+    asyncio.run(h.service.dispatch_once())
+    original = h.service.final.get(jid)
+    assert original['runs'][rid]['state'] == 'completed'
+    assert len(original['attempts']) == len(original['effects']) == 2
+    target = (first, second)[retired_step]
+    body = {'expectedRevision':target['revision'], 'expectedStateRevision':target['stateRevision'],
+            'requestKey':'retire-referenced-step'}
+    before = canonical_state(h.service)
+    anonymous = h.client.request('DELETE', '/api/jobs/actions/' + target['id'], json=body, headers={'Authorization':''})
+    assert anonymous.status_code == 401 and canonical_state(h.service) == before
+    removed = h.client.request('DELETE', '/api/jobs/actions/' + target['id'], json=body)
+    assert removed.status_code == 200, removed.text
+    retired = removed.json()['result']['object']
+    assert retired['state'] == 'retired' and retired['enabled'] is False
+    before = canonical_state(h.service)
+    for operation in ('instantiate', 'run', 'restore'):
+        with pytest.raises(ContractError) as blocked:
+            if operation == 'instantiate':
+                h.service.instantiate_template(template['id'], {'expectedRevision':template['revision'],
+                    'requestKey':'retired-source-copy'}, actor=USER)
+            elif operation == 'run':
+                h.service.create_run(jid, {'expectedRevision':job['configRevision'],
+                    'requestKey':'retired-source-run', 'input':{}, 'cause':{'type':'manual'}}, actor=USER)
+            else:
+                h.service.write('action', target['id'], {'definition':definition('action', target),
+                    'expectedRevision':retired['revision'], 'requestKey':'restore-old-identity'}, actor=USER)
+        assert blocked.value.code == 'reference_conflict'
+        assert canonical_state(h.service) == before
+    # A different explicit identity and Job CAS repair can restore capability;
+    # recreating a source never silently blesses the old reference generation.
+    replacement = h.service.publish_action('replacement_chain_action', definition('action', target))
+    repaired = copy.deepcopy(cfg)
+    repaired['steps'][retired_step]['actionRef'] = object_ref('action', replacement)
+    response = h.client.put('/api/jobs/' + jid, json={'definition':repaired,
+        'expectedRevision':job['configRevision'], 'requestKey':'explicit-chain-reference-repair'})
+    assert response.status_code == 200, response.text
+    current = response.json()['result']['object']
+    latest = launch(h, current, 'repaired-chain-run')['runId']
+    asyncio.run(h.service.dispatch_once())
+    done = h.service.final.get(jid)
+    assert done['runs'][latest]['state'] == 'completed' and done['runs'][rid] == original['runs'][rid]
+    assert len(done['attempts']) == len(done['effects']) == len(h.provider.calls) == 4
+    assert h.service.get('action', target['id'], actor=USER) == retired
 
 
 @pytest.mark.parametrize('mutation', ['duplicate', 'forward', 'extra', 'bad_literal'])
-@async_test
-async def test_invalid_chain_configuration_rejected(tmp_path, mutation):
-    runtime = await _runtime(tmp_path)
-    try:
-        steps = _steps()
-        if mutation == 'duplicate':steps[1]['stepId'] = 'first'
-        if mutation == 'forward':steps[0]['arguments']['value'] = {'from': 'step', 'stepId': 'second', 'path': 'value'}
-        if mutation == 'extra':steps[0]['arguments']['undeclared'] = 'value'
-        if mutation == 'bad_literal':steps[0]['arguments']['value'] = 5
-        with pytest.raises(ValueError):config_value(_config(steps), runtime.actions.read())
-    finally:
-        await runtime.close()
+def test_invalid_chain_configuration_rejected(h, mutation):
+    from tests.test_job_final_http_service import job_def
+    from tests.test_action_groups import canonical_state
+    value = job_def(h, steps=2)
+    steps = value['steps']
+    if mutation == 'duplicate':
+        steps[1]['stepId'] = 's0'
+    elif mutation == 'forward':
+        steps[0]['arguments']['text'] = {'from': 'step', 'stepId': 's1', 'path': 'messageId'}
+    elif mutation == 'extra':
+        steps[0]['arguments']['undeclared'] = {'from': 'literal', 'value': 'value'}
+    else:
+        steps[0]['arguments']['text'] = {'from': 'literal', 'value': 5}
+    before = canonical_state(h.service)
+    response = h.client.post('/api/jobs', json={
+        'definition': value, 'expectedRevision': 0, 'requestKey': 'invalid-chain'})
+    assert response.status_code == 400, response.text
+    assert response.json()['error']['code'] == 'invalid_schema'
+    assert canonical_state(h.service) == before and h.provider.calls == []
 
 
-@async_test
-async def test_parallel_runs_have_separate_step_attempts(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path); calls = []
-    async def execute(action, args, event, progress, pause):
-        await asyncio.sleep(.01)
-        calls.append((progress.checkpoint['id'], action['id'])); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps(), overlap={'mode': 'parallel', 'parallelLimit': 2}), True)
-        await runtime.launch(job['jobId'], 1); await runtime.launch(job['jobId'], 1)
-        await asyncio.gather(*runtime.tasks.values())
-        from packages.core import background_jobs as jobs
-        records = jobs.list_run_records(registry_root=runtime.root)
-        assert len(records) == 2 and len({r['result']['runId'] for r in records}) == 2
-        assert len({s['id'] for r in records for s in r['result']['stepExecutions']}) == 4
-        assert all([s['status'] for s in r['result']['stepExecutions']] == ['completed'] * 2 for r in records)
-        assert len(calls) == 4
-    finally:
-        await runtime.close()
+def test_parallel_runs_have_separate_step_attempts(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    calls = []
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            await asyncio.sleep(0)
+            calls.append(dict(effect_key))
+            return {'status': 'queued', 'messageId': effect_key['runId'] + effect_key['stepId']}
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    job = enabled(h, job_def(h, steps=2, overlap={'mode': 'parallel', 'maxActive': 2, 'maxPending': 0}))
+    runs = {launch(h, job, key)['runId'] for key in ('parallel-1', 'parallel-2')}
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert set(state['runs']) == runs and len(runs) == 2
+    assert len(state['attempts']) == len(state['effects']) == 4
+    assert len({a['attemptId'] for a in state['attempts'].values()}) == 4
+    for rid in runs:
+        assert state['runs'][rid]['state'] == 'completed'
+        assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['completed'] * 2
+        assert len([a for a in state['attempts'].values() if a['runId'] == rid]) == 2
+        assert [c['stepId'] for c in calls if c['runId'] == rid] == ['s0', 's1']
+    assert len(calls) == 4
+    asyncio.run(h.service.dispatch_once())
+    assert len(calls) == 4
 
 
-@async_test
-async def test_restart_boundary_reuses_original_run_and_never_reruns_completed(tmp_path):
-    runtime = await _runtime(tmp_path)
-    job = runtime.create(_config(_steps()), True)
-    await runtime.close()
-    # Owned child process writes an actual completed step and immediately exits
-    # without runtime finalization. No HTTP server or production data involved.
-    script = r'''
-import asyncio,sys
+@pytest.mark.parametrize('damage', [None, 'missing_receipt', 'wrong_key', 'wrong_output', 'pending_admission', 'missing_operation',
+    'missing_attempt', 'generation', 'leaseId', 'ownerEpoch', 'attemptId', 'targetId', 'ordinal',
+    'wrong_operation', 'wrong_job', 'wrong_admission'])
+def test_restart_boundary_reuses_original_run_and_never_reruns_completed(h, tmp_path, damage):
+    from packages.jobs.final_service import FinalService
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    job = enabled(h, job_def(h, steps=2))
+    admission = launch(h, job, 'crash-completed-boundary')
+    rid = admission['runId']
+    effects = tmp_path / 'effects.txt'
+    script = r"""
+import asyncio, sys, os
 from pathlib import Path
-from packages.actions.store import Store
-from packages.jobs.action_runtime import Runtime
-from packages.jobs import chains
-root,jid=Path(sys.argv[1]),sys.argv[2]
-async def main():
-    rt=Runtime(root/'jobs',Store(root/'actions'),None)
-    await rt.start()
-    claimed=rt.claim(jid,'jexec_owned_crash',1)
-    steps=claimed['execution']['stepExecutions']
-    chains.start_step(steps[0])
-    rt.chain_save(jid,'jexec_owned_crash',steps,'step_running')
-    with (root/'effects.txt').open('a') as f:f.write('one\n')
-    chains.finish_step(steps[0],'completed',result={'ok':True},output={'value':'one'})
-    rt.chain_save(jid,'jexec_owned_crash',steps,'boundary')
-    import os;os._exit(23)
-asyncio.run(main())
-'''
-    result = await asyncio.to_thread(subprocess.run, [sys.executable, '-c', script, str(tmp_path), job['jobId']],
-                                     cwd=str(Path(__file__).resolve().parents[1]), capture_output=True, text=True, timeout=20)
-    assert result.returncode == 23, result.stderr
-    store = Store(tmp_path / 'actions')
-    calls = []
-    async def pause(sid, args):
-        calls.append(sid)
-        with (tmp_path / 'effects.txt').open('a') as f:f.write('two\n')
-        return {'ok': True}
-    fresh = Runtime(tmp_path / 'jobs', store, pause)
+from contextlib import contextmanager
+from packages.jobs.final_service import FinalService
+from packages.jobs.final_api import CanonicalUserAuth
+from packages.jobs.final_runtime.executor import TypedExecutor
+root, jid, rid, output = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4])
+class Provider:
+    async def send_session(self, session_id, text, **kwargs):
+        with output.open('a') as f: f.write(text+'\n')
+        return {'status':'queued', 'messageId':'message_first'}
+service = FinalService(root, CanonicalUserAuth(root.parent/'automation'), executor=TypedExecutor(session_provider=Provider()))
+original = service.transaction
+@contextmanager
+def transaction(*, readonly=False):
+    with original(readonly=readonly) as db:
+        yield db
+    if not readonly:
+        state = service.final.get(jid)
+        if state['steps'][rid]['s0']['state'] == 'completed' and state['steps'][rid]['s1']['state'] == 'pending':
+            os._exit(23)
+service.transaction = transaction
+asyncio.run(service.dispatch_once())
+raise AssertionError('crash boundary not reached')
+"""
+    child = subprocess.run([sys.executable, '-c', script, str(h.root), job['id'], rid, str(effects)],
+        cwd=str(Path(__file__).resolve().parents[1]), capture_output=True, text=True, timeout=20)
+    assert child.returncode == 23, child.stderr
+    original_state = h.service.final.get(job['id'])
+    first_attempt, = original_state['attempts'].values()
+    first_effect, = original_state['effects']
+    assert first_attempt['state'] == 'succeeded' and first_effect['outcome'] == 'succeeded'
+    from packages.jobs.independent_executor import fence
+    assert fence(first_effect['attempt']) == fence(first_attempt)
+    assert first_effect['attempt']['state'] == 'running'
+    assert 'endedAt' not in first_effect['attempt']
+    assert effects.read_text().splitlines() == ['0']
+    if damage:
+        with h.service.transaction() as db:
+            stored = h.service._get(db, 'job', job['id'])
+            from packages.jobs.final_runtime.ledger import aggregate
+            ledger = aggregate(stored, h.root)
+            if damage == 'missing_attempt':
+                ledger['effects'][0].pop('attempt')
+            elif damage in {'generation', 'ownerEpoch'}:
+                ledger['effects'][0]['attempt'][damage] += 1
+            elif damage in {'leaseId', 'attemptId'}:
+                ledger['effects'][0]['attempt'][damage] += '_wrong'
+            elif damage in {'targetId', 'ordinal'}:
+                key = ledger['effects'][0]['effectKey']
+                key['targetId' if damage == 'targetId' else 'operationOrdinal'] = 'wrong' if damage == 'targetId' else 1
+                ledger['effects'][0]['receipt']['effectKey'] = copy.deepcopy(key)
+            elif damage in {'wrong_operation', 'wrong_job', 'wrong_admission'}:
+                op_id = ledger['plans'][rid]['operationId']
+                original = json.loads(db.execute('SELECT document FROM final_operations WHERE id=?', (op_id,)).fetchone()[0])
+                if damage == 'wrong_operation':
+                    original['operation'] = 'update'
+                elif damage == 'wrong_job':
+                    original['response']['objectRefs'][0]['id'] = 'job_wrong'
+                else:
+                    original['response']['admissionId'] = 'adm_wrong'
+                db.execute('UPDATE final_operations SET document=? WHERE id=?', (json.dumps(original), op_id))
+            elif damage == 'missing_receipt':
+                ledger['effects'].clear()
+            elif damage == 'wrong_key':
+                ledger['effects'][0]['receipt']['effectKey']['runId'] = 'run_wrong'
+            elif damage == 'wrong_output':
+                ledger['plans'][rid]['outputs']['s0'] = {'forged': True}
+            elif damage == 'missing_operation':
+                ledger['plans'][rid]['operationId'] = 'op_missing'
+            elif damage == 'pending_admission':
+                ledger['effectAdmissions']['unconfirmed'] = {
+                    'attemptId': first_attempt['attemptId'], 'effectKey': first_effect['effectKey']}
+            h.service._save(db, 'job', job['id'], stored)
+    original_send = h.provider.send_session
+    async def send(session_id, text, **kwargs):
+        with effects.open('a') as f:
+            f.write(text + '\n')
+        return await original_send(session_id, text, **kwargs)
+    h.provider.send_session = send
+    cold = FinalService(h.root, h.automation.auth, executor=h.service.executor)
     try:
-        await fresh.start()
-        recovering = fresh.get(job['jobId']); run_id = recovering['runId']
-        assert recovering['status'] == 'restarting'
-        await fresh.tick({'enabled': True}); await asyncio.gather(*fresh.tasks.values())
-        done = fresh.get(job['jobId'])
-        assert done['status'] == 'completed' and done['runId'] == run_id
-        assert (tmp_path / 'effects.txt').read_text().splitlines() == ['one', 'two']
-        steps = done['lastExecution']['stepExecutions']
-        assert [len(s['attempts']) for s in steps] == [1, 1]
+        cold.recover()
+        asyncio.run(cold.dispatch_once())
+        done = cold.final.get(job['id'])
+        if damage:
+            assert done['runs'][rid]['state'] == 'uncertain'
+            assert done['attempts'][first_attempt['attemptId']] == first_attempt
+            assert done['steps'][rid]['s1']['attemptCount'] == 0
+            assert h.provider.calls == [] and effects.read_text().splitlines() == ['0']
+            asyncio.run(cold.dispatch_once())
+            assert cold.final.get(job['id']) == done
+            return
+        assert done['runs'][rid]['state'] == 'completed'
+        assert set(done['runs']) == {rid}
+        assert effects.read_text().splitlines() == ['0', '1']
+        assert [done['steps'][rid][sid]['attemptCount'] for sid in ('s0', 's1')] == [1, 1]
+        assert done['attempts'][first_attempt['attemptId']] == first_attempt
+        assert first_effect in done['effects']
+        assert cold.operation(admission['operationId'], actor=USER)['status'] == 'completed'
+        asyncio.run(cold.dispatch_once())
+        assert effects.read_text().splitlines() == ['0', '1']
     finally:
-        await fresh.close()
+        asyncio.run(cold.close())
 
 
-def test_chain_failure_and_uncertain_block_following_step(tmp_path, monkeypatch):
-    async def run():
-        runtime = await _runtime(tmp_path)
-        calls = []
-
-        async def execute(action, args, event, progress, pause):
-            calls.append(action['id'])
-            return {'ok': False, 'status': 'failed'} if action['id'] == 'one' else {'ok': True}
-
-        monkeypatch.setattr(executor, 'execute_dynamic', execute)
-        try:
-            job = runtime.create(_config([
-                {'stepId': 'first', 'actionId': 'one', 'arguments': {'value': 'literal'}},
-                {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': 'literal'}},
-            ]), True)
-            await runtime.launch(job['jobId'], 1)
-            await asyncio.gather(*runtime.tasks.values())
-            current = runtime.get(job['jobId'])
-            assert calls == ['one']
-            assert current['status'] == 'failed'
-            assert current['lastExecution']['stepExecutions'][1]['status'] == 'pending'
-        finally:
-            await runtime.close()
-
-    asyncio.run(run())
-
-
-def test_chain_monitoring_recovery_reuses_completed_step(tmp_path, monkeypatch):
-    async def run():
-        runtime = await _runtime(tmp_path)
-        # Replace the fixtures with monitoring-capable definitions before the Job
-        # is admitted; the action IDs and config remain stable.
-        runtime.actions.put('actions', _action('one', monitoring=True), expected=runtime.actions.read()['revision'])
-        runtime.actions.put('actions', _action('two', monitoring=True), expected=runtime.actions.read()['revision'])
-        calls = []
-
-        async def execute(action, args, event, progress, pause):
-            calls.append(action['id'])
-            if action['id'] == 'two' and calls.count('two') == 1:
-                return {'ok': True, 'processTreeEnded': False, 'panJobCompletion': {'type': 'done', 'completed': True}}
-            return {'ok': True, 'processTreeEnded': True, 'panJobCompletion': {'type': 'done', 'completed': True}}
-
-        monkeypatch.setattr(executor, 'execute_dynamic', execute)
-        cfg = _config([
-            {'stepId': 'first', 'actionId': 'one', 'arguments': {'value': 'literal'}},
-            {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': 'literal'}},
-        ], recovery={'enabled': True, 'monitoring': True, 'maxAttempts': 2,
-                     'backoffSec': [0, 0, 0], 'stableResetSec': 300},
-        completion={'kind': 'monitoring', 'signalType': 'done'})
-        try:
-            job = runtime.create(cfg, True)
-            await runtime.launch(job['jobId'], 1)
-            await asyncio.gather(*runtime.tasks.values())
-            assert runtime.get(job['jobId'])['status'] == 'restarting'
-            await runtime.tick({'enabled': True})
-            await asyncio.gather(*runtime.tasks.values())
-            current = runtime.get(job['jobId'])
-            assert calls == ['one', 'two', 'two']
-            assert current['status'] == 'completed'
-            assert current['lastExecution']['stepExecutions'][0]['attempts'][0]['status'] == 'completed'
-        finally:
-            await runtime.close()
-
-    asyncio.run(run())
+@pytest.mark.parametrize('field', ['generation', 'leaseId', 'ownerEpoch', 'attemptId'])
+def test_terminal_effect_snapshot_uses_original_attempt_and_rejects_changed_fence(h, field):
+    from tests.test_job_final_http_service import enabled, launch
+    from tests.test_action_groups import canonical_state
+    from packages.jobs.final_contracts import ContractError, validate_record
+    from packages.jobs.final_runtime.ledger import aggregate
+    job = enabled(h)
+    rid = launch(h, job, 'snapshot-write-fence')['runId']
+    with h.service.transaction() as db:
+        stored = h.service._get(db, 'job', job['id'])
+        ledger = h.service.final.ledger
+        ledger.start(stored, h.root, rid)
+        original = copy.deepcopy(ledger.begin_attempt(stored, h.root, rid, 's0'))
+        key = ledger.admit_effect(stored, h.root, original['attemptId'], h.action['id'])
+        h.service._save(db, 'job', job['id'], stored)
+    before = canonical_state(h.service)
+    receipt = {'effectKey': key, 'outcome': 'succeeded', 'receipt': {'messageId': 'original'}}
+    with pytest.raises(ContractError) as denied:
+        with h.service.transaction() as db:
+            stored = h.service._get(db, 'job', job['id'])
+            state = aggregate(stored, h.root)
+            current = state['attempts'][original['attemptId']]
+            current[field] = current[field] + (1 if field in {'generation', 'ownerEpoch'} else '_changed')
+            ledger.record_effect(stored, h.root, original['attemptId'], 'completed', receipt, expected_attempt=original)
+            h.service._save(db, 'job', job['id'], stored)
+    assert denied.value.code == 'revision_conflict'
+    assert canonical_state(h.service) == before and h.provider.calls == []
+    # The same strict generated schema permits old facts without a snapshot,
+    # but an incomplete new snapshot cannot masquerade as a fence.
+    old = {'effectKey': key, 'attemptId': original['attemptId'], 'outcome':'succeeded',
+           'receipt': receipt, 'createdAt': original['startedAt']}
+    assert validate_record('effect', old) == old
+    bad = {**old, 'attempt': {k:v for k,v in original.items() if k != 'leaseId'}}
+    with pytest.raises(ContractError) as invalid:
+        validate_record('effect', bad)
+    assert invalid.value.code == 'invalid_schema'
 
 
-@async_test
-async def test_known_failure_explicit_retry_preserves_completed_and_frozen_steps(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    calls = []
-    async def execute(action, args, *unused):
-        calls.append((action['id'], args['value']))
-        return {'ok': not (action['id'] == 'two' and len(calls) == 2)}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps()), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        assert runtime.get(job['jobId'])['lastStatus'] == 'failed'
-        changed = _steps(); changed[1]['arguments']['value'] = 'edited'
-        runtime.update(job['jobId'], _config(changed), 1, True)
-        await runtime.confirm_recovery(job['jobId'], 2, failed=True)
-        await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert calls == [('one', 'first'), ('two', 'second'), ('two', 'second')]
-        assert done['lastStatus'] == 'completed' and 'chainRecovery' not in done
-        assert [len(s['attempts']) for s in done['lastExecution']['stepExecutions']] == [1, 2]
-    finally:
-        await runtime.close()
+@pytest.mark.parametrize('outcome,terminal', [('rejected', 'failed'), ('unknown', 'uncertain')])
+def test_chain_failure_and_uncertain_block_following_step(h, outcome, terminal):
+    from tests.test_job_final_http_service import enabled, job_def, launch
+    job = enabled(h, job_def(h, steps=2))
+    if outcome == 'rejected':
+        h.provider.fail_once = '0'
+    else:
+        h.provider.unknown = True
+    rid = launch(h, job, 'stop-at-first-effect')['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert [text for text, _ in h.provider.calls] == ['0']
+    assert state['runs'][rid]['state'] == terminal
+    assert state['steps'][rid]['s0']['state'] == terminal
+    assert state['steps'][rid]['s1']['state'] == 'pending'
+    assert state['steps'][rid]['s1']['attemptCount'] == 0
+    attempt, = state['attempts'].values()
+    effect, = state['effects']
+    assert attempt['stepId'] == 's0' and effect['attemptId'] == attempt['attemptId']
+    assert effect['outcome'] == outcome
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == state and len(h.provider.calls) == 1
 
 
-@async_test
+def test_chain_monitoring_recovery_reuses_completed_step(env):
+    from tests.test_job_automatic_recovery import create, drive_until, state
+    from tests.test_job_monitoring_completion import monitoring_definition
+    first, second = env.tmp / 'first-monitor', env.tmp / 'second-monitor'
+    second_code = (f'from pathlib import Path; import json; p=Path({str(second)!r}); '
+        'n=int(p.read_text()) if p.exists() else 0; p.write_text(str(n+1)); '
+        'print(json.dumps({"panJobCompletion":{"type":"owned.done","completed": n > 0}}))')
+    value = monitoring_definition(env, second_code)
+    monitor = copy.deepcopy(value['steps'][0])
+    monitor['stepId'] = 's1'
+    first_step = copy.deepcopy(monitor)
+    first_step['stepId'] = 's0'
+    first_step['arguments']['argv']['value'] = [sys.executable, '-c',
+        f'from pathlib import Path; import json; Path({str(first)!r}).open("a").write("first\\n"); '
+        'print(json.dumps({"panJobCompletion":{"type":"owned.done","completed":True}}))']
+    value['steps'] = [first_step, monitor]
+    jid, rid = create(env, value)
+    asyncio.run(drive_until(env, jid, rid, 'completed'))
+    done = state(env, jid)
+    assert first.read_text().splitlines() == ['first'] and second.read_text() == '2'
+    assert set(done['runs']) == {rid}
+    assert [done['steps'][rid][sid]['attemptCount'] for sid in ('s0', 's1')] == [1, 2]
+    assert len(done['effects']) == len(done['attempts']) == 3
+    original = next(a for a in done['attempts'].values() if a['stepId'] == 's0')
+    assert original['state'] == 'succeeded'
+    asyncio.run(env.service.dispatch_once())
+    assert state(env, jid)['effects'] == done['effects']
+    assert first.read_text().splitlines() == ['first'] and second.read_text() == '2'
+
+
+def test_known_failure_explicit_retry_preserves_completed_and_frozen_steps(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch, run_control
+    from tests.test_action_unification_p4 import plans
+    value = job_def(h, steps=2)
+    job = enabled(h, value)
+    h.provider.fail_once = '1'
+    rid = launch(h, job, 'failed-boundary')['runId']
+    asyncio.run(h.service.dispatch_once())
+    failed = h.service.final.get(job['id'])
+    assert failed['runs'][rid]['state'] == 'failed'
+    assert [text for text, _ in h.provider.calls] == ['0', '1']
+    original_plan = copy.deepcopy(plans(h, job['id'])[rid]['frozen'])
+    changed = copy.deepcopy(value)
+    changed['steps'][1]['arguments']['text']['value'] = 'edited'
+    response = h.client.put('/api/jobs/' + job['id'], json={
+        'definition': changed, 'expectedRevision': job['configRevision'], 'requestKey': 'edit-before-retry'})
+    assert response.status_code == 200, response.text
+    response = run_control(h, rid, 'retry', 'retry-original-boundary', stepId='s1')
+    assert response.status_code == 202, response.text
+    asyncio.run(h.service.dispatch_once())
+    done = h.service.final.get(job['id'])
+    assert [text for text, _ in h.provider.calls] == ['0', '1', '1']
+    assert set(done['runs']) == {rid} and done['runs'][rid]['state'] == 'completed'
+    assert [len([a for a in done['attempts'].values() if a['stepId'] == sid]) for sid in ('s0', 's1')] == [1, 2]
+    assert plans(h, job['id'])[rid]['frozen'] == original_plan
+    assert len(done['effects']) == 3
+    assert 'chainRecovery' not in h.client.get('/api/jobs/' + job['id']).json()
+
+
 @pytest.mark.parametrize('phase', ['step_running', 'boundary'])
-async def test_chain_write_failure_never_advances_or_replays(tmp_path, monkeypatch, phase):
-    runtime = await _runtime(tmp_path)
-    calls = []
-    async def execute(action, *unused):calls.append(action['id']); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    original = runtime.chain_save
+def test_chain_write_failure_never_advances_or_replays(h, monkeypatch, phase):
+    from tests.test_job_final_http_service import enabled, job_def, launch
+    from packages.jobs.final_service import FinalService
+    from packages.jobs.final_runtime.ledger import aggregate
+    job = enabled(h, job_def(h, steps=2))
+    rid = launch(h, job, 'checkpoint-failure')['runId']
+    original = h.service._save
     failed = False
-    def save(jid, eid, steps, current_phase):
+    def save(db, kind, identity, value):
         nonlocal failed
-        if current_phase == phase and not failed:
+        original(db, kind, identity, value)
+        if kind != 'job' or identity != job['id'] or failed:
+            return
+        state = aggregate(value, h.root)
+        step = state['steps'][rid]['s0']
+        checkpoint = 'running' if phase == 'step_running' else 'completed'
+        if step['state'] == checkpoint:
             failed = True
-            raise OSError('owned injected boundary failure')
-        return original(jid, eid, steps, current_phase)
-    monkeypatch.setattr(runtime, 'chain_save', save)
+            raise OSError('owned injected canonical checkpoint failure')
+    monkeypatch.setattr(h.service, '_save', save)
+    with pytest.raises(OSError, match='owned injected canonical checkpoint failure'):
+        asyncio.run(h.service.dispatch_once())
+    assert failed
+    expected = [] if phase == 'step_running' else ['0']
+    assert [text for text, _ in h.provider.calls] == expected
+    before = h.service.final.get(job['id'])
+    assert before['steps'][rid]['s1']['state'] == 'pending'
+    assert before['steps'][rid]['s1']['attemptCount'] == 0
+    assert before['effects'] == []
+    assert len(before['attempts']) == (0 if phase == 'step_running' else 1)
+    cold = FinalService(h.root, h.automation.auth, executor=h.service.executor)
     try:
-        job = runtime.create(_config(_steps()), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        current = runtime.get(job['jobId'])
-        assert current['lastStatus'] == 'uncertain'
-        assert calls == ([] if phase == 'step_running' else ['one'])
-        assert current['lastExecution']['stepExecutions'][1]['status'] == 'pending'
-        await runtime.tick({'enabled': True})
-        assert calls == ([] if phase == 'step_running' else ['one'])
+        cold.recover()
+        recovered = cold.final.get(job['id'])
+        assert recovered['runs'][rid]['state'] == 'uncertain'
+        assert recovered['steps'][rid]['s1']['state'] == 'pending'
+        if phase == 'boundary':
+            attempt, = recovered['attempts'].values()
+            original_attempt, = before['attempts'].values()
+            effect, = recovered['effects']
+            assert attempt['attemptId'] == original_attempt['attemptId']
+            assert attempt['state'] == 'uncertain' and effect['outcome'] == 'unknown'
+            assert effect['attemptId'] == attempt['attemptId']
+        for _ in range(2):
+            asyncio.run(cold.dispatch_once())
+        assert cold.final.get(job['id']) == recovered
+        assert [text for text, _ in h.provider.calls] == expected
     finally:
-        await runtime.close()
+        asyncio.run(cold.close())
 
 
-@async_test
-async def test_running_step_restart_is_uncertain_and_never_replayed(tmp_path):
-    runtime = await _runtime(tmp_path)
+def test_running_step_restart_is_uncertain_and_never_replayed(h):
+    from tests.test_job_final_http_service import enabled, job_def, launch, USER
+    from packages.jobs.final_service import FinalService
+    job = enabled(h, job_def(h, steps=2))
+    admission = launch(h, job, 'host-loss-chain')
+    rid = admission['runId']
+    # Durable admission and running Attempt exist, but host loss occurs before
+    # any receipt. Recovery may only preserve unknown, never send again.
+    with h.service.transaction() as db:
+        stored = h.service._get(db, 'job', job['id'])
+        ledger = h.service.final.ledger
+        ledger.start(stored, h.root, rid)
+        attempt = ledger.begin_attempt(stored, h.root, rid, 's0')
+        key = ledger.admit_effect(stored, h.root, attempt['attemptId'], h.action['id'])
+        h.service._save(db, 'job', job['id'], stored)
+    restored = FinalService(h.root, h.automation.auth, executor=h.service.executor)
     try:
-        job = runtime.create(_config(_steps()), True)
-        claimed = runtime.claim(job['jobId'], 'owned_interrupted', 1)
-        steps = claimed['execution']['stepExecutions']; chains.start_step(steps[0])
-        runtime.chain_save(job['jobId'], 'owned_interrupted', steps, 'step_running')
-        runtime.recover()
-        current = runtime.get(job['jobId'])
-        assert current['lastStatus'] == 'uncertain'
-        assert [s['status'] for s in current['lastExecution']['stepExecutions']] == ['uncertain', 'pending']
-        assert current['lastExecution']['stepExecutions'][0]['attempts'][0]['status'] == 'uncertain'
-        await runtime.tick({'enabled': True})
-        assert not runtime.tasks and not runtime.actions.read().get('jobExecutions')
+        restored.recover()
+        state = restored.final.get(job['id'])
+        assert state['runs'][rid]['state'] == 'uncertain'
+        assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['uncertain', 'pending']
+        assert state['attempts'][attempt['attemptId']]['state'] == 'uncertain'
+        effect, = state['effects']
+        assert effect['attemptId'] == attempt['attemptId'] and effect['outcome'] == 'unknown'
+        assert effect['receipt'] == {'code': 'host_restarted'}
+        assert restored.operation(admission['operationId'], actor=USER)['status'] == 'unknown'
+        for _ in range(2):
+            asyncio.run(restored.dispatch_once())
+        assert restored.final.get(job['id']) == state and h.provider.calls == []
     finally:
-        await runtime.close()
+        asyncio.run(restored.close())
 
 
-@async_test
 @pytest.mark.parametrize('revoke', ['action', 'authorization'])
-async def test_chain_checks_revocation_between_steps(tmp_path, monkeypatch, revoke):
-    runtime = await _runtime(tmp_path)
+def test_chain_checks_revocation_between_steps(h, revoke):
+    from tests.test_job_final_http_service import enabled, job_def, USER
+    from tests.test_authorization_mcp import grants
+    from packages.jobs.final_runtime.executor import TypedExecutor
+    permissions = grants()
+    h.automation.auth.change_permissions(permissions, 0)
     calls = []
-    permitted = True
-    runtime.authorization = lambda *unused: (permitted, 7)
-    async def execute(action, *unused):
-        nonlocal permitted
-        calls.append(action['id'])
-        if revoke == 'action':runtime.actions.set_enabled('two', False, runtime.actions.read()['revision'])
-        else:permitted = False
-        return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        job = runtime.create(_config(_steps()), True, {'type': 'agent'})
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        current = runtime.get(job['jobId'])
-        assert calls == ['one'] and current['lastStatus'] == 'cancelled'
-        assert current['lastExecution']['stepExecutions'][1]['attempts'] == []
-    finally:
-        await runtime.close()
-
+    class Provider:
+        async def send_session(self, session_id, text, *, effect_key, source):
+            calls.append(effect_key['stepId'])
+            if revoke == 'action':
+                action = h.service.get('action', h.action['id'], actor=USER)
+                h.service.control('action', action['id'], {'operation': 'disable',
+                    'expectedRevision': action['revision'], 'expectedStateRevision': action['stateRevision'],
+                    'parameters': {}, 'requestKey': 'revoke-at-step-boundary'}, actor=USER)
+            else:
+                denied = {kind: {capability: False for capability in row} for kind, row in permissions.items()}
+                h.automation.auth.change_permissions(denied, 1)
+            return {'status': 'queued', 'messageId': 'original-first-receipt'}
+    h.service.executor = TypedExecutor(session_provider=Provider())
+    job = enabled(h, job_def(h, steps=2))
+    admitted = h.service.create_run(job['id'], {'expectedRevision': job['configRevision'],
+        'requestKey': 'revoked-chain', 'input': {}, 'cause': {'type': 'manual'}},
+        actor={'type': 'agent', 'id': 'owned-revocation', 'revision': 1})
+    rid = admitted['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert calls == ['s0'] and state['runs'][rid]['state'] == 'failed'
+    assert [state['steps'][rid][sid]['state'] for sid in ('s0', 's1')] == ['completed', 'failed']
+    assert len(state['attempts']) == len(state['effects']) == 1
+    attempt, = state['attempts'].values()
+    assert attempt['stepId'] == 's0' and attempt['state'] == 'succeeded'
+    assert state['steps'][rid]['s1']['attemptCount'] == 0
+    assert state['effects'][0]['outcome'] == 'succeeded'
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == state and calls == ['s0']
 
 
 
@@ -501,81 +816,181 @@ def test_public_projection_preserves_legacy_result_field_names():
 
 
 
-@async_test
-async def test_real_owned_commands_pass_structured_output_without_server(tmp_path):
-    runtime = await _runtime(tmp_path)
-    try:
-        for aid, code in (
-            ('one', 'import json;print(json.dumps(dict(answer="owned")))'),
-            ('two', 'import json,sys;from pathlib import Path;Path("effect.txt").write_text(sys.argv[1]);print(json.dumps(dict(written=sys.argv[1])))'),
-        ):
-            runtime.actions.put('actions', {**_action(aid), 'output_format': 'json',
-                'execution': {'kind': 'command', 'executable': sys.executable,
-                              'args': ['-c', code, '{value}'], 'cwd': str(tmp_path)}})
-        steps = _steps(); steps[1]['arguments']['value'] = {'from': 'step', 'stepId': 'first', 'path': 'answer'}
-        job = runtime.create(_config(steps), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert done['lastStatus'] == 'completed', done['lastExecution']
-        assert (tmp_path / 'effect.txt').read_text() == 'owned'
-        assert done['lastExecution']['stepExecutions'][1]['output'] == {'written': 'owned'}
-    finally:
-        await runtime.close()
+def test_real_owned_commands_pass_structured_output_without_server(h, tmp_path):
+    from packages.actions.command_execution import product_definition
+    from packages.jobs.final_service import object_ref
+    from tests.test_job_final_http_service import enabled, launch
+    refs = []
+    for aid, code in (
+        ('one', 'import json;print(json.dumps(dict(answer="owned")))'),
+        ('two', 'import ast,json,sys;from pathlib import Path;commands=ast.literal_eval(sys.argv[1]);value=json.loads(commands[0]["stdout"])["answer"];Path("effect.txt").write_text(value);print(json.dumps(dict(written=value)))'),
+    ):
+        raw = {**_action(aid), 'output_format': 'json',
+            'execution': {'kind': 'command', 'executable': sys.executable,
+                          'args': ['-c', code, '{value}'], 'cwd': str(tmp_path)}}
+        if aid == 'two':
+            raw['input_schema']['properties']['value'] = {'type': 'array', 'items': {'type': 'object'}}
+        action = product_definition('process.command')
+        action.update(system=False, name=aid, inputSchema=raw['input_schema'])
+        action['execution']['config'] = {key: val for key, val in raw['execution'].items() if key != 'kind'}
+        refs.append(object_ref('action', h.service.publish_action(aid, action)))
+    h.service.owner.claim(0)
+    cfg = {'name': 'owned serial commands', 'retention': {'policyRef': 'test'}, 'steps': [
+        {'stepId': 'first', 'actionRef': refs[0], 'arguments': {'value': {'from': 'literal', 'value': 'unused'}},
+         'completion': {'contract': 'process-exit'}},
+        {'stepId': 'second', 'actionRef': refs[1],
+         'arguments': {'value': {'from': 'step', 'stepId': 'first', 'path': 'commands'}},
+         'completion': {'contract': 'process-exit'}}]}
+    job = enabled(h, cfg)
+    rid = launch(h, job, 'owned-chain')['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'completed', json.dumps(state['effects'])
+    assert (tmp_path / 'effect.txt').read_text() == 'owned'
+    effects = {effect['effectKey']['stepId']: effect for effect in state['effects']}
+    assert set(effects) == {'first', 'second'} and len(state['attempts']) == 2
+    assert json.loads(effects['first']['receipt']['receipt']['commands'][0]['stdout']) == {'answer': 'owned'}
+    assert json.loads(effects['second']['receipt']['receipt']['commands'][0]['stdout']) == {'written': 'owned'}
+    assert all(effect['outcome'] == 'succeeded' for effect in effects.values())
+    before = copy.deepcopy(state)
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == before
 
 
-@async_test
-async def test_admitted_fixed_template_step_uses_original_template_revision(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path)
-    entered, release = asyncio.Event(), asyncio.Event()
-    original = executor.execute_dynamic
-    async def execute(action, *args):
-        if action['id'] == 'one':
-            entered.set(); await release.wait(); return {'ok': True}
-        return await original(action, *args)
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    child_config = {**_config(_steps()), 'enabled': False, 'actionId': 'one', 'arguments': {'value': 'original'}}
-    child_config.pop('steps')
-    try:
-        template = runtime.templates.put({'name': 'fixed', 'config': child_config}, 0, True)
-        runtime.actions.put('actions', {**_action('two'), 'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
-            'execution': {'kind': 'job_template', 'templateId': template['id'], 'templateRevision': 1}}, authorized=True)
-        steps = _steps(); steps[1]['arguments'] = {}
-        parent = runtime.create(_config(steps), True)
-        await runtime.launch(parent['jobId'], 1); await entered.wait()
-        runtime.templates.put({'name': 'fixed edited', 'config': {**child_config, 'arguments': {'value': 'edited'}}}, 1, True, template['id'])
-        release.set(); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(parent['jobId'])
-        assert done['lastStatus'] == 'completed', done['lastExecution']
-        child = next(j for j in runtime.list() if j['jobId'] != parent['jobId'])
-        assert child['templateRevision'] == 1 and child['config']['arguments'] == {'value': 'original'}
-    finally:
-        release.set(); await runtime.close()
+def test_admitted_fixed_template_step_uses_original_template_revision(h, monkeypatch):
+    from tests.test_job_final_http_service import create, control, enabled, job_def, launch, USER
+    from packages.jobs.final_service import object_ref
+    from packages.actions.legacy_families import template_successor
+    from tests.test_action_unification_p4 import plans
+    from packages.jobs.final_contracts import ContractError
+    from packages.actions import invocation
+    original_execute = invocation.template_job_execute
+    errors = []
+    async def observe(*args, **kwargs):
+        try:
+            return await original_execute(*args, **kwargs)
+        except Exception as exc:
+            errors.append((type(exc).__name__, str(exc)))
+            raise
+    monkeypatch.setattr(invocation, 'template_job_execute', observe)
+    child = job_def(h)
+    child['name'] = 'original child'
+    template_value = {'name':'fixed original', 'jobDefinition':child, 'composition':{'creators':[], 'triggers':[]}}
+    template = create(h, 'job-templates', template_value, 'create-fixed-original')
+    response = control(h, 'job-templates', template, 'publish', 'publish-fixed-original')
+    assert response.status_code == 200, response.text
+    template = response.json()['result']['object']
+    raw = _action('fixed')
+    raw['input_schema'] = {'type':'object', 'properties':{}, 'additionalProperties':False}
+    raw['execution'] = {'kind':'job_template', 'templateId':'jtpl_original', 'templateRevision':1}
+    canonical = template_successor(raw, object_ref('template', template))
+    action = h.service.publish_action('fixed_child_creator', canonical)
+    value = job_def(h, steps=2)
+    value['steps'][1] = {'stepId':'s1', 'actionRef':object_ref('action', action),
+        'arguments':{}, 'completion':{'contract':'job-created'}}
+    parent = enabled(h, value)
+    h.service.owner.claim(0)
+    async def scenario():
+        entered, release = asyncio.Event(), asyncio.Event()
+        send = h.provider.send_session
+        async def wait_first(session_id, text, **kwargs):
+            entered.set()
+            await release.wait()
+            return await send(session_id, text, **kwargs)
+        h.provider.send_session = wait_first
+        rid = launch(h, parent, 'fixed-template-run')['runId']
+        frozen = copy.deepcopy(plans(h, parent['id'])[rid]['frozen'])
+        task = asyncio.create_task(h.service.dispatch_once())
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            # Published canonical templates are immutable. A successor has a
+            # new identity; changing the Action head cannot change this Run.
+            with pytest.raises(ContractError) as immutable:
+                h.service.write('template', template['id'], {'definition':{**template_value,'name':'edited'},
+                    'expectedRevision':template['revision'], 'requestKey':'edit-original-template'}, actor=USER)
+            assert immutable.value.code == 'reference_conflict'
+            changed = copy.deepcopy(template_value)
+            changed['jobDefinition']['name'] = 'edited child'
+            successor = create(h, 'job-templates', changed, 'create-successor-template')
+            published = control(h, 'job-templates', successor, 'publish', 'publish-successor-template')
+            assert published.status_code == 200, published.text
+            successor = published.json()['result']['object']
+            next_action = template_successor(raw, object_ref('template', successor))
+            edited = h.service.write('action', action['id'], {'definition':next_action,
+                'expectedRevision':action['revision'], 'requestKey':'edit-fixed-action'}, actor=USER)['result']['object']
+            published_action = h.service.control('action', action['id'], {'operation':'publish',
+                'expectedRevision':edited['revision'], 'expectedStateRevision':edited['stateRevision'],
+                'parameters':{}, 'requestKey':'publish-fixed-action'}, actor=USER)
+            assert published_action['result']['version']['revision'] > action['revision']
+            release.set()
+            await asyncio.wait_for(task, 5)
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        state = h.service.final.get(parent['id'])
+        assert state['runs'][rid]['state'] == 'completed', errors
+        assert len(state['attempts']) == len(state['effects']) == 2
+        children = [j for j in h.service.list('job', actor=USER)['items'] if j['id'] != parent['id']]
+        assert len(children) == 1 and children[0]['name'] == 'original child'
+        assert children[0]['steps'] == child['steps']
+        assert plans(h, parent['id'])[rid]['frozen'] == frozen
+        effect = next(e for e in state['effects'] if e['effectKey']['stepId'] == 's1')
+        assert effect['receipt']['receipt']['output']['templateRevision'] == 1
+        assert effect['receipt']['receipt']['output']['jobId'] == children[0]['id']
+        await h.service.dispatch_once()
+        assert len(h.service.list('job', actor=USER)['items']) == 2
+        assert len(h.provider.calls) == 1
+    asyncio.run(scenario())
 
 
-@async_test
-async def test_recovering_run_uses_frozen_chain_when_next_config_is_unavailable(tmp_path, monkeypatch):
-    runtime = await _runtime(tmp_path, ('one', 'two', 'three'))
-    calls = []
-    for aid in ('one', 'two', 'three'):runtime.actions.put('actions', _action(aid, monitoring=True))
-    async def execute(action, *unused):
-        calls.append(action['id'])
-        return {'ok': True, 'processTreeEnded': not (action['id'] == 'two' and calls.count('two') == 1),
-                'panJobCompletion': {'type': 'done', 'completed': True}}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    cfg = _config(_steps(), recovery={'enabled': True, 'monitoring': True, 'maxAttempts': 3,
-        'backoffSec': [0, 0, 0], 'stableResetSec': 300}, completion={'kind': 'monitoring', 'signalType': 'done'})
-    try:
-        job = runtime.create(cfg, True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        assert runtime.get(job['jobId'])['status'] == 'restarting'
-        changed = copy.deepcopy(cfg); changed['steps'][1]['actionId'] = 'three'
-        runtime.update(job['jobId'], changed, 1, True)
-        # A new reference set first requires explicit repair, as for single Jobs.
-        runtime.update(job['jobId'], changed, 2, True)
-        runtime.actions.set_enabled('three', False, runtime.actions.read()['revision'])
-        await runtime.tick({'enabled': True}); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert done['lastStatus'] == 'completed' and calls == ['one', 'two', 'two']
-        assert done['lastExecution']['configRevision'] == 1
-    finally:
-        await runtime.close()
+def test_recovering_run_uses_frozen_chain_when_next_config_is_unavailable(env):
+    import time
+    from packages.jobs.final_service import definition, object_ref
+    from tests.test_job_automatic_recovery import create, job_definition, drive_until, state
+    first, second = env.tmp / 'first-frozen', env.tmp / 'second-frozen'
+    value = job_definition(env, steps=2)
+    value['steps'][0]['arguments']['argv']['value'] = [sys.executable, '-c',
+        f'from pathlib import Path; Path({str(first)!r}).open("a").write("first\\n")']
+    value['steps'][1]['arguments']['argv']['value'] = [sys.executable, '-c',
+        f'from pathlib import Path; p=Path({str(second)!r}); n=int(p.read_text()) if p.exists() else 0; '
+        'p.write_text(str(n+1)); raise SystemExit(7 if n == 0 else 0)']
+    jid, rid = create(env, value)
+    asyncio.run(env.service.dispatch_once())
+    deadline = time.monotonic() + 12
+    while True:
+        asyncio.run(env.service.recover_external_receipts())
+        # Drive the next step only until the original failed receipt has
+        # scheduled recovery; do not consume that pending recovery yet.
+        current = env.service.final.store.get(jid)['finalRuntime']['plans'][rid]
+        if current.get('autoRecovery'):
+            break
+        assert time.monotonic() < deadline
+        if state(env, jid)['steps'][rid]['s1']['attemptCount'] == 0:
+            asyncio.run(env.service.dispatch_once())
+        time.sleep(.025)
+    frozen = copy.deepcopy(current['frozen'])
+    original_action = env.service.get('action', value['steps'][1]['actionRef']['id'], actor={'type':'user','id':'local'})
+    replacement_value = definition('action', original_action)
+    replacement_value['system'] = False
+    replacement = env.service.publish_action('unavailable_next_config', replacement_value)
+    changed = copy.deepcopy(value)
+    changed['steps'][1]['actionRef'] = object_ref('action', replacement)
+    response = env.client.put('/api/jobs/' + jid, json={'definition':changed,
+        'expectedRevision':1, 'requestKey':'change-next-config'})
+    assert response.status_code == 200, response.text
+    response = env.client.post('/api/jobs/actions/' + replacement['id'] + '/operations', json={
+        'operation':'disable', 'expectedRevision':replacement['revision'],
+        'expectedStateRevision':replacement['stateRevision'], 'parameters':{}, 'requestKey':'disable-next-config'})
+    assert response.status_code == 200, response.text
+    asyncio.run(drive_until(env, jid, rid, 'completed'))
+    done = state(env, jid)
+    assert first.read_text().splitlines() == ['first'] and second.read_text() == '2'
+    assert set(done['runs']) == {rid} and done['runs'][rid]['configRevision'] == 1
+    assert [done['steps'][rid][sid]['attemptCount'] for sid in ('s0','s1')] == [1,2]
+    assert len(done['effects']) == 3
+    assert env.service.final.store.get(jid)['finalRuntime']['plans'][rid]['frozen'] == frozen
+    assert env.service.get('job', jid, actor={'type':'user','id':'local'})['configRevision'] == 2
+    asyncio.run(env.service.dispatch_once())
+    assert first.read_text().splitlines() == ['first'] and second.read_text() == '2'

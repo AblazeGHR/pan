@@ -1628,6 +1628,8 @@ def _effect_record() -> dict[str, Any]:
                     ("runId", "stepId", "targetId", "operationOrdinal"),
                 ),
                 "attemptId": _ID,
+                "attempt": {**_attempt_record(), "required": [*_attempt_record()["required"], "leaseId"],
+                    "description": "Optional original execution snapshot captured on receipt commit; missing historical facts never authorize recovery."},
                 "outcome": {"enum": list(EFFECT_OUTCOMES)},
                 "receipt": {"type": "object"},
                 "targetSelection": {"type": "object"},

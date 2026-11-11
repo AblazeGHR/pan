@@ -161,8 +161,35 @@ def test_action_job_cancel_is_retired_and_history_reads_remain_classified():
     assert ('GET', '/api/jobs/action-jobs/{job_id}/runs') in action_api.RETAINED_ROUTES
 
 
-def test_legacy_background_cancel_mcp_name_is_not_discoverable():
+@pytest.mark.parametrize('tool', ['agent_background_cancel','agent_message_job_cancel'])
+def test_legacy_background_cancel_mcp_name_is_not_discoverable(monkeypatch, tool):
     from packages.mcp import server
+    calls = []
+    monkeypatch.setattr(server, '_api', lambda *a, **kw:calls.append((a,kw)))
+    assert tool in server.RETIRED_MCP_TOOLS
+    assert tool not in server.RETAINED_LEGACY_MCP_TOOLS
+    assert tool not in {item.name for item in server.mcp._tool_manager.list_tools()}
+    direct = getattr(server, tool)('job_old')
+    assert direct['ok'] is False and direct['error']['code'] == 'capability_unsupported'
+    assert direct['error']['tool'] == tool
+    assert 'job_run_cancel(original run_id' in direct['error']['guidance']
+    assert calls == []
 
-    assert 'agent_background_cancel' in server.RETIRED_MCP_TOOLS
-    assert 'agent_background_cancel' not in server.RETAINED_LEGACY_MCP_TOOLS
+
+def test_manifest_and_skill_do_not_advertise_retired_cancel_as_available():
+    from pathlib import Path
+    from scripts.check_pan_skill_tools import main
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads((root / 'packages/mcp/manifest.json').read_text(encoding='utf-8'))
+    prompts = [line for template in manifest['session_templates'] for line in template['system_prompt']]
+    advertised = next(line for line in prompts if '可用工具包括' in line)
+    assert 'agent_background_cancel' not in advertised and 'agent_message_job_cancel' not in advertised
+    assert 'job_run_cancel' in advertised and 'job_operation_find' in advertised
+    policy = next(line for line in prompts if '持久后台 Job（canonical-only）' in line)
+    assert 'capability_unsupported' in policy and 'job_run_cancel' in policy and '只读' in policy
+    client_policy = next(line for line in prompts if 'Canonical Job 客户端' in line)
+    assert '仅保留查询与取消' not in '\n'.join(prompts)
+    assert '仅保留只读查询' in client_policy
+    assert 'canonical 原 Run 的 job_run_cancel' in client_policy
+    assert '不调用旧 scheduler writer' in client_policy
+    assert main() == 0

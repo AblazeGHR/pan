@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from packages.automation import authorization
 from packages.automation.auth import UserAuth
 from packages.jobs import final_api as api, final_contracts as fc
+from tests.test_job_final_http_service import h
 from tests.test_job_final_contracts import (
     job_definition, trigger_definition, creator_definition, template_definition,
 )
@@ -147,6 +148,10 @@ async def test_ft01_agent_read_create_update_lifecycle_delete_exact_grants(tmp_p
              ("PUT", "/object", {"definition": definition, "expectedRevision": 1, "requestKey": "request"}, "updateConfig"),
              ("POST", "/object/operations", control, "updateConfig" if kind == "template" else "lifecycle"),
              ("DELETE", "/object", delete, "delete")]
+    # Job DELETE is canonical retirement and is tested against a real service
+    # below; it requires lifecycle and read, rather than the old delete writer.
+    if kind == "job":
+        cases = [case for case in cases if case[0] != "DELETE"]
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         for method, suffix, value, grant in cases:
             permissions = auth._default_permissions()
@@ -160,6 +165,33 @@ async def test_ft01_agent_read_create_update_lifecycle_delete_exact_grants(tmp_p
             allowed = await client.request(method, "/api/final/" + path + suffix, json=value)
             assert allowed.status_code in {200, 201}, allowed.text
             assert service.calls[-1][2]["actor"]["type"] == "agent"
+
+
+@run
+async def test_job_delete_retirement_requires_lifecycle_and_read_not_old_delete_grant(h):
+    from tests.test_job_final_http_service import enabled, USER
+    from tests.test_action_groups import canonical_state
+    item = enabled(h)
+    auth = h.automation.auth
+    async def app(scope, receive, send):
+        scope[authorization._SCOPE_KEY] = authorization._MARKER
+        await h.app(scope, receive, send)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://owned') as client:
+        for grants in ({'delete':True}, {'lifecycle':True}):
+            permissions = auth._default_permissions()
+            permissions['job'].update(grants)
+            auth.change_permissions(permissions, auth.permissions_status()['revision'])
+            before = canonical_state(h.service)
+            denied = await client.delete('/api/jobs/' + item['id'])
+            assert denied.status_code == 403, denied.text
+            assert canonical_state(h.service) == before
+        permissions['job']['read'] = True
+        auth.change_permissions(permissions, auth.permissions_status()['revision'])
+        allowed = await client.delete('/api/jobs/' + item['id'])
+        assert allowed.status_code == 200, allowed.text
+        assert allowed.json()['retired'] is True and allowed.json()['job']['retired'] is True
+        assert h.service.get('job', item['id'], actor=USER)['state'] == 'retired'
+        assert h.service.final.runs(item['id']) == [] and h.provider.calls == []
 
 
 @pytest.mark.parametrize("operation", ["retry", "cancel", "pause", "resume", "run-again", "clone-and-run"])
@@ -291,7 +323,13 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
     # mounts or accidental legacy shadowing.
     # P6 adds action reference metadata/provenance and canonical time-input
     # routes under the same registration owner.
-    assert len(canonical) == 52
+    assert len(canonical) == 60
+    # Native compatibility adapters still have one canonical registration owner.
+    for method, path in [("POST", "/api/jobs/legacy-create"), ("GET", "/api/jobs/legacy-list"),
+        ("GET", "/api/jobs/legacy/{job_id}"), ("PATCH", "/api/jobs/legacy/{job_id}"),
+        ("POST", "/api/jobs/{job_id}/run-now"), ("PUT", "/api/jobs/legacy/{job_id}/pin"),
+        ("DELETE", "/api/jobs/{job_id}"), ("POST", "/api/jobs/{job_id}/cancel")]:
+        assert pairs[(method, path)] == 1
     assert pairs[("POST", "/api/event-creators/preview")] == 1
     for path in ("/api/job-runs/{run_id}/attempts/{attempt_id}/log", "/api/job-runs/{run_id}/logs"):
         assert pairs[("GET", path)] == 1

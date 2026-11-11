@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 from packages.jobs.window import command_window_options
 import sys
+import pytest
+from tests.test_job_final_http_service import h, job_def
 
 from packages.core import background_jobs as jobs
 from packages.core import config
@@ -30,18 +32,31 @@ def test_environment_filters_all_pan_settings_without_changing_parent(tmp_path):
     assert 0 < int(child["PAN_TEST_HTTP_PORT"]) < 65536
 
 
-def test_storage_probe_uses_only_fixture_roots(tmp_path):
+def test_storage_probe_uses_only_fixture_roots(tmp_path, h):
     from packages.actions.store import Store
     action_store = Store()
     assert action_store.root == tmp_path / 'actions'
-    action_store.put('groups', {'id': 'isolation_probe', 'name': 'Isolation probe', 'action_ids': []})
-    assert (tmp_path / 'actions/registry.json').is_file()
+    with pytest.raises(PermissionError, match='retired'):
+        action_store.put('groups', {'id': 'isolation_probe', 'name': 'Isolation probe', 'action_ids': []})
+    assert not (tmp_path / 'actions/registry.json').exists()
     assert jobs._root() == tmp_path / "background_jobs"
     assert store.data_root() == tmp_path / "background_jobs"
     assert registry._resolve_root(None) == tmp_path / "terminals"
     assert config.CONFIG_FILE == tmp_path / "config.json"
-    # These real writes must never follow a caller's configured application root.
-    jobs._save({"jobId": "job_isolation_probe", "status": "completed", "createdAt": 1})
+    # New Job writes use the production canonical binding on the owned root.
+    assert h.root == tmp_path / 'canonical'
+    created = h.client.post('/api/jobs', json={'definition': job_def(h),
+        'expectedRevision': 0, 'requestKey': 'isolation-probe'})
+    assert created.status_code == 201, created.text
+    assert (h.root / 'event-creators/creators.sqlite3').is_file()
+    assert h.client.get('/api/jobs').json()['items'][0]['id'] == created.json()['result']['object']['id']
+    # Preserved legacy bytes remain readable from the same isolated root.
+    historical = tmp_path / 'background_jobs/jobs/job_isolation_probe.json'
+    historical.parent.mkdir(parents=True, exist_ok=True)
+    historical.write_text(json.dumps({'jobId': 'job_isolation_probe', 'status': 'completed', 'createdAt': 1}), encoding='utf-8')
+    before = historical.read_bytes()
+    assert jobs.get('job_isolation_probe')['jobId'] == 'job_isolation_probe'
+    assert historical.read_bytes() == before
     config.save_config({"probe": True})
     assert (tmp_path / "background_jobs/jobs/job_isolation_probe.json").exists()
     assert json.loads(config.CONFIG_FILE.read_text(encoding="utf-8"))["probe"] is True

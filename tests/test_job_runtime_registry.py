@@ -382,36 +382,126 @@ def test_owner_activated_ports_and_stale_service_writes(h):
         final.handoff(item["id"], "new", "again", expected_revision=result["configRevision"], request_key="stale-owner")
 
 
-def test_parallel_older_finalization_cannot_replace_latest_run_projection(tmp_path, monkeypatch):
-    from tests.test_job_action_chain import _runtime, _config, _steps
-    from packages.actions import executor
+@pytest.mark.parametrize('coincident_clock', [False, True])
+def test_parallel_older_finalization_cannot_replace_latest_run_projection(h, monkeypatch, coincident_clock):
+    from packages.jobs.final_service import object_ref
+    from packages.jobs.final_runtime import ledger
+    from tests.test_job_final_http_service import USER
+    original_id = ledger.new_id
+    run_ids = iter(['run_' + 'f' * 24, 'run_' + '0' * 24])
+    monkeypatch.setattr(ledger, 'new_id', lambda prefix: next(run_ids) if prefix == 'run_' else original_id(prefix))
+    action = next(a for a in h.service.actions(actor=USER)['items'] if a['id'] == 'product_process_cleanup_v1')
+    value = {'name': 'out-of-order projection', 'retention': {'policyRef': 'test'},
+        'overlap': {'mode': 'parallel', 'maxActive': 2, 'maxPending': 0},
+        'steps': [{'stepId': 'owned', 'actionRef': object_ref('action', action),
+            'arguments': {'argv': {'from': 'literal', 'value': [sys.executable, '-c', 'pass']},
+                          'cwd': {'from': 'literal', 'value': str(h.root)}},
+            'completion': {'contract': 'process-exit'}}]}
     async def check():
-        runtime = await _runtime(tmp_path)
-        completed = threading.Event()
-        failed_run = None
-        finalize = runtime.finalize
-        def ordered_finish(jid, eid, status, audit=None):
-            if status == "failed":
-                assert completed.wait(20), "newer Run did not finalize"
-            result = finalize(jid, eid, status, audit)
-            if status == "completed":
+        completed = asyncio.Event()
+        calls = []
+        first_id = None
+        class Executor:
+            async def execute(self, *, attempt, effect_key, frozen_plan, retry=False):
+                calls.append(attempt['runId'])
+                if attempt['runId'] == first_id:
+                    await completed.wait()
+                    return {'effectKey': effect_key, 'outcome': 'rejected', 'receipt': {'code': 'original-failure'}}
                 completed.set()
-            return result
-        async def execute(action, args, event, *unused):
-            return {"ok": not (action["id"] == "two" and event["id"].split(":")[0] == failed_run)}
-        monkeypatch.setattr(runtime, "finalize", ordered_finish)
-        monkeypatch.setattr(executor, "execute_dynamic", execute)
-        try:
-            job = runtime.create(_config(_steps(), trigger={"kind": "manual"}, overlap={"mode": "parallel", "parallelLimit": 2}), True)
-            first = await runtime.launch(job["jobId"], 1)
-            failed_run = first["execution"]["runId"]
-            second = await runtime.launch(job["jobId"], 1)
-            await asyncio.gather(*runtime.tasks.values())
-            current = runtime.get(job["jobId"])
-            assert current["runSummaries"][failed_run]["status"] == "failed"
-            assert current["lastExecution"]["runId"] == second["execution"]["runId"]
-            assert current["lastStatus"] == "completed"
-        finally:
-            completed.set()
-            await runtime.close()
+                return {'effectKey': effect_key, 'outcome': 'succeeded', 'receipt': {'code': 'original-success'}}
+        h.service.executor = Executor()
+        job = enabled(h, value)
+        # Exercise two genuine admissions with a clock whose resolution makes
+        # their source timestamps coincide; never rewrite persisted Run times.
+        with monkeypatch.context() as clock:
+            if coincident_clock:
+                instant = ledger.now()
+                clock.setattr(ledger, 'now', lambda: instant)
+            first_id = launch(h, job, 'older')['runId']
+            second_id = launch(h, job, 'newer')['runId']
+        if coincident_clock:
+            recorded = h.service.final.get(job['id'])['runs']
+            assert recorded[first_id]['createdAt'] == recorded[second_id]['createdAt']
+        assert first_id > second_id  # Storage key order opposes admission order.
+        await asyncio.wait_for(h.service.dispatch_once(), 5)
+        state = h.service.final.get(job['id'])
+        assert state['runs'][first_id]['state'] == 'failed'
+        assert state['runs'][second_id]['state'] == 'completed'
+        assert state['runs'][second_id]['finishedAt'] <= state['runs'][first_id]['finishedAt']
+        view = h.service.legacy_background_view(job['id'], actor=USER)
+        assert view['runs'][-1]['runId'] == second_id
+        assert view['status'] == 'completed'
+        assert len(state['attempts']) == len(state['effects']) == len(calls) == 2
+        assert {effect['effectKey']['runId'] for effect in state['effects']} == {first_id, second_id}
     asyncio.run(check())
+
+
+def test_latest_background_projection_uses_admission_beyond_first_page(h):
+    from packages.jobs.final_service import FinalService, object_ref
+    from tests.test_job_final_http_service import USER
+    action = next(a for a in h.service.actions(actor=USER)['items'] if a['id'] == 'product_process_cleanup_v1')
+    value = {'name': 'paged projection', 'retention': {'policyRef': 'test'},
+        'overlap': {'mode': 'parallel', 'maxActive': 32, 'maxPending': 128},
+        'steps': [{'stepId': 'owned', 'actionRef': object_ref('action', action),
+            'arguments': {'argv': {'from': 'literal', 'value': [sys.executable, '-c', 'pass']},
+                          'cwd': {'from': 'literal', 'value': str(h.root)}},
+            'completion': {'contract': 'process-exit'}}]}
+    calls = []
+    class Executor:
+        async def execute(self, *, attempt, effect_key, frozen_plan, retry=False):
+            calls.append(attempt['runId'])
+            return {'effectKey': effect_key, 'outcome': 'succeeded', 'receipt': {'code': 'original-success'}}
+    h.service.executor = Executor()
+    h.service.owner.claim(0)
+    job = enabled(h, value)
+    completed_ids = {launch(h, job, 'page-' + str(i))['runId'] for i in range(100)}
+    for _ in range(4):
+        asyncio.run(h.service.dispatch_once())
+    assert len(calls) == 100 and set(calls) == completed_ids
+    newest = launch(h, job, 'beyond-first-page')['runId']
+    page = h.service.runs(job['id'], actor=USER)
+    assert len(page['items']) == 100 and page['nextCursor']
+    assert {row['runId'] for row in page['items']} == completed_ids
+    assert all(row['state'] == 'completed' for row in page['items'])
+    tail = h.service.runs(job['id'], actor=USER, cursor=page['nextCursor'])
+    assert [row['runId'] for row in tail['items']] == [newest]
+    view = h.service.legacy_background_view(job['id'], actor=USER)
+    assert len(view['runs']) == 100 and view['status'] == 'queued'
+    cold = FinalService(h.root, h.automation.auth, executor=h.service.executor)
+    try:
+        assert cold.legacy_background_view(job['id'], actor=USER)['status'] == 'queued'
+        assert len(calls) == 100
+    finally:
+        asyncio.run(cold.close())
+
+
+def test_equal_time_missing_original_admission_receipts_preserve_unknown(h, monkeypatch):
+    from packages.jobs.final_service import object_ref
+    from packages.jobs.final_runtime import ledger
+    from tests.test_job_final_http_service import USER
+    action = next(a for a in h.service.actions(actor=USER)['items'] if a['id'] == 'product_process_cleanup_v1')
+    cfg = {'name': 'missing admission facts', 'retention': {'policyRef': 'test'},
+        'overlap': {'mode': 'parallel', 'maxActive': 2, 'maxPending': 0},
+        'steps': [{'stepId': 'owned', 'actionRef': object_ref('action', action),
+            'arguments': {'argv': {'from': 'literal', 'value': [sys.executable, '-c', 'pass']},
+                          'cwd': {'from': 'literal', 'value': str(h.root)}},
+            'completion': {'contract': 'process-exit'}}]}
+    job = enabled(h, cfg)
+    with monkeypatch.context() as clock:
+        instant = ledger.now()
+        clock.setattr(ledger, 'now', lambda: instant)
+        originals = [launch(h, job, key) for key in ('missing-first', 'missing-second')]
+    with h.service.transaction() as db:
+        stored = h.service._get(db, 'job', job['id'])
+        for row in stored['finalRuntime']['plans'].values():
+            row.pop('operationId')
+        h.service._save(db, 'job', job['id'], stored)
+    before = copy.deepcopy(h.service.final.get(job['id']))
+    view = h.service.legacy_background_view(job['id'], actor=USER)
+    assert view['status'] == 'uncertain'
+    assert h.service.final.get(job['id']) == before
+    assert h.provider.calls == []
+    # Original key/receipt lookup stays intact; the reader cannot invent a link.
+    for result in originals:
+        found = h.service.operation(result['operationId'], actor=USER)
+        assert found['runId'] == result['runId'] and found['operationId'] == result['operationId']

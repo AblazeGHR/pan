@@ -265,7 +265,7 @@
         "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
         "tests/test_job_final_clients.py::test_real_stdio_crud_operations_permissions_and_legacy",
         "tests/test_job_final_http_service.py::test_ft01_unknown_is_not_retried_or_replayed_on_restart",
-        "tests/test_job_final_retirement.py::test_mcp_retires_old_writes_and_keeps_reads_and_cancel"
+        "tests/test_job_final_retirement.py::test_mcp_retires_old_writes_and_keeps_reads_only"
       ]
     },
     {
@@ -276,7 +276,7 @@
         "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
         "tests/test_job_final_clients.py::test_real_stdio_crud_operations_permissions_and_legacy",
         "tests/test_job_final_http_service.py::test_ft01_unknown_is_not_retried_or_replayed_on_restart",
-        "tests/test_job_final_retirement.py::test_mcp_retires_old_writes_and_keeps_reads_and_cancel"
+        "tests/test_job_final_retirement.py::test_mcp_retires_old_writes_and_keeps_reads_only"
       ]
     },
     {
@@ -286,7 +286,9 @@
       "successors": [
         "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
         "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
-        "tests/test_job_final_runtime.py::test_fr05_single_outbox_ack_delete_guard_and_pin_cleanup"
+        "tests/test_job_retained_canonical_pins.py::test_pending_terminal_outbox_reopens_and_acks_same_key_without_reexecution",
+        "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc",
+        "tests/test_job_runtime_registry.py::test_original_id_history_outbox_unknown_ack_and_archive"
       ]
     },
     {
@@ -295,7 +297,9 @@
       "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
       "successors": [
         "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
-        "tests/test_job_final_runtime.py::test_fr05_single_outbox_ack_delete_guard_and_pin_cleanup",
+        "tests/test_job_retained_canonical_pins.py::test_pending_terminal_outbox_reopens_and_acks_same_key_without_reexecution",
+        "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc",
+        "tests/test_job_runtime_registry.py::test_original_id_history_outbox_unknown_ack_and_archive",
         "tests/test_locker_messages.py::test_read_delete_original_identity_tombstone_and_no_notification"
       ]
     },

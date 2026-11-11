@@ -439,10 +439,16 @@ def definition_routes(base, kind):
         value.update(operation="retire", parameters={"expectedReferences": value.pop("expectedReferences")} if "expectedReferences" in value else {})
         return write_result(await invoke(request, "retire", kind, object_id, value, actor=who))
 
-    for suffix, method, function in [("", "GET", listing), ("", "POST", create),
-                                     ("/{object_id}", "GET", detail), ("/{object_id}", "PUT", update),
-                                     ("/{object_id}", "DELETE", delete),
-                                     ("/{object_id}/operations", "POST", control)]:
+    routes = [("", "GET", listing), ("", "POST", create),
+              ("/{object_id}", "GET", detail), ("/{object_id}", "PUT", update),
+              ("/{object_id}", "DELETE", delete),
+              ("/{object_id}/operations", "POST", control)]
+    # Jobs retain the existing canonical-shaped compatibility DELETE handler
+    # below; registering the generic definition DELETE as well creates two
+    # identical production routes and makes dispatch order ambiguous.
+    if kind == "job":
+        routes = [row for row in routes if not (row[0] == "/{object_id}" and row[1] == "DELETE")]
+    for suffix, method, function in routes:
         router.add_api_route(base + suffix, function, methods=[method], name=f"canonical_{kind}_{function.__name__}")
 
 
@@ -868,6 +874,11 @@ async def legacy_job_delete(job_id: str, request: Request):
     job = legacy_job_compat.get_canonical(service, job_id, who)
     if job is None:
         raise KeyError(job_id)
+    # Retirement observes the original external receipt before applying the
+    # active-Run fence. This is query-only reconciliation: it never submits a
+    # new effect or cleanup request, and it lets a proven terminal receipt
+    # settle the canonical Run/Attempt/effect identity first.
+    await service.recover_external_receipts(job_id=job_id)
     runs = await invoke(request, "runs", job_id, actor=who, cursor=None, limit=100)
     active = [row for row in runs.get("items", [])
               if row.get("state") in {"queued", "running", "retry_wait", "paused_at_boundary",

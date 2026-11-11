@@ -208,6 +208,13 @@ def test_terminal_child_writeback_does_not_recreate_retired_parent_successor(can
     c, o = canonical, canonical.owned
     o.evidence["label"] = "canonical-late-terminal"
     launch(c)
+    before = c.service.final.get(c.job['id'])
+    attempt_id, = before['attempts']
+    assert before['attempts'][attempt_id]['state'] == 'running'
+    assert before['runs'][c.run_id]['state'] == 'running'
+    blocked = delete(c, 'retire-before-terminal-proof')
+    assert blocked.status_code == 409, blocked.text
+    assert blocked.json()['error']['code'] == 'reference_conflict'
     # Let the real parent exit successfully; its child is still alive until
     # the original runner's Job handle proves and cleans the entire tree.
     o.release.touch()
@@ -219,6 +226,13 @@ def test_terminal_child_writeback_does_not_recreate_retired_parent_successor(can
     assert not remaining(o.identities)
     response = delete(c, "retire-before-late-receipt")
     assert response.status_code == 200, response.text
+    settled = c.service.final.get(c.job['id'])
+    assert list(settled['attempts']) == [attempt_id]
+    assert settled['attempts'][attempt_id]['state'] == 'succeeded'
+    assert settled['runs'][c.run_id]['state'] == 'completed'
+    effect, = settled['effects']
+    assert effect['attemptId'] == attempt_id and effect['effectKey'] == o.key
+    assert effect['receipt'] == final['result']
     retired = c.client.get("/api/jobs/" + c.job["id"]).json()
     assert retired["state"] == "retired"
     c.release_receipt.set()

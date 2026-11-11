@@ -210,7 +210,7 @@ async def test_real_stdio_canonical_objects_without_user_bearer(tmp_path, projec
                                      expected_revision=job['configRevision'],
                                      expected_state_revision=job['stateRevision'],
                                      request_key='retire')
-            assert retired_job['status'] in {'completed', 'unknown'}, retired_job
+            assert retired_job['error']['code'] == 'reference_conflict', retired_job
 
             # MCP never acquires a user's password or Bearer session.
             assert set(h.svc.auth.sessions) == before_sessions
@@ -329,7 +329,7 @@ CANONICAL_CAPABILITIES = (
     ('read', 'GET', '/api/jobs'),
     ('create', 'POST', '/api/jobs'),
     ('updateConfig', 'PUT', '/api/jobs/job_x'),
-    ('delete', 'DELETE', '/api/jobs/job_x'),
+    ('lifecycle', 'DELETE', '/api/jobs/job_x'),
 )
 TRIGGER_CAPABILITIES = (
     ('read', 'GET', '/api/triggers'),
@@ -387,3 +387,4 @@ async def test_template_and_event_creator_reads_map_to_denial_over_ipc(tmp_path,
         assert response['error']['code'] == 'authorization_denied', response
     finally:
         await close(h)
+
