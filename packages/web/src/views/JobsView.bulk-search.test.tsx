@@ -181,6 +181,19 @@ describe('JobsView search, status filters, and bulk actions', () => {
     expect(screen.queryByText('New Action Job')).toBeNull();
     expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('Compatibility');
   });
+  it('shows canonical process run counts without a legacy label and preserves explicit retirement badges', async () => {
+    const canonical = job({ jobId: 'canonical-process', name: 'Canonical process', kind: 'background-process', status: 'scheduled', runCount: 3 });
+    const retired = job({ jobId: 'old-process', name: 'Retired process', kind: 'background-process', status: 'failed', retirementStatus: 'Retired' });
+    const invalid = job({ jobId: 'invalid-message', name: 'Invalid message', kind: 'session-message', status: 'failed', retirementStatus: 'Invalid' });
+    api.fetchJobs.mockResolvedValue([canonical, retired, invalid]);
+    renderView();
+    await screen.findByText('Canonical process');
+    const row = (name: string) => screen.getByText(name).parentElement!.parentElement!;
+    expect(within(row('Canonical process')).getByText('runs 3')).toBeTruthy();
+    expect(within(row('Canonical process')).queryByText(/legacy/i)).toBeNull();
+    expect(within(row('Retired process')).getByText('Retired')).toBeTruthy();
+    expect(within(row('Invalid message')).getByText('Invalid')).toBeTruthy();
+  });
   it('keeps the opened config revision when WS replaces a dirty unified Job', async () => {
     const initial = scheduledJob({ name: 'Unified revision draft', enabled: true, configRevision: 7,
       unified: { action: { api: 'action_reference', actionId: 'a', arguments: {} }, config: {

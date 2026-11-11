@@ -11,6 +11,7 @@ let writes: { url: string; method: string; body: Record<string, unknown> }[];
 let failure = 0;
 let networkFailure = false;
 let accepted = false;
+let runState = 'failed';
 const item = {
   id: 'canonical/one',
   name: 'Example',
@@ -23,9 +24,9 @@ const item = {
   schemaVersion: 2,
 };
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const receipt = (status = 'completed') => ({
+const receipt = (status = 'completed', requestKey = String(writes.at(-1)?.body.requestKey ?? 'server-key')) => ({
   operationId: 'op/one',
-  requestKey: 'server-key',
+  requestKey,
   status,
   objectRefs: [],
   links: {},
@@ -35,6 +36,8 @@ beforeEach(() => {
   failure = 0;
   networkFailure = false;
   accepted = false;
+  runState = 'failed';
+  sessionStorage.clear();
   useAutomationAuth.setState({ token: 'test-user', expiresAt: Date.now() + 60000 });
   vi.stubGlobal(
     'fetch',
@@ -74,7 +77,7 @@ beforeEach(() => {
             {
               runId: 'run/one',
               jobId: item.id,
-              state: 'failed',
+              state: runState,
               stateRevision: 4,
               configRevision: 1,
             },
@@ -183,6 +186,7 @@ it.each(Object.entries(names))(
 it.each(runOperations)(
   'performs %s using Run state revision and current Job config',
   async (operation) => {
+    runState = operation === 'resume' ? 'paused_at_boundary' : operation === 'cancel' || operation === 'pause' ? 'running' : 'failed';
     host();
     await screen.findByText('Example');
     click('Runs Example');
@@ -206,7 +210,14 @@ it.each(runOperations)(
     await screen.findByText('Operation status:completed');
   },
 );
+it('disables operations when the Run state cannot admit them', async () => {
+  runState = 'failed'; host(); await screen.findByText('Example'); click('Runs Example'); await screen.findByText(/run\/one/);
+  for (const name of ['pause', 'resume', 'cancel']) expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: 'retry' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(writes).toHaveLength(0);
+});
 it.each([422, 403])('shows readable %s rejection for run operations', async (status) => {
+  runState = 'running';
   host();
   await screen.findByText('Example');
   click('Runs Example');

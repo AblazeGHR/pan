@@ -342,7 +342,7 @@ export function NewJobForm({
           kind,
           target: { sessionId: null },
           action: { api: 'resume_legal_running' },
-          text: 'Continue',
+          text: '继续',
           schedule: entries.map(buildScheduleSpec),
           misfirePolicy,
           maxRuns: max,
@@ -518,7 +518,7 @@ export function NewJobForm({
           : { api: actionApi };
       }
       if (actionApi === 'resume_legal_running') {
-        patch.text = 'Continue';
+        patch.text = initialJob?.text ?? '继续';
         patch.target = { sessionId: null };
       } else if (actionApi === 'send_qq') {
         if (!text.trim()) {
@@ -831,7 +831,7 @@ export function NewJobForm({
               setKind('scheduled-task');
               setActionApi('resume_legal_running');
               setTargetSessionId('');
-              setText('Continue');
+              setText('继续');
             }
           }}
           className={'flex-1 rounded border px-2.5 py-1.5 text-xs font-medium transition-colors '

@@ -167,8 +167,8 @@ function lastResultSummary(job: Job): string {
   }
   if (job.lastError) return `last error: ${job.lastError}`;
   if (job.lastStatus) return `last ${job.lastStatus}`;
-  return isUnifiedJob(job) ? `runs ${job.runCount ?? 0}`
-    : job.kind === 'background-process' ? `legacy ${job.status}` : `deliveries ${job.runCount ?? 0}`;
+  return isUnifiedJob(job) || job.kind === 'background-process'
+    ? `runs ${job.runCount ?? 0}` : `deliveries ${job.runCount ?? 0}`;
 }
 
 /** 活跃优先排序档位：running → starting → scheduled → pending → completed → failed → timed_out → cancelled。 */

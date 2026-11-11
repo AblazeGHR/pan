@@ -98,7 +98,7 @@ it('preserves original identity after lost response, switch and remount; only GE
   });
   await detail();
   fireEvent.change(screen.getByLabelText('value'), { target: { value: 'hello' } });
-  fireEvent.click(screen.getByRole('button', { name: '运行固定版本' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Run fixed version' }));
   await screen.findByText(/lost response/);
   const body = request.mock.calls.find(([p]) => p?.endsWith('/invocations'))![2] as {
     requestKey: string;
@@ -106,7 +106,7 @@ it('preserves original identity after lost response, switch and remount; only GE
   expect(screen.getByLabelText('Action version')).toHaveProperty('disabled', true);
   cleanup();
   await detail();
-  fireEvent.click(screen.getByRole('button', { name: '查询原操作' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Query original operation' }));
   await screen.findByText(/partial/);
   expect(request.mock.calls.filter(([p]) => p?.endsWith('/invocations'))).toHaveLength(1);
   expect(request.mock.calls.some(([p]) => p?.includes(encodeURIComponent(body.requestKey)))).toBe(
@@ -120,9 +120,9 @@ it('a permission rejection is visible and never reported as successful invocatio
     return original(path, ...args);
   });
   await detail();
-  fireEvent.click(screen.getByRole('button', { name: '运行固定版本' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Run fixed version' }));
   await screen.findByRole('alert');
-  expect(screen.queryByRole('button', { name: '查询原操作' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Query original operation' })).toBeNull();
   expect(screen.getByLabelText('Action version')).toHaveProperty('disabled', false);
 });
 it('all Groups preview includes legacy blockers and cannot apply a reduced batch', async () => {
@@ -144,9 +144,9 @@ it('all Groups preview includes legacy blockers and cannot apply a reduced batch
       : original(path, ...args),
   );
   render(<ReferenceUpdates actionRef={ref(2)} />);
-  fireEvent.click(screen.getByRole('button', { name: '预览此版本更新所有 Groups' }));
-  await screen.findByText(/尚未完成安全 writer adoption/);
-  expect(screen.getByRole('button', { name: '应用已预览批次' })).toHaveProperty('disabled', true);
+  fireEvent.click(screen.getByRole('button', { name: 'Preview this version for all Groups' }));
+  await screen.findByText(/Retired legacy Group/);
+  expect(screen.getByRole('button', { name: 'Apply previewed batch' })).toHaveProperty('disabled', true);
   expect(request.mock.calls.some(([p]) => p?.endsWith('apply-reference-update'))).toBe(false);
 });
 it('Group apply binds exact preview digest, revisions and original selection', async () => {
@@ -163,9 +163,9 @@ it('Group apply binds exact preview digest, revisions and original selection', a
         : original(path, ...args),
   );
   render(<ReferenceUpdates actionRef={ref(2)} />);
-  fireEvent.click(screen.getByRole('button', { name: '预览此版本更新所有 Groups' }));
-  await screen.findByRole('button', { name: '应用已预览批次' });
-  fireEvent.click(screen.getByRole('button', { name: '应用已预览批次' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Preview this version for all Groups' }));
+  await screen.findByRole('button', { name: 'Apply previewed batch' });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply previewed batch' }));
   await waitFor(() =>
     expect(request.mock.calls.some(([p]) => p === 'action-groups/apply-reference-update')).toBe(
       true,
@@ -234,22 +234,22 @@ it('Job preview keeps exact steps, selected subscribers and frozen Run boundary'
     return original(path, ...args);
   });
   render(<ReferenceUpdates actionRef={ref(2)} />);
-  fireEvent.click(screen.getByRole('button', { name: '加载引用与 Groups' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Load references and Groups' }));
   fireEvent.click(await screen.findByLabelText(/Job One/));
-  fireEvent.click(screen.getByRole('button', { name: '预览未来 Run 引用更新' }));
-  expect(await screen.findByRole('button', { name: '应用已预览批次' })).toHaveProperty(
+  fireEvent.click(screen.getByRole('button', { name: 'Preview reference updates for future Runs' }));
+  expect(await screen.findByRole('button', { name: 'Apply previewed batch' })).toHaveProperty(
     'disabled',
     true,
   );
-  fireEvent.click(screen.getByLabelText(/同步固定订阅 Trigger tr1/));
-  fireEvent.click(screen.getByRole('button', { name: '预览未来 Run 引用更新' }));
+  fireEvent.click(screen.getByLabelText(/Update fixed Trigger subscriptions tr1/));
+  fireEvent.click(screen.getByRole('button', { name: 'Preview reference updates for future Runs' }));
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: '应用已预览批次' })).toHaveProperty(
+    expect(screen.getByRole('button', { name: 'Apply previewed batch' })).toHaveProperty(
       'disabled',
       false,
     ),
   );
-  fireEvent.click(screen.getByRole('button', { name: '应用已预览批次' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Apply previewed batch' }));
   await waitFor(() =>
     expect(request.mock.calls.some(([p]) => p === 'jobs/action-references/apply')).toBe(true),
   );
@@ -284,13 +284,13 @@ it('a stale preview fails without a second apply or false success', async () => 
     return original(path, ...args);
   });
   render(<ReferenceUpdates actionRef={ref(2)} />);
-  fireEvent.click(screen.getByRole('button', { name: '预览此版本更新所有 Groups' }));
-  fireEvent.click(await screen.findByRole('button', { name: '应用已预览批次' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Preview this version for all Groups' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Apply previewed batch' }));
   await screen.findByRole('alert');
   expect(
     request.mock.calls.filter(([p]) => p === 'action-groups/apply-reference-update'),
   ).toHaveLength(1);
-  expect(screen.queryByRole('button', { name: '查询原更新操作' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Query original update operation' })).toBeNull();
 });
 it('query permission failure preserves an unresolved update identity across remount', async () => {
   const original = request.getMockImplementation()!;
@@ -306,17 +306,17 @@ it('query permission failure preserves an unresolved update identity across remo
     return original(path, ...args);
   });
   render(<ReferenceUpdates actionRef={ref(2)} />);
-  fireEvent.click(screen.getByRole('button', { name: '预览此版本更新所有 Groups' }));
-  fireEvent.click(await screen.findByRole('button', { name: '应用已预览批次' }));
-  fireEvent.click(await screen.findByRole('button', { name: '查询原更新操作' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Preview this version for all Groups' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Apply previewed batch' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Query original update operation' }));
   await screen.findByRole('alert');
   cleanup();
   render(<ReferenceUpdates actionRef={ref(2)} />);
-  expect(screen.getByRole('button', { name: '查询原更新操作' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Query original update operation' })).toBeTruthy();
   expect(
     request.mock.calls.filter(([p]) => p === 'action-groups/apply-reference-update'),
   ).toHaveLength(1);
 });
 it('does not invoke previous valid arguments while raw JSON is incomplete',async()=>{
- await detail();const input=screen.getByLabelText('Invocation arguments JSON');fireEvent.change(input,{target:{value:'{"value":"valid"}'}});fireEvent.change(input,{target:{value:'{"value":'}});expect(screen.getByRole('button',{name:'运行固定版本'})).toHaveProperty('disabled',true);fireEvent.click(screen.getByRole('button',{name:'运行固定版本'}));expect(request.mock.calls.filter(([p])=>p?.endsWith('/invocations'))).toHaveLength(0);
+ await detail();const input=screen.getByLabelText('Invocation arguments JSON');fireEvent.change(input,{target:{value:'{"value":"valid"}'}});fireEvent.change(input,{target:{value:'{"value":'}});expect(screen.getByRole('button',{name:'Run fixed version'})).toHaveProperty('disabled',true);fireEvent.click(screen.getByRole('button',{name:'Run fixed version'}));expect(request.mock.calls.filter(([p])=>p?.endsWith('/invocations'))).toHaveLength(0);
 });

@@ -17,7 +17,7 @@ describe('NewJobForm resume legal running template', () => {
     render(<NewJobForm onCreate={onCreate} />);
 
     fireEvent.click(screen.getByRole('button', {
-      name: '恢复所有 Illegal / 待恢复 Session',
+      name: 'Recover Illegal or recovery-pending Sessions',
     }));
     fireEvent.click(screen.getByRole('button', { name: 'Create job' }));
 
@@ -28,7 +28,7 @@ describe('NewJobForm resume legal running template', () => {
       text: '继续',
       schedule: expect.any(Array),
     }));
-    expect(screen.getByText(/每次 Job 触发时/)).toBeTruthy();
+    expect(screen.getByText(/Each trigger selects Illegal or recovery-pending Sessions/)).toBeTruthy();
   });
 
   it('preserves the action while editing its schedule and metadata', () => {
