@@ -196,8 +196,9 @@ def test_failed_reader_completion_joins_its_cleanup(tmp_path, monkeypatch):
     asyncio.run(run())
 
 
+@pytest.mark.parametrize('slow_start', [False, True], ids=['normal-start', 'held-start'])
 @pytest.mark.parametrize('stage', ['spawn', 'provider.initialize', 'events.initialize', 'plugin_ready', 'events.ready'])
-def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, monkeypatch, stage):
+def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, monkeypatch, stage, slow_start):
     async def run():
         sessions = {'a': session('a', ['producer'])}
         svc, manager, _ = await setup(tmp_path, sessions, manifest())
@@ -205,6 +206,7 @@ def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, mon
         owned = []
         original_rpc = adapter.EventConnection.request
         original_spawn = asyncio.create_subprocess_exec
+        spawn_entered, spawn_release = asyncio.Event(), asyncio.Event()
         original_ready = svc.plugin_ready
         async def rpc(c, method, params):
             if method == stage:
@@ -212,6 +214,10 @@ def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, mon
                 await release.wait()
             return await original_rpc(c, method, params)
         async def spawn(*args, **kwargs):
+            if slow_start:
+                spawn_entered.set()
+                await spawn_release.wait()
+                await asyncio.sleep(.6)
             process = await original_spawn(*args, **kwargs)
             owned.append((process.pid, psutil.Process(process.pid).create_time()))
             if stage == 'spawn':
@@ -229,7 +235,19 @@ def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, mon
         closing = None
         try:
             await manager.reconcile()
-            await within(entered)
+            if slow_start:
+                await asyncio.wait_for(spawn_entered.wait(), 10)
+                # Reproduce CI's pre-close failure deterministically: the real
+                # process cannot reach any stage while spawn is held.
+                with pytest.raises(TimeoutError):
+                    await within(entered)
+                assert not entered.is_set() and not owned
+                spawn_release.set()
+            # This is fixture readiness, including the Windows Python runner,
+            # Node spawn and real handshakes; it is not a nonblocking deadline.
+            # Match the existing real-provider `until` setup budget. Keep
+            # `within` (.5s) and the close completion deadline (2s) unchanged.
+            await asyncio.wait_for(entered.wait(), 10)
             c = manager.connections['producer']
             closing = asyncio.create_task(manager.close())
             await until(lambda: manager.stopping)
@@ -241,6 +259,7 @@ def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, mon
             assert not [s for s in svc.bus.handles.values() if s['type'] == 'plugin']
             assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
         finally:
+            spawn_release.set()
             release.set()
             if closing:
                 await closing
