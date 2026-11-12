@@ -28,6 +28,7 @@ CAPABILITY_KEYS = {
     "processOwner",
     "secretStore",
     "fileManager.reveal",
+    "fileDialog.native",
 }
 
 

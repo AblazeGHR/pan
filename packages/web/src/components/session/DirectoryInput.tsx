@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronUp, File as FileIcon, Folder, Loader2 } from 'lucide-react';
-import { fetchDirectories, type DirectoryListResponse } from '@/services/api';
+import { fetchDirectories, pickNativeServerDirectory, type DirectoryListResponse } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { parseDirectoryInput } from '@/utils/directoryInput';
 import { appendPathSeparator } from '@/utils/pathSeparator';
-import { usePlatformStore } from '@/stores/platformStore';
+import { useCapability, usePlatformStore } from '@/stores/platformStore';
+import { useNativeServerPicker } from '@/hooks/useNativeServerPicker';
 
 export interface DirectoryInputStatus {
   directory: string;
@@ -22,6 +23,8 @@ interface DirectoryInputProps {
   selectDirectories?: boolean;
   /** The attachment dialog shows roots immediately; New Session waits for input. */
   showRootsWhenEmpty?: boolean;
+  /** New Session: offer the Pan server's native folder dialog next to the input. */
+  nativeDirectoryPicker?: boolean;
   onStatusChange?: (status: DirectoryInputStatus) => void;
   inputTestId?: string;
 }
@@ -32,6 +35,10 @@ function invalidDirectoryMessage(error: unknown): string {
   }
   return 'Invalid directory.';
 }
+
+/** Visible on unsupported platforms; manual browsing stays available. */
+const NATIVE_PICKER_UNSUPPORTED =
+  'The native folder dialog needs the Pan server on an interactive Windows desktop. Type the path or browse below.';
 
 /**
  * One shared path input and one shared result list for attachments and New
@@ -45,6 +52,7 @@ export function DirectoryInput({
   fileMode = false,
   selectDirectories = false,
   showRootsWhenEmpty = false,
+  nativeDirectoryPicker = false,
   onStatusChange,
   inputTestId = 'directory-input',
 }: DirectoryInputProps) {
@@ -59,10 +67,29 @@ export function DirectoryInput({
   // Windows example that shipped with this input.
   const platform = usePlatformStore((state) => state.platform);
   const placeholder = platform && platform !== 'windows' ? '/home/user/project' : 'D:\\project\\app';
+  const nativePickerSupported = useCapability('fileDialog.native');
+  const {
+    busy: nativePickerBusy,
+    feedback: nativePickerFeedback,
+    pick: runNativePicker,
+    reset: resetNativePicker,
+  } = useNativeServerPicker('directories');
+  // A value the native dialog wrote must not be mistaken for a manual edit that
+  // invalidates that same result.
+  const nativeAppliedRef = useRef<string | null>(null);
 
   useEffect(() => () => {
     if (directoryClickTimerRef.current) clearTimeout(directoryClickTimerRef.current);
   }, []);
+
+  // Typing, a different prefill or a reopen makes any pending dialog result
+  // stale: keep what the user has and drop the late answer.
+  useEffect(() => {
+    const applied = nativeAppliedRef.current;
+    nativeAppliedRef.current = null;
+    if (applied !== null && value === applied) return;
+    resetNativePicker();
+  }, [value, resetNativePicker]);
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
@@ -135,6 +162,19 @@ export function DirectoryInput({
     onChange(appendPathSeparator(path));
   };
 
+  // The selected folder is written exactly as returned: the normal New Session
+  // validation then decides whether the workdir exists or must be created.
+  const handleNativeDirectoryPick = () => void runNativePicker(
+    () => pickNativeServerDirectory(parts.directory),
+    (paths) => {
+      const [path] = paths;
+      if (!path) return;
+      nativeAppliedRef.current = path;
+      if (selectDirectories) onSelect?.(path);
+      else onChange(path);
+    },
+  );
+
   return (
     <div className="flex flex-col gap-3" data-testid="directory-input-panel">
       <label className="flex flex-col gap-1 text-xs text-text-secondary">
@@ -149,6 +189,31 @@ export function DirectoryInput({
           className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
         />
       </label>
+      {nativeDirectoryPicker && <div className="flex flex-col gap-2">
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={nativePickerBusy || !nativePickerSupported}
+            title={nativePickerSupported
+              ? 'Select a folder in a native dialog on the Pan server desktop'
+              : NATIVE_PICKER_UNSUPPORTED}
+            onClick={handleNativeDirectoryPick}
+          >
+            Browse server folders
+          </Button>
+        </div>
+        {!nativePickerSupported && (
+          <p className="text-xs text-text-tertiary" data-testid="native-picker-unsupported">
+            {NATIVE_PICKER_UNSUPPORTED}
+          </p>
+        )}
+        {nativePickerFeedback && (
+          <p role="status" className="text-sm text-text-secondary" data-testid="native-picker-feedback">
+            {nativePickerFeedback}
+          </p>
+        )}
+      </div>}
       {error && <p className="text-sm text-danger" data-testid="directory-error">{error}</p>}
       {!error && parts.search && data && (
         <p className="text-xs text-text-tertiary">
