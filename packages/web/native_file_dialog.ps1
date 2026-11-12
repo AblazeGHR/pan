@@ -58,41 +58,63 @@ public sealed class PanPickerWindow : IDisposable {
     }
 }
 "@
-    $dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $mode = if ($inputData.mode) { [string]$inputData.mode } else { 'files' }
+    if ($mode -notin @('files', 'directories')) { throw 'Unsupported dialog mode' }
+    $dialog = $null
     $owner = New-Object System.Windows.Forms.Form
     $activation = $null
     try {
         # Give the console-free helper a normal taskbar owner so the picker
         # remains discoverable when Windows refuses foreground activation.
         # Never make it topmost or override the OS foreground policy.
-        $owner.Text = 'Pan server attachments'
+        $owner.Text = if ($mode -eq 'directories') { 'Pan working directory picker' } else { 'Pan server attachments' }
         $owner.ShowInTaskbar = $true
         $owner.WindowState = [System.Windows.Forms.FormWindowState]::Normal
         $owner.Size = New-Object System.Drawing.Size(360, 120)
         $label = New-Object System.Windows.Forms.Label
-        $label.Text = 'Select files in the file dialog. Then confirm in Pan.'
         $label.Dock = [System.Windows.Forms.DockStyle]::Fill
         $owner.Controls.Add($label)
         $owner.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
-        $dialog.Title = 'Select server attachments'
-        $dialog.Multiselect = $true
-        $dialog.CheckFileExists = $true
-        $dialog.RestoreDirectory = $true
-        if ($inputData.directory) {
-            $initial = [IO.Path]::GetFullPath($inputData.directory)
-            if (-not (Test-Path -LiteralPath $initial -PathType Container)) { throw 'Invalid initial directory' }
-            $dialog.InitialDirectory = $initial
+        if ($mode -eq 'directories') {
+            # FolderBrowserDialog returns exactly one existing folder; Pan still
+            # validates the workdir path in its normal New Session flow.
+            $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+            $dialog.Description = 'Select the working directory for the new Session'
+            $dialog.ShowNewFolderButton = $true
+            $label.Text = 'Select the working directory in the folder dialog. Then confirm in Pan.'
+            if ($inputData.directory) {
+                $initial = [IO.Path]::GetFullPath($inputData.directory)
+                if (-not (Test-Path -LiteralPath $initial -PathType Container)) { throw 'Invalid initial directory' }
+                $dialog.SelectedPath = $initial
+            }
+        } else {
+            $dialog = New-Object System.Windows.Forms.OpenFileDialog
+            $label.Text = 'Select files in the file dialog. Then confirm in Pan.'
+            $dialog.Title = 'Select server attachments'
+            $dialog.Multiselect = $true
+            $dialog.CheckFileExists = $true
+            $dialog.RestoreDirectory = $true
+            if ($inputData.directory) {
+                $initial = [IO.Path]::GetFullPath($inputData.directory)
+                if (-not (Test-Path -LiteralPath $initial -PathType Container)) { throw 'Invalid initial directory' }
+                $dialog.InitialDirectory = $initial
+            }
         }
         $owner.Show()
         # Request focus once when this helper's actual native dialog is shown.
         # Keep the callback alive and release its hook with the dialog owner.
         $activation = New-Object PanPickerWindow($owner.Handle)
         if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
-            @{ status = 'selected'; paths = @($dialog.FileNames) } | ConvertTo-Json -Compress
+            if ($mode -eq 'directories') {
+                if (-not $dialog.SelectedPath) { throw 'No folder selected' }
+                @{ status = 'selected'; paths = @($dialog.SelectedPath) } | ConvertTo-Json -Compress
+            } else {
+                @{ status = 'selected'; paths = @($dialog.FileNames) } | ConvertTo-Json -Compress
+            }
         } else {
             @{ status = 'cancelled'; paths = @() } | ConvertTo-Json -Compress
         }
-    } finally { if ($activation) { $activation.Dispose() }; $dialog.Dispose(); $owner.Dispose() }
+    } finally { if ($activation) { $activation.Dispose() }; if ($dialog) { $dialog.Dispose() }; $owner.Dispose() }
 } catch {
     @{ status = 'failed'; paths = @() } | ConvertTo-Json -Compress
     exit 1

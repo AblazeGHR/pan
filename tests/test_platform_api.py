@@ -31,6 +31,7 @@ CAPABILITY_KEYS = {
     "process.hiddenDesktop",
     "secretStore",
     "fileManager.reveal",
+    "fileDialog.native",
 }
 
 

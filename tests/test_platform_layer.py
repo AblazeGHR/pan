@@ -48,6 +48,7 @@ EXPECTED_CAPABILITIES = (
     "process.hiddenDesktop",
     "secretStore",
     "fileManager.reveal",
+    "fileDialog.native",
 )
 
 
@@ -108,6 +109,15 @@ def test_file_manager_reveal_capability_tracks_runtime_opener(monkeypatch):
     assert entry.supported_on == frozenset(
         {plat.WINDOWS, plat.DARWIN, plat.LINUX}
     )
+
+
+def test_file_dialog_native_is_declared_windows_only():
+    entry = plat.capability("fileDialog.native")
+    assert entry.supported_on == frozenset({plat.WINDOWS})
+    assert "PowerShell" in entry.reason
+    assert plat.supports("fileDialog.native", "win32") is True
+    assert plat.supports("fileDialog.native", "darwin") is False
+    assert plat.supports("fileDialog.native", "linux") is False
 
 
 def test_unknown_platform_declares_nothing():

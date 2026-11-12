@@ -170,6 +170,14 @@ CAPABILITIES: Mapping[str, Capability] = {
         "Linux xdg-open + DISPLAY/WAYLAND_DISPLAY）；缺失时明确不支持",
         probe=_probe_file_manager_reveal,
     ),
+    # 原生文件/目录选择框：固定 PowerShell + WinForms(STA) helper 与交互式桌面。
+    # 选择结果只回传路径，不注册、不复制文件；POSIX 无对应实现前不得声明可用。
+    "fileDialog.native": Capability(
+        "fileDialog.native",
+        frozenset({WINDOWS}),
+        "原生文件/目录选择框依赖 PowerShell + WinForms(STA) helper 与交互式桌面；"
+        "POSIX 未实现，请求返回 status=unavailable",
+    ),
 }
 
 

@@ -110,6 +110,7 @@ FinalService 与 Job facade 共用环境变量优先级，解析不创建目录�
 | `processOwner` | 可用 | 可用 | 可用 | WP05a typed executor 与 WP05b independent canonical Attempt 复用 `ProcessOwner`；POSIX 使用 setsid/进程组与持久身份核验；独立启动经短命 bootstrap 的 retained-handle exit receipt |
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
 | `fileManager.reveal` | 运行时探测 | 运行时探测 | 运行时探测 | 需要 Explorer / `open` / xdg-open 与桌面会话；探针为 false 时 API `501`、按钮禁用 |
+| `fileDialog.native` | 可用 | 不可用 | 不可用 | 原生文件/目录选择框依赖固定 PowerShell + WinForms(STA) helper 与交互式桌面；不支持时 UI 禁用新按钮，API 返回 `status: unavailable` |
 
 The cc-switch bridge reuses the platform `RuntimeLock` for its existing
 `.bridge.lock` fence: Windows LockFileEx and POSIX flock lock the same file
@@ -184,3 +185,26 @@ macOS 需要 `open`，Linux 需要 `xdg-open` 且存在 `DISPLAY`/`WAYLAND_DISPL
 只负责解析路径、映射状态码并调用。本机 Windows 候选证据见
 `evidence/editor-system-open/`；macOS/Linux 仅有 argv 构建与探针单元测试，尚无
 目标平台运行证据，不得当成已验收。
+
+### 原生文件/目录选择（`fileDialog.native`）
+
+附件选择与 New Session 共用**同一个** picker：`packages/web/native_file_picker.py`
+的单例、同一把 gate、同一个固定 helper `native_file_dialog.ps1`，只用 `mode` 区分
+实例（`files` 多选文件 / `directories` 选单个目录）。
+
+- `files`（默认）：`POST /api/sessions/{id}/attachments/native-picker`，返回路径后
+  仍走原有“确认 → `from-server-file` 注册”，附件原能力不变；
+- `directories`：`POST /api/native-picker`，供尚未创建 Session 的 New Session 回填
+  workdir。
+
+两种模式的并发 `status: busy`、90 秒超时、HTTP 取消与 helper 清理、`close()` 所有权
+完全一致；目录模式只多一条“恰好一个绝对路径”的契约校验。
+
+未创建 Session 时没有 Session id 可授权，`POST /api/native-picker` 因此复用该对话框
+本来就在用的只读浏览入口（`GET /api/directories`）同级的本机 API 边界：不新增鉴权、
+不临时创建 Session、不注册或复制任何路径，选出的 workdir 继续走原有 New Session 校验
+（存在性检查 + 缺失目录确认）。
+
+不支持平台的契约沿用既有 picker 状态而不是新增 `501`：非 Windows 或
+`interactive_desktop()` 为假时返回 `status: unavailable`，前端读取
+`fileDialog.native` 能力禁用新按钮并显示可见说明，手工目录浏览保持可用。

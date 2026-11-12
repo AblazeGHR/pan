@@ -13,7 +13,8 @@ export type PlatformCapability =
   | 'terminal.detach'
   | 'rewind'
   | 'service.lifecycle'
-  | 'fileManager.reveal';
+  | 'fileManager.reveal'
+  | 'fileDialog.native';
 
 export type CapabilityMap = Record<string, boolean>;
 

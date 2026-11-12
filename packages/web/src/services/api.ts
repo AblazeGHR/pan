@@ -473,13 +473,36 @@ export async function uploadSessionAttachment(
   }).finally(finishRequest);
 }
 
+export type NativePickerStatus = 'selected' | 'cancelled' | 'failed' | 'timeout' | 'busy' | 'unavailable';
+
+export interface NativePickerResult {
+  status: NativePickerStatus;
+  paths: string[];
+}
+
 /** Register an existing server-side file without sending a client path back in
  * the message protocol. Directories are rejected by the server in phase 1. */
 export async function pickNativeServerFiles(sessionId: string, directory: string) {
-  return request<{ status: 'selected' | 'cancelled' | 'failed' | 'timeout' | 'busy' | 'unavailable'; paths: string[] }>(
+  return request<NativePickerResult>(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/attachments/native-picker`,
     { method: 'POST', body: JSON.stringify({ directory }), signal: AbortSignal.timeout(100_000) },
   );
+}
+
+/** Pick one folder before a Session exists (New Session workdir).
+ *
+ * Uses the same native picker singleton as the attachment route in directory
+ * mode, so the gate, timeout and cleanup behavior are identical. The local API
+ * boundary is the one the picker dialog already browses with
+ * (`GET /api/directories`): no Session is created to authorize the request, and
+ * the returned path still goes through the normal New Session validation.
+ */
+export async function pickNativeServerDirectory(directory: string) {
+  return request<NativePickerResult>(`${BASE}/native-picker`, {
+    method: 'POST',
+    body: JSON.stringify({ directory, mode: 'directories' }),
+    signal: AbortSignal.timeout(100_000),
+  });
 }
 
 export async function registerServerFileAttachment(

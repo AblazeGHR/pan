@@ -21,6 +21,7 @@ const apiMock = vi.hoisted(() => ({
   saveNewSessionDefaults: vi.fn(),
   fetchDirectories: vi.fn(),
   createDirectory: vi.fn(),
+  pickNativeServerDirectory: vi.fn(),
 }));
 
 vi.mock('@/services/api', () => apiMock);
@@ -231,6 +232,34 @@ describe('New Session directory input', () => {
     expect(screen.queryByTestId('directory-search')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'app' }));
     await waitFor(() => expect((input as HTMLInputElement).value).toBe('D:\\workspace\\app'));
+  });
+
+  it('fills the workdir from the server folder dialog before any Session exists', async () => {
+    apiMock.pickNativeServerDirectory.mockResolvedValue({
+      status: 'selected', paths: ['D:\\workspace\\picked'],
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browse server folders' }));
+
+    await waitFor(() => expect(
+      (screen.getByTestId('new-session-workdir-input') as HTMLInputElement).value,
+    ).toBe('D:\\workspace\\picked'));
+    expect(apiMock.pickNativeServerDirectory).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the prefilled workdir when the native folder selection is cancelled', async () => {
+    apiMock.fetchNewSessionDefaults.mockResolvedValue({
+      adapter: 'cbc', outputMode: '', sessionTemplate: '', workdir: 'D:\\saved\\work',
+    });
+    apiMock.pickNativeServerDirectory.mockResolvedValue({ status: 'cancelled', paths: [] });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browse server folders' }));
+
+    await screen.findByTestId('native-picker-feedback');
+    expect((screen.getByTestId('new-session-workdir-input') as HTMLInputElement).value)
+      .toBe('D:\\saved\\work');
   });
 
   it('prefills persisted New Session defaults and leaves saving opt-in', async () => {
