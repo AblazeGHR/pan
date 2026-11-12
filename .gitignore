@@ -153,3 +153,8 @@ packages/web/test-results/
 # Owned Action unification HTTP/Chromium profiles contain disposable auth keys.
 /.tmp/p5-http-*/
 /.tmp/p6-http-*/
+
+# Owned practical-to-main integration evidence and responsive browser builds.
+/.tmp/practical-main/
+/packages/web/.tmp/settings-search-tab/
+/packages/web/.tmp/settings-search-build/

@@ -622,7 +622,13 @@ class WindowsProcessOwner(ProcessOwner):
             platform=PLATFORM_WINDOWS,
             image=args[0],
         )
-        return WindowsOwnedProcess(self, popen, identity, guard)
+        owned = WindowsOwnedProcess(self, popen, identity, guard)
+        owned.window_launch = {
+            "effectiveHideWindow": popen.hidden,
+            **({"hiddenWindowFailure": popen.hidden_window_failure}
+               if popen.hidden_window_failure is not None else {}),
+        }
+        return owned
 
     @staticmethod
     def _cleanup_failed_spawn(

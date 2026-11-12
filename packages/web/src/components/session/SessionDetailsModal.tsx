@@ -7,8 +7,10 @@ import {
   fetchSessionUsage,
   markSessionIllegal,
   markSessionSafelyOffline,
+  patchSession,
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { Session, SessionUsageView } from '@/types';
 import { copyText } from '@/utils/clipboard';
@@ -105,9 +107,11 @@ function hasQuotaDetails(window: CodexQuotaWindow | undefined): window is CodexQ
 
 export function SessionDetailsModal({ session, onClose }: SessionDetailsModalProps) {
   const showToast = useUIStore((s) => s.showToast);
+  const globalBehavior = useAppSettingsStore((s) => s.behavior);
   const sessionId = session?.id;
   const liveSession = useSessionStore(state => state.sessions.find(item => item.id === sessionId));
   const [usageExpanded, setUsageExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'behavior'>('details');
   const [usage, setUsage] = useState<SessionUsageView | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
   const [usageRefreshing, setUsageRefreshing] = useState(false);
@@ -132,6 +136,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     kind: 'success' | 'error';
     message: string;
   } | null>(null);
+  const [behaviorSaving, setBehaviorSaving] = useState(false);
 
   useEffect(() => {
     usageRequestId.current += 1;
@@ -139,6 +144,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     legalStateBusyRef.current = false;
     const cached = sessionId ? getSessionUsageCache(sessionId) : undefined;
     setUsageExpanded(false);
+    setActiveTab('details');
     setUsage(cached?.usage ?? null);
     setUsageLoading(false);
     setUsageRefreshing(false);
@@ -151,6 +157,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     setDetailError(null);
     setLegalStateBusy(false);
     setLegalSyncFeedback(null);
+    setBehaviorSaving(false);
   }, [sessionId]);
 
   useEffect(() => {
@@ -351,6 +358,29 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     () => markSessionIllegal(sessionId!),
     (state) => `Session marked: ${state}`,
   );
+  const currentBehavior = (liveSession?.behavior?.revision ?? -1) > (displayedSession.behavior?.revision ?? -1)
+    ? liveSession?.behavior : displayedSession.behavior;
+  const sessionBehavior = currentBehavior ?? {
+    syncWithGlobal: true,
+    autoLockIllegalQueue: true,
+    revision: 0,
+  };
+  const saveSessionBehavior = async (syncWithGlobal: boolean, autoLockIllegalQueue: boolean) => {
+    if (!sessionId || behaviorSaving) return;
+    setBehaviorSaving(true);
+    try {
+      const updated = await patchSession(sessionId, { behavior: { syncWithGlobal, autoLockIllegalQueue, expectedRevision: sessionBehavior.revision } });
+      if (activeSessionIdRef.current !== sessionId) return;
+      detailRequestId.current += 1;
+      detailCache.current.set(sessionId, updated);
+      setDetailSession(updated);
+      useSessionStore.getState().updateSession(sessionId, { behavior: updated.behavior }, true);
+    } catch (error) {
+      if (activeSessionIdRef.current !== sessionId) return;
+      showToast(error instanceof Error ? error.message : 'Behavior save failed', 'error');
+      setDetailRetrySeq((value) => value + 1);
+    } finally { setBehaviorSaving(false); }
+  };
   const copyValue = (label: string, value: string | undefined) => {
     if (!value) {
       showToast(`${label} 暂无可复制内容`, 'error');
@@ -395,6 +425,11 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     // of a centered window (< md breakpoint only). Desktop keeps size="lg".
     <Modal open title="Session Details" onClose={onClose} size="lg" mobileFullscreen>
       <div className="space-y-3">
+        <div role="tablist" aria-label="Session details settings" className="flex gap-3 border-b border-border-default">
+          <button type="button" role="tab" aria-selected={activeTab === 'details'} onClick={() => setActiveTab('details')} className="px-2 py-2 text-sm">Details</button>
+          <button type="button" role="tab" aria-selected={activeTab === 'behavior'} onClick={() => setActiveTab('behavior')} className="px-2 py-2 text-sm">Behavior</button>
+        </div>
+        <div hidden={activeTab !== 'details'} className="space-y-3">
         <FreshnessStatus
           state={detailFreshness}
           updatedAt={displayedSession.updatedAt}
@@ -429,6 +464,23 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             </div>
           );
         })}
+        </div>
+        <section hidden={activeTab !== 'behavior'} role="tabpanel" className="rounded border border-border-default overflow-hidden" aria-label="Behavior">
+          <div className="px-3 py-2 text-sm font-medium text-text-primary border-b border-border-default">Behavior</div>
+          <div className="space-y-3 px-3 py-3">
+            <label className="flex items-start gap-2 text-sm text-text-primary">
+              <input type="checkbox" checked={sessionBehavior.syncWithGlobal} disabled={behaviorSaving || !currentDetailSession}
+                onChange={(event) => void saveSessionBehavior(event.target.checked, sessionBehavior.syncWithGlobal ? globalBehavior.autoLockIllegalQueue : sessionBehavior.autoLockIllegalQueue)} />
+              <span><span className="block">Sync with global behavior</span><span className="block text-xs text-text-tertiary">When enabled, this Session follows App Settings.</span></span>
+            </label>
+            <label className="flex items-start gap-2 text-sm text-text-primary">
+              <input type="checkbox" checked={sessionBehavior.syncWithGlobal ? globalBehavior.autoLockIllegalQueue : sessionBehavior.autoLockIllegalQueue} disabled={behaviorSaving || sessionBehavior.syncWithGlobal || !currentDetailSession}
+                onChange={(event) => void saveSessionBehavior(false, event.target.checked)} />
+              <span><span className="block">Automatically lock queued messages when Illegal</span><span className="block text-xs text-text-tertiary">Locks messages already queued when this Session enters Illegal and new messages added while Illegal. Turning this off does not unlock existing locks.</span></span>
+            </label>
+          </div>
+        </section>
+        <div hidden={activeTab !== 'details'} className="space-y-3">
         <section aria-label="Execution legality" className="rounded border border-border-default px-3 py-2">
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
             <div className="min-w-0">
@@ -570,6 +622,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
             </div>
           )}
         </section>
+        </div>
       </div>
     </Modal>
   );

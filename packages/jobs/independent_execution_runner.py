@@ -156,6 +156,11 @@ async def execute_claimed(store, doc, *, executor=None):
 
                     def recoverable_identity(self, handle):
                         record = owner.recoverable_identity(handle)
+                        launch = getattr(handle, "window_launch", {})
+                        if launch.get("hiddenWindowFailure"):
+                            log.write(("Hidden window setup failed; launching visible: "
+                                       + launch["hiddenWindowFailure"] + "\n").encode("utf-8", "replace"))
+                            log.flush()
                         store.phase(identity, attempt, claim, "running", processIdentity=record)
                         return record
 

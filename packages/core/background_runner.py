@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 from packages.core import background_jobs as jobs
-from packages.jobs.window import command_window_options
+from packages.jobs.window import command_window_options, HiddenWindowUnavailable
 import os
 import traceback
 from contextlib import nullcontext
@@ -41,9 +41,22 @@ def _run_legacy(args) -> int:
             shell_command = job.get("shellCommand")
             hidden_desktop = os.name == "nt" and job.get("hideWindow", True)
             def spawn():
+                nonlocal hidden_desktop
                 if hidden_desktop:
-                    return DesktopCommand(shell_command if isinstance(shell_command, str) else job["argv"],
-                                          job["cwd"], log, shell=isinstance(shell_command, str))
+                    try:
+                        return DesktopCommand(shell_command if isinstance(shell_command, str) else job["argv"],
+                                              job["cwd"], log, shell=isinstance(shell_command, str))
+                    except HiddenWindowUnavailable as error:
+                        reason = str(error)
+                        log.write(f"Hidden window setup failed; launching visible: {reason}\n".encode("utf-8", "replace"))
+                        options.update(command_window_options(False))
+                        hidden_desktop = False
+                        jobs.runner_update(args.job_id, effectiveHideWindow=False, hiddenWindowFailure=reason,
+                                           expected_attempt=attempt_id)
+                        return subprocess.Popen(
+                            shell_command if isinstance(shell_command, str) else job["argv"],
+                            cwd=job["cwd"], shell=isinstance(shell_command, str),
+                            stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **options)
                 return subprocess.Popen(
                     shell_command if isinstance(shell_command, str) else job["argv"],
                     cwd=job["cwd"], shell=isinstance(shell_command, str),

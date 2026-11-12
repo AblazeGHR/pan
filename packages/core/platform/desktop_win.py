@@ -13,6 +13,7 @@ import os
 import subprocess
 from packages.jobs.cleanup import CleanupStack, close_resources, stop_window_guard
 from pathlib import Path
+from packages.jobs.window import HiddenWindowUnavailable
 
 
 class HiddenDesktop:
@@ -33,7 +34,9 @@ class HiddenDesktop:
         # this runner handle non-inheritable; lpDesktop selects the task desktop.
         self.handle = int(self.user.CreateDesktopW(self.name, None, None, 0,
                                                   0x000F00FF, None) or 0)
-        if not self.handle: raise ctypes.WinError(ctypes.get_last_error())
+        if not self.handle:
+            error = ctypes.WinError(ctypes.get_last_error())
+            raise HiddenWindowUnavailable(f"hidden desktop creation failed: {error}") from error
         self.path = self.name
 
     def close(self):
@@ -69,7 +72,10 @@ class DesktopCommand:
                 owned_handle=lambda pid: owned_descendant_handle(self.pid, self.handle, pid))
             # Started before creation so a window shown immediately by the root is seen.
             if not self.window_guard.start():
-                raise OSError("owned window guard failed before legacy command creation")
+                detail = getattr(self.window_guard, "error", None)
+                raise HiddenWindowUnavailable(
+                    "owned window guard failed before legacy command creation"
+                    + (f": {detail}" if detail else ""))
             self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
             kernel = self.kernel
             kernel.CloseHandle.argtypes = [wintypes.HANDLE]

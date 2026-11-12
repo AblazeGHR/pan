@@ -107,6 +107,7 @@ async function installApiStubs(page, viewportName) {
       route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
     report.requests.push({ viewport: viewportName, method, path: url.pathname, body });
 
+    if (url.pathname === '/api/job-maintenance/status') return reply({ mode: 'normal', ready: true });
     if (url.pathname === '/api/sessions' && method === 'GET') return reply({ sessions: state.sessions });
     if (url.pathname === '/api/mcp/servers') {
       return reply({ loaded: true, servers: [{ name: 'pan' }, { name: 'qq' }] });

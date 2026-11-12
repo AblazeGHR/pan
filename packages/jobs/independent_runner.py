@@ -12,7 +12,7 @@ import time
 import traceback
 from packages.jobs.cleanup import CleanupStack, stop_window_guard
 from pathlib import Path
-from packages.jobs.window import windows_creation_flags
+from packages.jobs.window import windows_creation_flags, HiddenWindowUnavailable
 
 
 def _connect(root):
@@ -72,10 +72,28 @@ def _owned_job_empty(guard, timeout=.5):
 def _run_windows_task(root, job_id, claim, payload, env, log_path):
     """Create suspended, assign and prove a kill-on-close Job, then resume once."""
     from packages.jobs.desktop import HiddenDesktop
-    desktop = HiddenDesktop() if payload.get("hideWindow", True) else None
+    reason = None
+    try:
+        desktop = HiddenDesktop() if payload.get("hideWindow", True) else None
+    except HiddenWindowUnavailable as error:
+        reason = str(error)
+        desktop = None
+        payload = {**payload, "hideWindow": False}
     with CleanupStack() as cleanup:
         if desktop is not None:
             cleanup.callback(desktop.close)
+        if reason is not None:
+            with _connect(root) as db:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT execution_audit FROM jobs WHERE id=? AND status='starting' AND runner_claim=?", (job_id, claim)).fetchone()
+                if row is None:
+                    raise RuntimeError("runner claim lost before window setup publication")
+                audit = json.loads(row[0])
+                audit.update(effectiveHideWindow=False, hiddenWindowFailure=reason)
+                db.execute("UPDATE jobs SET execution_audit=? WHERE id=?", (json.dumps(audit), job_id))
+                db.execute("COMMIT")
+            with log_path.open("ab", buffering=0) as log:
+                log.write(f"Hidden window setup failed; launching visible: {reason}\n".encode("utf-8", "replace"))
         return _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, desktop)
 
 

@@ -111,18 +111,33 @@ class OwnedPopen(subprocess.Popen):
         self.desktop = None
         self.window_guard = None
         self.hidden = hidden
+        self.hidden_window_failure = None
         self._owned_thread_handle = 0
         try:
             if hidden:
                 from packages.core.platform.desktop_win import HiddenDesktop
                 from packages.jobs.window_guard import OwnedWindowGuard, descendant_pids, owned_descendant_handle
-                self.desktop = HiddenDesktop()
-                self.window_guard = OwnedWindowGuard(
-                    lambda: descendant_pids(self.pid) if getattr(self, 'pid', None) else (),
-                    owned_handle=lambda pid: owned_descendant_handle(
-                        getattr(self, 'pid', None), int(self._handle) if getattr(self, '_handle', None) else 0, pid))
-                if not self.window_guard.start():
-                    raise OSError('owned window guard failed before command creation')
+                from packages.jobs.window import HiddenWindowUnavailable
+                try:
+                    self.desktop = HiddenDesktop()
+                    self.window_guard = OwnedWindowGuard(
+                        lambda: descendant_pids(self.pid) if getattr(self, 'pid', None) else (),
+                        owned_handle=lambda pid: owned_descendant_handle(
+                            getattr(self, 'pid', None), int(self._handle) if getattr(self, '_handle', None) else 0, pid))
+                    if not self.window_guard.start():
+                        detail = getattr(self.window_guard, 'error', None)
+                        raise HiddenWindowUnavailable(
+                            'owned window guard failed before command creation'
+                            + (f': {detail}' if detail else ''))
+                except HiddenWindowUnavailable as error:
+                    # Popen has not been entered: no process or pipe exists.
+                    # A cleanup error replaces this proof and blocks fallback.
+                    self.close_owned_resources()
+                    self.window_guard = self.desktop = None
+                    self.hidden = False
+                    self.hidden_window_failure = str(error)
+                    kwargs['creationflags'] = (kwargs.get('creationflags', 0) & ~0x08000000) | 0x10
+                    kwargs['startupinfo'].wShowWindow = 1
             super().__init__(args, **kwargs)
         except BaseException:
             from packages.jobs.cleanup import CleanupStack

@@ -571,6 +571,9 @@ class TypedExecutor:
                     cleanup["closeError"] = True
                     result = EffectReceipt(dict(key), "unknown", {"code": "cleanup_unconfirmed", "processIdentity": copy.deepcopy(identity) if identity else None}, cleanup).as_dict()
         if result is not None:
+            window_launch = getattr(handle, "window_launch", None)
+            if isinstance(window_launch, dict):
+                result["receipt"].update(copy.deepcopy(window_launch))
             # Execution-local facts, persisted by the original detached host.
             # Host downtime, receipt lookup and retry waits cannot extend this
             # interval. A missing/reversed interval never authorizes reset.

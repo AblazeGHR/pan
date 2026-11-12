@@ -131,6 +131,7 @@ export interface TerminalIdentity {
 }
 
 export interface Session {
+  behavior?: { syncWithGlobal: boolean; autoLockIllegalQueue: boolean; globalAutoLockIllegalQueue?: boolean; revision: number };
   nativeControl?: boolean;
   /** Adapter declares a Terminal TUI transport (capability bit from the API). */
   nativeControlCapable?: boolean;
@@ -1489,6 +1490,7 @@ export interface SyncedSettings {
 }
 
 export interface SettingsBody {
+  behavior?: { syncWithGlobal: boolean; autoLockIllegalQueue: boolean; expectedRevision: number };
   nativeControl?: boolean;
   model?: string;
   permissionMode?: string;

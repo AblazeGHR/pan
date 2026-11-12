@@ -14,6 +14,7 @@ import uuid
 import psutil
 
 from . import queue_locks
+from .config import illegal_queue_lock_behavior
 
 SERVICE_ID = uuid.uuid4().hex
 FIELDS = ("accepted_input_ids", "active_task_id", "task_seq", "legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
@@ -74,6 +75,13 @@ def migrate(s) -> None:
 
 def is_illegal(s) -> bool:
     return any(op.get("state") == "illegal" for op in outstanding(s))
+
+
+def auto_lock_queue(s) -> bool:
+    """Resolve the Session override, falling back to the current global policy."""
+    override = getattr(s, "behavior_override", None)
+    value = override.get("auto_lock_illegal_queue") if isinstance(override, dict) else None
+    return value if type(value) is bool else illegal_queue_lock_behavior()
 
 
 def admit(s, identity: dict, *, kind: str, operation_id: str | None = None, **metadata) -> dict:
@@ -211,8 +219,9 @@ def detect(s, reason: str, *, eligible, remember, identity: dict | None = None) 
     key = cohort[0]["id"]
     members = []
     seen = set()
+    auto_lock = auto_lock_queue(s)
     for item in s.queue_pending:
-        if not isinstance(item, dict) or not eligible(item):
+        if not auto_lock or not isinstance(item, dict) or not eligible(item):
             continue
         item_id = item.get("queueItemId") or item.get("id")
         if not item_id or item_id in seen:

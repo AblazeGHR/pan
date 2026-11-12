@@ -1,5 +1,5 @@
 import { UserCardReminderSettings } from './UserCardReminderSettings';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { McpRemoteSettings } from './McpRemoteSettings';
 import { TailscaleSettings } from './TailscaleSettings';
@@ -16,14 +16,19 @@ import {
   Globe,
   Keyboard,
   Power,
+  Search,
   Puzzle,
   SlidersHorizontal,
   ToggleLeft,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { SETTINGS_TABS } from './settingsCategories';
+import { SETTINGS_CATEGORY_LABELS, SETTINGS_TABS } from './settingsCategories';
 import type { SettingsTab } from './settingsCategories';
+import { SettingsSearchField, SettingsSearchResults } from './SettingsSearchPanel';
+import { SETTINGS_SEARCH_ENTRIES, findSettingsGroupHeading, searchSettings } from './settingsSearch';
+import type { SettingsSearchEntry } from './settingsSearch';
+import { useAutomationAuth } from '@/stores/automationStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { AutoForceSendSettings } from '@/stores/appSettingsStore';
 import { useCapability, usePlatformStore } from '@/stores/platformStore';
@@ -173,16 +178,17 @@ function MainLifecycleRunningChoice({
 }
 
 const SETTINGS_TAB_META: Record<SettingsTab, { label: string; Icon: LucideIcon }> = {
-  lifecycle: { label: 'Lifecycle', Icon: Power },
-  behavior: { label: 'Behavior', Icon: ToggleLeft },
-  remote: { label: 'Remote', Icon: Globe },
-  appearance: { label: 'Appearance', Icon: Eye },
-  shortcuts: { label: 'Shortcuts', Icon: Keyboard },
-  notifications: { label: 'Notifications', Icon: Bell },
-  adapters: { label: 'Adapters', Icon: SlidersHorizontal },
-  plugins: { label: 'Plugins', Icon: Puzzle },
-  data: { label: 'Data', Icon: Database },
-  authorization: { label: 'Authorization', Icon: KeyRound },
+  search: { label: 'Search', Icon: Search },
+  lifecycle: { label: SETTINGS_CATEGORY_LABELS.lifecycle, Icon: Power },
+  behavior: { label: SETTINGS_CATEGORY_LABELS.behavior, Icon: ToggleLeft },
+  remote: { label: SETTINGS_CATEGORY_LABELS.remote, Icon: Globe },
+  appearance: { label: SETTINGS_CATEGORY_LABELS.appearance, Icon: Eye },
+  shortcuts: { label: SETTINGS_CATEGORY_LABELS.shortcuts, Icon: Keyboard },
+  notifications: { label: SETTINGS_CATEGORY_LABELS.notifications, Icon: Bell },
+  adapters: { label: SETTINGS_CATEGORY_LABELS.adapters, Icon: SlidersHorizontal },
+  plugins: { label: SETTINGS_CATEGORY_LABELS.plugins, Icon: Puzzle },
+  data: { label: SETTINGS_CATEGORY_LABELS.data, Icon: Database },
+  authorization: { label: SETTINGS_CATEGORY_LABELS.authorization, Icon: KeyRound },
 };
 
 type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
@@ -485,6 +491,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showCodexTerminalInput,
     reportWorkerKillErrors,
     autoForceSend,
+    behavior,
     mergeConsecutiveNonBodyBlocks,
     keepScrollOnSessionSwitch,
     showMessageNavigationRail,
@@ -511,6 +518,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setConfirmAgentSystemQueueEdit,
     saveReportWorkerKillErrors,
     saveAutoForceSend,
+    saveBehavior,
     resetSettings,
     setViewEntryOrder,
   } = useAppSettingsStore();
@@ -535,6 +543,11 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('lifecycle');
   const [behaviorAnchor, setBehaviorAnchor] = useState<BehaviorAnchor | null>(null);
+  // Search owns its own tab panel, just like every settings category.
+  const [settingsQuery, setSettingsQuery] = useState('');
+  const [settingsJump, setSettingsJump] = useState<{ group: string; nonce: number } | null>(null);
+  const settingsJumpNonce = useRef(0);
+  const tabPanelRef = useRef<HTMLDivElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
   const behaviorSessionRef = useRef<HTMLElement>(null);
 
@@ -544,6 +557,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     if (!open) return;
     setActiveTab('lifecycle');
     setBehaviorAnchor(null);
+    setSettingsQuery('');
+    setSettingsJump(null);
   }, [open]);
 
   const openBehaviorSessionPolicy = (anchor: BehaviorAnchor) => {
@@ -648,6 +663,14 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       setAutoForceSaving(null);
     }
   }, [autoForceSend, autoForceSaving, saveAutoForceSend]);
+  const [behaviorSaving, setBehaviorSaving] = useState(false);
+  const toggleIllegalAutoLock = useCallback(async (value: boolean) => {
+    if (behaviorSaving) return;
+    setBehaviorSaving(true);
+    try { await saveBehavior({ autoLockIllegalQueue: value }); }
+    catch (error) { useUIStore.getState().showToast(error instanceof Error ? error.message : 'Behavior save failed', 'error'); }
+    finally { setBehaviorSaving(false); }
+  }, [behaviorSaving, saveBehavior]);
 
   // Worker config edit dialog — opened from the "Edit worker config" row.
   // Prefills current values (reloadConfig('worker').before — idempotent),
@@ -693,6 +716,55 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [sessionLifecycleSaving, setSessionLifecycleSaving] = useState(false);
   const [sessionLifecycleError, setSessionLifecycleError] = useState<string | null>(null);
   const [sessionLifecycleReloadSeq, setSessionLifecycleReloadSeq] = useState(0);
+
+  // Settings search covers every group the tabs render. The availability gates
+  // mirror the conditions the panels themselves use, so a hit never points at a
+  // control the current permission or config keeps hidden.
+  const authorizationLoggedIn = useAutomationAuth((state) =>
+    Boolean(state.token || state.authenticated),
+  );
+  const settingsSearchActive = settingsQuery.trim().length > 0;
+  const settingsSearchResults = useMemo(
+    () =>
+      searchSettings(SETTINGS_SEARCH_ENTRIES, settingsQuery, {
+        remoteTunnel: Boolean(remoteStatus?.available && remoteStatus.enabled),
+        authorizationLoggedIn,
+      }),
+    [settingsQuery, remoteStatus, authorizationLoggedIn],
+  );
+
+  const openSettingsSearchHit = useCallback((entry: SettingsSearchEntry) => {
+    settingsJumpNonce.current += 1;
+    setSettingsQuery('');
+    setActiveTab(entry.tab);
+    setSettingsJump({ group: entry.group, nonce: settingsJumpNonce.current });
+  }, []);
+
+  // Choosing a tab by hand leaves the search results, so the tab shows its own panel.
+  const activateSettingsTab = useCallback((tab: SettingsTab) => {
+    setSettingsQuery('');
+    setActiveTab(tab);
+  }, []);
+
+  // Scroll the hit group into view once its tab is on screen, then flash it so
+  // the control is easy to find in an otherwise unchanged panel.
+  useEffect(() => {
+    if (!settingsJump) return;
+    const panel = tabPanelRef.current;
+    if (!panel) return;
+    const heading = findSettingsGroupHeading(panel, settingsJump.group);
+    const target = heading ?? panel;
+    if (typeof target.scrollIntoView === 'function') target.scrollIntoView({ block: 'center' });
+    panel.focus({ preventScroll: true });
+    if (!heading) return;
+    const ring = ['ring-2', 'ring-accent/40', 'rounded-md'];
+    heading.classList.add(...ring);
+    const timer = window.setTimeout(() => heading.classList.remove(...ring), 1600);
+    return () => {
+      window.clearTimeout(timer);
+      heading.classList.remove(...ring);
+    };
+  }, [settingsJump]);
 
   useEffect(() => {
     if (!open || activeTab !== 'behavior' || behaviorAnchor === null) return;
@@ -1353,65 +1425,81 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           </button>
         </div>
 
-        <div
-          ref={tabListRef}
-          role="tablist"
-          aria-label="App settings sections"
-          className="flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6"
-          onKeyDown={(event) => {
-            const currentIndex = SETTINGS_TABS.indexOf(activeTab);
-            const nextIndex =
-              event.key === 'ArrowRight'
-                ? (currentIndex + 1) % SETTINGS_TABS.length
-                : event.key === 'ArrowLeft'
-                  ? (currentIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length
-                  : event.key === 'Home'
-                    ? 0
-                    : event.key === 'End'
-                      ? SETTINGS_TABS.length - 1
-                      : null;
-            if (nextIndex === null) return;
-            event.preventDefault();
-            const nextTab = SETTINGS_TABS[nextIndex]!;
-            document.getElementById(`app-settings-tab-${nextTab}`)?.focus();
-            setActiveTab(nextTab);
-          }}
-        >
-          {SETTINGS_TABS.map((tab) => {
-            const { label, Icon } = SETTINGS_TAB_META[tab];
-            const selected = activeTab === tab;
-            return (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                id={`app-settings-tab-${tab}`}
-                aria-controls="app-settings-tabpanel"
-                aria-selected={selected}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => setActiveTab(tab)}
-                className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
-                  selected
-                    ? 'border-accent text-text-primary'
-                    : 'border-transparent text-text-tertiary hover:text-text-primary'
-                }`}
-              >
-                <Icon size={14} />
-                {label}
-              </button>
-            );
-          })}
+        <div className="shrink-0 min-w-0 border-b border-border-default px-4 md:px-6">
+          <div
+            ref={tabListRef}
+            role="tablist"
+            aria-label="App settings sections"
+            className="flex min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            onKeyDown={(event) => {
+              const currentIndex = SETTINGS_TABS.indexOf(activeTab);
+              const nextIndex =
+                event.key === 'ArrowRight'
+                  ? (currentIndex + 1) % SETTINGS_TABS.length
+                  : event.key === 'ArrowLeft'
+                    ? (currentIndex - 1 + SETTINGS_TABS.length) % SETTINGS_TABS.length
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? SETTINGS_TABS.length - 1
+                        : null;
+              if (nextIndex === null) return;
+              event.preventDefault();
+              const nextTab = SETTINGS_TABS[nextIndex]!;
+              document.getElementById(`app-settings-tab-${nextTab}`)?.focus();
+              activateSettingsTab(nextTab);
+            }}
+          >
+            {SETTINGS_TABS.map((tab) => {
+              const { label, Icon } = SETTINGS_TAB_META[tab];
+              const selected = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  id={`app-settings-tab-${tab}`}
+                  aria-controls="app-settings-tabpanel"
+                  aria-selected={selected}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => activateSettingsTab(tab)}
+                  className={`inline-flex min-w-[70px] shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
+                    selected
+                      ? 'border-accent text-text-primary'
+                      : 'border-transparent text-text-tertiary hover:text-text-primary'
+                  }`}
+                >
+                  <Icon size={14} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Body */}
         <div
+          ref={tabPanelRef}
           role="tabpanel"
           id="app-settings-tabpanel"
           aria-labelledby={`app-settings-tab-${activeTab}`}
           tabIndex={0}
           className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 space-y-6"
         >
-          {activeTab === 'authorization' ? (
+          {activeTab === 'search' ? (
+            <section className="mx-auto w-full max-w-2xl space-y-4" aria-label="Search settings panel">
+              <div>
+                <h3 className="text-sm font-semibold text-text-primary">Search settings</h3>
+                <p className="mt-1 mb-3 text-xs text-text-tertiary">Find a setting across all categories.</p>
+                <SettingsSearchField value={settingsQuery} onChange={setSettingsQuery} />
+              </div>
+              {settingsSearchActive ? <SettingsSearchResults
+              query={settingsQuery}
+              results={settingsSearchResults}
+              onSelect={openSettingsSearchHit}
+              /> : <p className="text-xs text-text-tertiary">Enter a setting name or keyword to get started.</p>}
+            </section>
+          ) : activeTab === 'authorization' ? (
             <AuthorizationSettings />
           ) : activeTab === 'adapters' ? (
             <>
@@ -1974,6 +2062,21 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     {autoForceError}
                   </div>
                 )}
+              </section>
+
+              <section data-testid="illegal-queue-behavior-section">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Illegal queue safety
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Automatically lock queued messages when Illegal"
+                    hint="Locks messages already queued when the Session enters Illegal and new messages added while Illegal. Turning this off does not unlock existing locks."
+                    checked={behavior.autoLockIllegalQueue}
+                    disabled={behaviorSaving}
+                    onChange={(v) => void toggleIllegalAutoLock(v)}
+                  />
+                </div>
               </section>
 
               <section>

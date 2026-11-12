@@ -6195,7 +6195,8 @@ def _error_report_diagnostic(
 
 def _stage_new_queue_item(s, item: dict, *, wake: bool = False) -> None:
     """Inside an ordered writer candidate; never use for retry/requeue/edit."""
-    _offline.lock_new_message(s, item)
+    if _offline.auto_lock_queue(s):
+        _offline.lock_new_message(s, item)
     if wake:
         # This newly created message has no user Manual lock. Release only
         # the Illegal lock, leaving Pause/leases/owner gates untouched.

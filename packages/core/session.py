@@ -1384,6 +1384,7 @@ _PROMPT_UNSET = object()  # distinguish an omitted original from explicit None/"
 # predicate). "record" forces this Session to record done unread regardless of
 # the global scope set; the global Notification apply clears it.
 UNREAD_RECORDING_OVERRIDE_VALUES = ("record",)
+BEHAVIOR_OVERRIDE_KEYS = ("auto_lock_illegal_queue",)
 # Distinguishes an omitted unread-state parameter from an explicit None
 # (None clears the override).
 _UNREAD_OVERRIDE_UNSET = object()
@@ -1573,6 +1574,8 @@ class Session:
                  unread_done_generation: int = 0,
                  unread_done_read_generation: int = 0,
                  unread_recording_override: str | None = None,
+                 behavior_override: dict | None = None,
+                 behavior_revision: int = 0,
                  active_task_id: str | None = None,
                  accepted_input_ids: list[str] | None = None,
                  manual_report_receipts: dict | None = None,
@@ -1771,6 +1774,13 @@ class Session:
             if unread_recording_override in UNREAD_RECORDING_OVERRIDE_VALUES
             else None
         )
+        raw_behavior = behavior_override if isinstance(behavior_override, dict) else None
+        self.behavior_override = (
+            {"auto_lock_illegal_queue": bool(raw_behavior["auto_lock_illegal_queue"])}
+            if raw_behavior is not None and "auto_lock_illegal_queue" in raw_behavior
+            and type(raw_behavior["auto_lock_illegal_queue"]) is bool else None
+        )
+        self.behavior_revision = behavior_revision if type(behavior_revision) is int and behavior_revision >= 0 else 0
         self.active_task_id = active_task_id
         raw_accepted_ids = accepted_input_ids if accepted_input_ids is not None else []
         self.accepted_input_ids = list(dict.fromkeys(
@@ -2053,6 +2063,8 @@ class Session:
             "unread_done_generation": self.unread_done_generation,
             "unread_done_read_generation": self.unread_done_read_generation,
             "unread_recording_override": self.unread_recording_override,
+            "behavior_override": dict(self.behavior_override) if self.behavior_override else None,
+            "behavior_revision": self.behavior_revision,
             "active_task_id": self.active_task_id,
             "accepted_input_ids": self.accepted_input_ids,
             "manual_report_receipts": self.manual_report_receipts,
@@ -2569,7 +2581,8 @@ def _save_body(s: Session, force_full: bool = False, *,
                unread_recording_override: object = _UNREAD_OVERRIDE_UNSET,
                adapter_config_override: dict | None = None,
                adapter_config_publish_keys: frozenset[str] | None = None,
-               offline_override: dict | None = None):
+               offline_override: dict | None = None,
+               behavior_state: tuple[dict | None, int] | None = None):
     """Write one Session while its per-Session ticket is active.
 
     The history ``[start, end)`` cursor is deliberately kept from T-062.2:
@@ -2594,11 +2607,13 @@ def _save_body(s: Session, force_full: bool = False, *,
             or unread_done_generation is not None
             or unread_recording_override is not _UNREAD_OVERRIDE_UNSET
             or adapter_config_override is not None
-            or offline_override is not None):
+            or offline_override is not None or behavior_state is not None):
         # Stage unread-policy state in the metadata projection, not the shared
         # Session.  Readers and unrelated writes cannot observe or persist a
         # cursor/override that has not committed successfully.
         metadata = copy.copy(s)
+        if behavior_state is not None:
+            metadata.behavior_override, metadata.behavior_revision = copy.deepcopy(behavior_state)
         if offline_override is not None:
             for key, value in offline_override.items():
                 setattr(metadata, key, value)
@@ -2663,6 +2678,8 @@ def _save_body(s: Session, force_full: bool = False, *,
         if offline_override is not None:
             from .legal_offline import restore as publish_offline
             publish_offline(s, offline_override)
+        if behavior_state is not None:
+            s.behavior_override, s.behavior_revision = copy.deepcopy(behavior_state)
         if (unread_done_read_generation is not None or unread_done_generation is not None
                 or unread_recording_override is not _UNREAD_OVERRIDE_UNSET):
             s.unread_done_generation = metadata.unread_done_generation

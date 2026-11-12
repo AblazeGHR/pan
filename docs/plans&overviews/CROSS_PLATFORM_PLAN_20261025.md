@@ -130,6 +130,9 @@ CP-X3 revision2：Worker 的普通 pipe 启动在 POSIX 通过平台层 `start_n
 Windows 继续使用既有窗口策略；停止仍由 Worker 自有树清理负责。Native Terminal TUI 的创建、配置、
 启动、重启及 React 入口统一要求 `terminal.native=true`，明确 `false` 返回
 `unsupported_platform`，探测异常保持为错误；未知能力探测不自动隐藏全部 UI，普通 stream Worker 不受影响。
+Windows 后台 Job 的隐藏窗口策略属于命令启动行为，具体失败和可见回退边界见
+`docs/design/JOB_WINDOW_POLICY_20261010.md`；POSIX 窗口行为不变。回退不声明隐藏能力成功。
+
 
 不支持平台的 API 契约（稳定、可判定，不 500、不半启动）：
 
@@ -156,6 +159,7 @@ Never substitute the current fixed offset for future DST rules. Failure is
 `provider_unavailable`; explicit overrides remain independent. Host changes invalidate
 only future, unreserved calendar cursor points; reserved envelopes settle unchanged.
 Windows discovery was exercised locally; Linux/macOS require CI/runtime verification.
+
 ### Editor 的 OS 打开 / 定位
 
 Editor 顶栏的“用系统默认方式打开”（`POST /api/editor/open-external`）保留原行为，

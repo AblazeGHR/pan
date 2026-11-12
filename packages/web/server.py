@@ -97,6 +97,7 @@ from packages.core.adapters.opencode import sessions as opencode_sessions
 from packages.core.config import (
     DEFAULT_PLUGIN_MANIFESTS,
     load_config,
+    illegal_queue_lock_behavior,
     read_config_file,
     resolve_pan_python_info,
     save_config,
@@ -2395,6 +2396,12 @@ def _session_to_api(
     a = get_adapter(s.adapter)
     config = (load_config() if app_config is None else app_config).get(s.adapter, {})
     ac = s.adapter_config
+    behavior_override = getattr(s, "behavior_override", None)
+    behavior_sync = not (isinstance(behavior_override, dict)
+                         and type(behavior_override.get("auto_lock_illegal_queue")) is bool)
+    global_auto_lock = illegal_queue_lock_behavior()
+    effective_auto_lock = (global_auto_lock if behavior_sync
+                           else bool(behavior_override["auto_lock_illegal_queue"]))
     last_result = s.last_result if include_last_result else None
     if project_links and include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
         last_result = {
@@ -2447,6 +2454,12 @@ def _session_to_api(
         "queueAllLocked": queue_all_locked,
         "queueRevision": int(getattr(s, "queue_revision", 0) or 0),
         "queuePaused": bool(getattr(s, "queue_paused", False)),
+        "behavior": {
+            "syncWithGlobal": behavior_sync,
+            "autoLockIllegalQueue": effective_auto_lock,
+            "globalAutoLockIllegalQueue": global_auto_lock,
+            "revision": getattr(s, "behavior_revision", 0),
+        },
         **({"history": _api_history(
             s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
         )} if include_history else {}),
@@ -9936,6 +9949,33 @@ async def api_update_session(session_id: str, data: dict):
         s = sess.get(session_id)
         if s is None:
             return {'error': 'Session not found'}
+        if 'behavior' in data:
+            if set(data) != {'behavior'}:
+                return {'error': 'Behavior must be saved separately'}
+            behavior = data['behavior']
+            if (not isinstance(behavior, dict)
+                    or set(behavior) != {'syncWithGlobal', 'autoLockIllegalQueue', 'expectedRevision'}
+                    or type(behavior['syncWithGlobal']) is not bool
+                    or type(behavior['autoLockIllegalQueue']) is not bool
+                    or type(behavior['expectedRevision']) is not int
+                    or behavior['expectedRevision'] < 0):
+                return {'error': 'Invalid Behavior or expected revision'}
+            expected = behavior['expectedRevision']
+            if expected != s.behavior_revision:
+                return {'error': 'Behavior revision conflict; refresh and try again', 'code': 'behavior_revision_conflict'}
+            value = None if behavior['syncWithGlobal'] else {'auto_lock_illegal_queue': behavior['autoLockIllegalQueue']}
+            async with worker.queue_lock(session_id):
+                def commit():
+                    if sess.get(session_id, load_history=False) is not s:
+                        raise RuntimeError('Session owner changed before Behavior commit')
+                    if s.behavior_revision != expected:
+                        raise ValueError('Behavior revision conflict; refresh and try again')
+                    sess._save_body(s, behavior_state=(value, expected + 1))
+                await sess._persist_async(session_id, commit)
+            result = _session_to_api(s)
+            await broadcast({'type': 'session.updated', 'sessionId': session_id,
+                             'session': {**_session_summary(s), 'behavior': result['behavior']}})
+            return result
         requested = {b.get('plugin_id', '') for b in data.get('pluginBindings', []) if isinstance(b, dict)}
         requested.update(n for n in data.get('mcpServers', []) if isinstance(n, str))
         async with _plugin_session_claim(s, {p for p in requested if p.startswith('action-group-')}):
@@ -11779,6 +11819,19 @@ async def api_put_settings_ui(data: dict, request: Request = None):
             name: merged_auto_force.get(name) is True
             for name in worker.AUTO_FORCE_SOURCE_CLASSES
         }}
+    if "behavior" in data:
+        raw_behavior = data["behavior"]
+        if not isinstance(raw_behavior, dict):
+            raise HTTPException(status_code=422, detail="behavior must be an object")
+        if set(raw_behavior) - {"autoLockIllegalQueue"}:
+            raise HTTPException(status_code=422, detail="behavior accepts only autoLockIllegalQueue")
+        if type(raw_behavior.get("autoLockIllegalQueue")) is not bool:
+            raise HTTPException(status_code=422, detail="behavior.autoLockIllegalQueue must be boolean")
+        current_behavior = ui.get("behavior") if isinstance(ui.get("behavior"), dict) else {}
+        data = {**data, "behavior": {
+            "autoLockIllegalQueue": raw_behavior.get(
+                "autoLockIllegalQueue", current_behavior.get("autoLockIllegalQueue", True))
+        }}
     # A save that carries the unread-recording key is a global "apply": it
     # clears per-Session overrides and re-aligns every Session, even when the
     # scope set itself did not change.
@@ -11818,7 +11871,7 @@ async def api_put_settings_ui(data: dict, request: Request = None):
     raw["ui"] = ui
     save_config(raw)
     after_scopes = unread_policy.refresh_unread_recording()
-    if 'errorNotificationExclusions' in data:
+    if 'errorNotificationExclusions' in data or 'behavior' in data:
         await broadcast({'type': 'settings.uiUpdated'})
     if after_scopes != before_scopes:
         await broadcast({
