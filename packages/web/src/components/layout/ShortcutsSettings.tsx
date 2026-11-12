@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
@@ -14,29 +15,30 @@ import { useShortcutActions, type ShortcutAction, type ShortcutGroup } from '@/s
 import { setShortcutRecording } from '@/shortcuts/useGlobalShortcuts';
 
 const GROUP_ORDER: ShortcutGroup[] = ['General', 'Composer', 'Panels', 'Queue', 'Session'];
+const GROUP_IDS: Record<ShortcutGroup, string> = { General: 'shortcuts-general', Composer: 'shortcuts-composer', Panels: 'shortcuts-panels', Queue: 'shortcuts-queue', Session: 'shortcuts-session' };
 const GROUP_LABELS: Record<ShortcutGroup, string> = {
-  General: 'General',
-  Composer: 'Message composer',
-  Panels: 'Panels — generated from the live view/plugin registry',
-  Queue: 'Queue',
-  Session: 'Selected Session',
+  General: settingsText("shortcuts-general"),
+  Composer: settingsText("shortcuts-composer"),
+  Panels: settingsText("shortcuts-panels"),
+  Queue: settingsText("shortcuts-queue"),
+  Session: settingsText("shortcuts-session"),
 };
 
 const FIXED_SHORTCUTS = [
   {
-    label: 'Save file',
+    labelId: "shortcuts-settings.1", label: settingsText("shortcuts-settings.1"),
     binding: 'Mod+S',
-    scope: 'Only while the Monaco editor is focused.',
+    scope: settingsText("shortcutssettings.extra.1"),
   },
   {
-    label: 'Paste',
+    labelId: "shortcuts-settings.2", label: settingsText("shortcuts-settings.2"),
     binding: 'Mod+V',
-    scope: 'Only inside the terminal (xterm); the browser paste action is preserved.',
+    scope: settingsText("shortcutssettings.extra.2"),
   },
   {
-    label: 'Close the top overlay',
+    labelId: "shortcuts-settings.3", label: settingsText("shortcuts-settings.3"),
     binding: 'Escape',
-    scope: 'Dialog/menu-local; it is not a configurable app action.',
+    scope: settingsText("shortcutssettings.extra.3"),
   },
 ] as const;
 
@@ -167,19 +169,19 @@ export function ShortcutsSettings() {
       <div
         key={action.id}
         data-shortcut-action={action.id}
+        data-settings-id={'shortcut.' + action.id}
         className="px-3 py-2.5"
       >
         <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-text-primary">{action.label}</span>
+              <span className="text-xs font-medium text-text-primary" data-settings-id={'shortcut.' + action.id}>{action.label}</span>
               {conflict ? (
                 <span
                   data-testid="shortcut-conflict"
-                  className="rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-medium text-danger"
+                  className="rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-medium text-danger" data-settings-id="shortcuts-settings.4"
                 >
-                  Conflict
-                </span>
+                  {settingsText("shortcuts-settings.4")}</span>
               ) : null}
             </div>
             <p className="mt-0.5 text-[11px] leading-relaxed text-text-tertiary">
@@ -227,10 +229,9 @@ export function ShortcutsSettings() {
                 setRecordingId(null);
                 save(setShortcutBinding(action.id, null), action.id);
               }}
-              className="rounded border border-border-default px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded border border-border-default px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40" data-settings-id="shortcuts-settings.5"
             >
-              Clear
-            </button>
+              {settingsText("shortcuts-settings.5")}</button>
             <button
               type="button"
               data-shortcut-reset={action.id}
@@ -241,10 +242,9 @@ export function ShortcutsSettings() {
                 setRecordingId(null);
                 save(resetShortcutBinding(action.id), action.id);
               }}
-              className="rounded border border-border-default px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded border border-border-default px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40" data-settings-id="shortcuts-settings.6"
             >
-              Default
-            </button>
+              {settingsText("shortcuts-settings.6")}</button>
           </div>
         </div>
         {feedbackActionId === action.id && (
@@ -259,14 +259,13 @@ export function ShortcutsSettings() {
           </p>
         )}
         {conflict ? (
-          <p className="mt-1.5 text-[11px] text-danger">
-            Also assigned to{' '}
+          <p className="mt-1.5 text-[11px] text-danger" data-settings-id="shortcuts-settings.7">
+            {settingsText("shortcuts-settings.7")}{' '}
             {conflict
               .filter((id) => id !== action.id)
               .map((id) => actions.find((candidate) => candidate.id === id)?.label ?? id)
               .join(', ')}
-            . Conflicting shortcuts are inactive until resolved.
-          </p>
+            {settingsText("shortcuts-settings.8")}</p>
         ) : null}
       </div>
     );
@@ -277,16 +276,11 @@ export function ShortcutsSettings() {
       <section>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-              Keyboard shortcuts
-            </h3>
-            <p className="mt-1 text-[11px] leading-relaxed text-text-tertiary">
-              Choose Record, then press a modifier combination, function key, or composer Enter.
-              Escape cancels; Tab cancels and moves focus. Saved in settings. Display follows this platform:{' '}
-              <strong>{platform === 'mac' ? 'Cmd (Meta)' : 'Ctrl'}</strong>. Shortcuts are
-              Composer actions run only in the message input. Other app actions ignore editable
-              fields except explicitly scoped queue/Session actions. IME, repeat and dialogs suppress actions.
-            </p>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary" data-settings-id="shortcuts-keyboard">
+              {settingsText("shortcuts-keyboard")}</h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-text-tertiary" data-settings-id="shortcuts-settings.9">
+              {settingsText("shortcuts-settings.9")}{' '}
+              <strong>{platform === 'mac' ? 'Cmd (Meta)' : 'Ctrl'}</strong>{settingsText("shortcuts-settings.10")}</p>
           </div>
           <button
             type="button"
@@ -297,10 +291,9 @@ export function ShortcutsSettings() {
               setRecordingId(null);
               save(resetAllShortcuts());
             }}
-            className="shrink-0 rounded border border-border-default bg-bg-tertiary px-2.5 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+            className="shrink-0 rounded border border-border-default bg-bg-tertiary px-2.5 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary" data-settings-id="shortcuts-settings.11"
           >
-            Restore all defaults
-          </button>
+            {settingsText("shortcuts-settings.11")}</button>
         </div>
         {!feedbackActionId && <p role="status" className="mt-2 text-xs text-text-secondary">{saveStatus}</p>}
         {error && !feedbackActionId ? (
@@ -313,10 +306,8 @@ export function ShortcutsSettings() {
           </p>
         ) : null}
         {pluginError ? (
-          <p className="mt-2 text-[11px] text-text-tertiary">
-            Plugin panel catalog could not be refreshed ({pluginError}). Built-in views remain
-            configurable; reconnect or reopen Settings to retry.
-          </p>
+          <p className="mt-2 text-[11px] text-text-tertiary" data-settings-id="shortcuts-settings.12">
+            {settingsText("shortcuts-settings.12")}{pluginError}{settingsText("shortcuts-settings.13")}</p>
         ) : null}
       </section>
 
@@ -325,31 +316,27 @@ export function ShortcutsSettings() {
         if (groupActions.length === 0) return null;
         return (
           <section key={group} data-shortcut-group={group}>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary" data-settings-id={GROUP_IDS[group]}>
               {GROUP_LABELS[group]}
             </h3>
             <div className="divide-y divide-border-muted rounded-md border border-border-muted bg-bg-primary">
               {groupActions.map(renderRow)}
             </div>
             {group === 'Panels' ? (
-              <p className="mt-1.5 text-[11px] leading-relaxed text-text-tertiary">
-                Panel actions are derived from the actual navigation registry. Their ids use
-                pluginId/panelId (never an array index), so adding or removing a panel never moves
-                a saved binding to another panel. New panels start unbound.
-              </p>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-text-tertiary" data-settings-id="shortcuts-settings.14">
+                {settingsText("shortcuts-settings.14")}</p>
             ) : null}
           </section>
         );
       })}
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-          Fixed, context-scoped shortcuts
-        </h3>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary" data-settings-id="shortcuts-fixed">
+          {settingsText("shortcuts-fixed")}</h3>
         <div className="divide-y divide-border-muted rounded-md border border-border-muted bg-bg-primary">
           {FIXED_SHORTCUTS.map((item) => (
-            <div key={item.label} className="flex flex-wrap items-center gap-2 px-3 py-2">
-              <span className="min-w-0 flex-1 text-xs text-text-primary">{item.label}</span>
+            <div key={item.label} className="flex flex-wrap items-center gap-2 px-3 py-2" data-settings-id={item.labelId}>
+              <span className="min-w-0 flex-1 text-xs text-text-primary" data-settings-id={item.labelId}>{item.label}</span>
               <kbd className="rounded border border-border-default bg-bg-tertiary px-2 py-1 font-mono text-[11px] text-text-secondary">
                 {formatBinding(item.binding, platform)}
               </kbd>
@@ -359,10 +346,8 @@ export function ShortcutsSettings() {
             </div>
           ))}
         </div>
-        <p className="mt-1.5 text-[11px] leading-relaxed text-text-tertiary">
-          These stay owned by the editor, terminal and focused overlay; they are intentionally not
-          remappable so their built-in behavior is preserved.
-        </p>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-text-tertiary" data-settings-id="shortcuts-settings.15">
+          {settingsText("shortcuts-settings.15")}</p>
       </section>
     </div>
   );

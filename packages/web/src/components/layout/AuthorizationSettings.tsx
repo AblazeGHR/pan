@@ -1,14 +1,10 @@
+import { settingsText, settingsVisible } from '@/components/layout/settingsCatalog';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Field, inputClass } from '@/components/jobs/ScheduleListEditor';
 import { automationLogin, automationLogout, automationRequest, useAutomationAuth } from '@/stores/automationStore';
 
-const PERMISSIONS = {
-  trigger: ['read', 'create', 'updateConfig', 'lifecycle', 'delete'],
-  action: ['read', 'create', 'updateConfig', 'lifecycle', 'delete', 'manageSystemActions'],
-  jobTemplate: ['read', 'create', 'updateConfig', 'use', 'delete'],
-  job: ['read', 'create', 'updateConfig', 'lifecycle', 'execute', 'delete'],
-} as const;
+import { SETTING_PERMISSIONS as PERMISSIONS } from './settingsDescriptions';
 type PermissionKind = keyof typeof PERMISSIONS;
 type Permissions = Record<PermissionKind, Record<string, boolean>>;
 type Status = { configured: boolean; revision: string; authorizationRevision: number; permissions: Permissions; sessionDays: number };
@@ -70,14 +66,14 @@ export function AuthorizationSettings() {
 
   return <div className="space-y-4">
     <section className="rounded border border-border-default p-3 text-xs space-y-2">
-      <h3 className="font-semibold text-text-primary">Local Authorization</h3>
-      <p className="text-text-secondary">The local user key is stored in the profile as <code>automation/user.key</code>. Sessions are restored by an HttpOnly cookie and all sessions are revoked after a password change.</p>
-      <p role="status" className="text-text-secondary">Login status: {token ? 'Logged in' : 'Logged out'} · key configured: {status?.configured ? 'Yes' : token ? 'Unknown' : 'Log in to check'}</p>
-      {token && <Button disabled={busy} onClick={() => void automationLogout().catch(() => setError('Server logout could not be confirmed.'))}>Log out</Button>}
-      {!token && <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void login(); }}><Field label="Current local password"><input className={inputClass} type="password" autoComplete="current-password" value={key} onChange={(event) => setKey(event.target.value)} required /></Field><Button type="submit" disabled={busy}>Log in</Button></form>}
+      <h3 className="font-semibold text-text-primary" data-settings-id="local-authorization">{settingsText("local-authorization")}</h3>
+      <p className="text-text-secondary" data-settings-id="authorization-settings.1">{settingsText("authorization-settings.1")}<code data-settings-id="authorization-settings.2">{settingsText("authorization-settings.2")}</code>{settingsText("authorization-settings.3")}</p>
+      <p role="status" className="text-text-secondary" data-settings-id="authorization-settings.4">{settingsText("authorization-settings.4")}{token ? 'Logged in' : 'Logged out'} {settingsText("authorization-settings.5")}{status?.configured ? 'Yes' : token ? 'Unknown' : 'Log in to check'}</p>
+      {settingsVisible('authorized', { authorizationLoggedIn: Boolean(token) }) && <Button disabled={busy} onClick={() => void automationLogout().catch(() => setError('Server logout could not be confirmed.'))} data-settings-id="authorization-settings.6">{settingsText("authorization-settings.6")}</Button>}
+      {settingsVisible('anonymous', { authorizationLoggedIn: Boolean(token) }) && <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void login(); }}><Field label={settingsText("authorization-settings.7")} settingId="authorization-settings.7"><input className={inputClass} type="password" autoComplete="current-password" value={key} onChange={(event) => setKey(event.target.value)} required /></Field><Button type="submit" disabled={busy} data-settings-id="authorization-settings.8">{settingsText("authorization-settings.8")}</Button></form>}
     </section>
-    {token && <section className="rounded border border-border-default p-3 space-y-3">
-      <Field label="Long login duration"><select className={inputClass} value={sessionDays} disabled={busy} onChange={async (event) => {
+    {settingsVisible('authorized', { authorizationLoggedIn: Boolean(token) }) && <section className="rounded border border-border-default p-3 space-y-3">
+      <Field label={settingsText("authorization-settings.9")} settingId="authorization-settings.9"><select className={inputClass} value={sessionDays} disabled={busy} onChange={async (event) => {
         const days = Number(event.target.value); setBusy(true); setError(''); setMessage('');
         try {
           const saved = await automationRequest<{ sessionDays: number }>('automation/settings', 'PUT', { sessionDays: days });
@@ -85,21 +81,21 @@ export function AuthorizationSettings() {
           setMessage('Login duration saved for this profile.');
         } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Login duration save failed'); }
         finally { setBusy(false); }
-      }}>{[0, 7, 30, 90].map((days) => <option key={days} value={days}>{days} days</option>)}</select></Field>
-      <p className="text-xs text-text-secondary">0 = long login disabled: the cookie expires when the browser closes; server sessions expire after 12 hours. Other values use sliding expiration and apply to all sessions.</p>
+      }}>{[0, 7, 30, 90].map((days) => <option key={days} value={days} data-settings-id="authorization-settings.10">{days} {settingsText("authorization-settings.10")}</option>)}</select></Field>
+      <p className="text-xs text-text-secondary" data-settings-id="authorization-settings.11">{settingsText("authorization-settings.11")}</p>
     </section>}
-    {token && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void change(event)}>
-      <h3 className="font-semibold text-text-primary">Change password</h3>
-      <p className="text-[11px] text-text-secondary">Any non-empty password is accepted: there is no length, character-class or ASCII rule. Leading or trailing spaces are rejected because the password is stored verbatim. Confirmation must match, and all sessions are revoked after the change.</p>
-      <Field label="Current password"><input className={inputClass} type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></Field>
-      <Field label="New password"><input className={inputClass} type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></Field>
-      <Field label="Confirm new password"><input className={inputClass} type="password" autoComplete="new-password" value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} required /></Field>
+    {settingsVisible('authorized', { authorizationLoggedIn: Boolean(token) }) && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void change(event)}>
+      <h3 className="font-semibold text-text-primary" data-settings-id="change-password">{settingsText("change-password")}</h3>
+      <p className="text-[11px] text-text-secondary" data-settings-id="authorization-settings.12">{settingsText("authorization-settings.12")}</p>
+      <Field label={settingsText("authorization-settings.13")} settingId="authorization-settings.13"><input className={inputClass} type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></Field>
+      <Field label={settingsText("authorization-settings.14")} settingId="authorization-settings.14"><input className={inputClass} type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></Field>
+      <Field label={settingsText("authorization-settings.15")} settingId="authorization-settings.15"><input className={inputClass} type="password" autoComplete="new-password" value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} required /></Field>
       <Button type="submit" disabled={busy || !status}>{busy ? 'Saving…' : 'Change password'}</Button>
     </form>}
-    {token && permissions && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void savePermissions(event)}>
-      <h3 className="font-semibold text-text-primary">Profile-wide Agent permissions</h3>
-      <p className="text-[11px] text-text-secondary">Unchecked capabilities deny delegated Agent operations. User Bearer management remains available. Saves use revision CAS and apply immediately to trusted MCP calls and new delegated effects.</p>
-      <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left">Object</th>{Array.from(new Set(Object.values(PERMISSIONS).flat())).map((cap) => <th key={cap} className="px-2 text-left">{cap}</th>)}</tr></thead><tbody>{(Object.keys(PERMISSIONS) as PermissionKind[]).map((kind) => <tr key={kind}><th className="py-1 text-left">{kind}</th>{Array.from(new Set(Object.values(PERMISSIONS).flat())).map((cap) => <td key={cap} className="px-2">{(PERMISSIONS[kind] as readonly string[]).includes(cap) && <input aria-label={`${kind}.${cap}`} type="checkbox" checked={Boolean(permissions[kind][cap])} onChange={(event) => setPermissions({ ...permissions, [kind]: { ...permissions[kind], [cap]: event.target.checked } })} />}</td>)}</tr>)}</tbody></table></div>
+    {settingsVisible('authorized', { authorizationLoggedIn: Boolean(token) }) && permissions && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void savePermissions(event)}>
+      <h3 className="font-semibold text-text-primary" data-settings-id="agent-permissions">{settingsText("agent-permissions")}</h3>
+      <p className="text-[11px] text-text-secondary" data-settings-id="authorization-settings.16">{settingsText("authorization-settings.16")}</p>
+      <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left" data-settings-id="authorization-settings.17">{settingsText("authorization-settings.17")}</th>{Array.from(new Set(Object.values(PERMISSIONS).flat())).map((cap) => <th key={cap} className="px-2 text-left">{cap}</th>)}</tr></thead><tbody>{(Object.keys(PERMISSIONS) as PermissionKind[]).map((kind) => <tr key={kind}><th className="py-1 text-left">{kind}</th>{Array.from(new Set(Object.values(PERMISSIONS).flat())).map((cap) => <td key={cap} className="px-2">{(PERMISSIONS[kind] as readonly string[]).includes(cap) && <input data-settings-id={`agent-permissions.${kind}.${cap}`} aria-label={settingsText(`agent-permissions.${kind}.${cap}`)} type="checkbox" checked={Boolean(permissions[kind][cap])} onChange={(event) => setPermissions({ ...permissions, [kind]: { ...permissions[kind], [cap]: event.target.checked } })} />}</td>)}</tr>)}</tbody></table></div>
       <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save permissions'}</Button>
     </form>}
     {message && <p role="status" className="text-success text-xs">{message}</p>}

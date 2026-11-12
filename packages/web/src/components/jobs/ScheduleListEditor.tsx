@@ -96,9 +96,9 @@ function formatDateTime(iso?: string | null): string {
 export const inputClass =
   'w-full bg-bg-tertiary border border-border-default rounded text-xs py-1.5 px-2 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50';
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children, settingId }: { label: string; children: ReactNode; settingId?: string }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex flex-col gap-1" data-settings-id={settingId}>
       <span className="text-[11px] text-text-tertiary">{label}</span>
       {children}
     </label>

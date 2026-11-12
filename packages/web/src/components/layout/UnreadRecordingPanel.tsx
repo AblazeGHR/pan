@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useEffect, useRef, useState } from 'react';
 import {
   sanitizeUnreadRecording,
@@ -7,12 +8,12 @@ import {
 import type { UnreadRecordingScope } from '@/stores/appSettingsStore';
 import { reapplyUnreadRecordingSettings } from '@/services/api';
 
-const SCOPE_ROWS: Array<{ scope: UnreadRecordingScope; label: string; hint: string }> = [
-  { scope: 'all', label: 'All sessions', hint: 'Every Session records done unread (legacy default).' },
-  { scope: 'none', label: 'No sessions', hint: 'No Session records unread anywhere; excluded Sessions stay at 0.' },
-  { scope: 'bell-on', label: 'Bell on', hint: 'Sessions whose completion bell (msgBridge) is on.' },
-  { scope: 'bell-off', label: 'Bell off', hint: 'Sessions whose completion bell (msgBridge) is off.' },
-  { scope: 'pinned', label: 'Pinned', hint: 'Every pinned Session (Session pin, not Job pins).' },
+const SCOPE_ROWS: Array<{ scope: UnreadRecordingScope; label: string; labelId: string; hintId: string; hint: string }> = [
+  { scope: "all", labelId: "unread-recording-panel.1", label: settingsText("unread-recording-panel.1"), hintId: "unread-recording-panel.2", hint: settingsText("unread-recording-panel.2") },
+  { scope: "none", labelId: "unread-recording-panel.3", label: settingsText("unread-recording-panel.3"), hintId: "unread-recording-panel.4", hint: settingsText("unread-recording-panel.4") },
+  { scope: "bell-on", labelId: "unread-recording-panel.5", label: settingsText("unread-recording-panel.5"), hintId: "unread-recording-panel.6", hint: settingsText("unread-recording-panel.6") },
+  { scope: "bell-off", labelId: "unread-recording-panel.7", label: settingsText("unread-recording-panel.7"), hintId: "unread-recording-panel.8", hint: settingsText("unread-recording-panel.8") },
+  { scope: "pinned", labelId: "unread-recording-panel.9", label: settingsText("unread-recording-panel.9"), hintId: "unread-recording-panel.10", hint: settingsText("unread-recording-panel.10") },
 ];
 
 /**
@@ -95,12 +96,10 @@ export function UnreadRecordingPanel() {
 
   return (
     <div className="mb-5 rounded-md border border-border-muted bg-bg-primary p-3 space-y-3" data-testid="unread-recording-panel">
-      <h3 className="text-xs font-semibold text-text-primary">Unread recording</h3>
-      <p className="text-[11px] text-text-secondary">
-        Choose which Sessions record done unread. Excluded Sessions stay at zero on every client,
-        and re-including one counts from new completions only — older unread is never restored.
-      </p>
-      <div className="space-y-2 text-xs" role="group" aria-label="Unread recording scopes">
+      <h3 className="text-xs font-semibold text-text-primary" data-settings-id="unread-recording">{settingsText("unread-recording")}</h3>
+      <p className="text-[11px] text-text-secondary" data-settings-id="unread-recording-panel.11">
+        {settingsText("unread-recording-panel.11")}</p>
+      <div className="space-y-2 text-xs" role="group" aria-label={settingsText("unread-recording-panel.12")} data-settings-id="unread-recording-panel.12">
         {SCOPE_ROWS.map((row) => (
           <label key={row.scope} className="flex items-start gap-2">
             <input
@@ -112,18 +111,14 @@ export function UnreadRecordingPanel() {
               onChange={() => toggle(row.scope)}
             />
             <span className="min-w-0">
-              <span className="block text-text-primary">{row.label}</span>
-              <span className="block text-[10px] text-text-tertiary">{row.hint}</span>
+              <span className="block text-text-primary" data-settings-id={row.labelId}>{row.label}</span>
+              <span className="block text-[10px] text-text-tertiary" data-settings-id={row.hintId}>{row.hint}</span>
             </span>
           </label>
         ))}
       </div>
-      <p className="text-[11px] text-text-tertiary">
-        Categories combine as a union; Bell on and Bell off are mutually exclusive. Choosing a
-        category clears All / No sessions, and choosing All / No sessions clears the categories.
-        A Session menu can enable tracking for one Session only; saving here or reapplying covers
-        those per-Session choices.
-      </p>
+      <p className="text-[11px] text-text-tertiary" data-settings-id="unread-recording-panel.13">
+        {settingsText("unread-recording-panel.13")}</p>
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       {notice && <p role="status" className="text-xs text-text-secondary">{notice}</p>}
       <div className="flex flex-wrap items-center gap-2">

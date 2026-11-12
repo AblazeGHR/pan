@@ -6,7 +6,7 @@ import { SETTINGS_CATEGORY_ORDER, SETTINGS_TABS } from './settingsCategories';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import { usePlatformStore } from '@/stores/platformStore';
 import { useAutomationAuth } from '@/stores/automationStore';
-import { SETTINGS_SEARCH_ENTRIES, findSettingsGroupHeading } from './settingsSearch';
+import { SETTINGS_SEARCH_ENTRIES, findSettingsAnchor } from './settingsSearch';
 
 const {
   fetchCodexModelsMock,
@@ -955,7 +955,7 @@ describe('AppSettingsModal', () => {
 
     fireEvent.click(screen.getByTestId('open-exit-session-policy'));
     expect((await screen.findByRole('alert')).textContent).toContain('settings unavailable');
-    expect(document.activeElement).toBe(screen.getByTestId('behavior-session-section'));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('behavior-session-section')));
 
     clickTab('appearance');
     expect(screen.queryByRole('alert')).toBeNull();
@@ -2097,7 +2097,7 @@ describe('AppSettingsModal', () => {
       expect(document.getElementById('app-settings-tab-appearance')?.getAttribute('aria-selected'))
         .toBe('true');
 
-      const heading = findSettingsGroupHeading(panelEl(), 'Sidebar');
+      const heading = findSettingsAnchor(panelEl(), { anchor: 'sidebar' });
       expect(heading).toBeTruthy();
       expect(heading!.classList.contains('ring-2')).toBe(true);
       expect(scrollIntoViewMock).toHaveBeenCalled();
@@ -2151,7 +2151,7 @@ describe('AppSettingsModal', () => {
       // Not logged in: the password/permission editors are not rendered at all.
       typeQuery('change password');
       expect(hit('change-password')).toBeNull();
-      expect(document.body.querySelector('[data-testid="settings-search-empty"]')).toBeTruthy();
+      expect(hit('authorization-settings.14')).toBeNull();
 
       // No enabled tunnel in config.json: the Remote / Tunnel group is hidden.
       typeQuery('tunnel');
@@ -2178,7 +2178,7 @@ describe('AppSettingsModal', () => {
       await waitFor(() => expect(hit('agent-permissions')).toBeTruthy());
     });
 
-    it('keeps every indexed group reachable in its own tab', async () => {
+    it('registers every rendered control and resolves its stable identity in both directions', async () => {
       fetchRemoteStatusMock.mockResolvedValue({ available: true, enabled: true, running: false });
       useAutomationAuth.setState({ token: 'test-token', authenticated: true });
       render(<AppSettingsModal open onClose={() => {}} />);
@@ -2191,10 +2191,18 @@ describe('AppSettingsModal', () => {
           expect(document.getElementById(`app-settings-tab-${tab}`)?.getAttribute('aria-selected'))
             .toBe('true'),
         );
-        for (const entry of SETTINGS_SEARCH_ENTRIES) {
-          if (entry.tab !== tab || entry.jump === 'tab') continue;
-          if (!findSettingsGroupHeading(panelEl(), entry.group)) {
-            missing.push(`${tab}: ${entry.group}`);
+        await act(async () => { await Promise.resolve(); });
+        for (const entry of SETTINGS_SEARCH_ENTRIES.filter(entry => entry.tab === tab
+          && entry.available?.({remoteTunnel: true, authorizationLoggedIn: true, codexSession: false}))) {
+          if (!findSettingsAnchor(panelEl(), entry)) missing.push(`${tab}: indexed ${entry.id} -> ${entry.anchor}`);
+        }
+        for (const control of panelEl().querySelectorAll<HTMLElement>('input, select, textarea, [role="switch"]')) {
+          const owner = control.closest<HTMLElement>('[data-settings-id]')
+            ?? (control.id ? panelEl().querySelector<HTMLElement>(`label[for="${control.id}"]`) : null);
+          const id = owner?.dataset.settingsId;
+          const entry = SETTINGS_SEARCH_ENTRIES.find((candidate) => candidate.tab === tab && candidate.anchor === id);
+          if (!id || !entry || !findSettingsAnchor(panelEl(), entry)) {
+            missing.push(`${tab}: ${control.getAttribute('aria-label') || control.id || control.outerHTML.slice(0, 120)}`);
           }
         }
       }

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { SETTINGS_CATEGORY_ORDER } from './settingsCategories';
 import {
   SETTINGS_SEARCH_ENTRIES,
+  createSettingsIndex,
+  findSettingsAnchor,
   findSettingsGroupHeading,
   normalizeSettingsSearchText,
   searchSettings,
@@ -21,9 +23,11 @@ describe('settings search index', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('never repeats the same tab and group', () => {
-    const keys = SETTINGS_SEARCH_ENTRIES.map((entry) => `${entry.tab}:${entry.group}`);
-    expect(new Set(keys).size).toBe(keys.length);
+  it('keeps different fields with the same caption independently addressable', () => {
+    const fields = SETTINGS_SEARCH_ENTRIES.filter((entry) => entry.group === 'System');
+    expect(fields.map((entry) => entry.anchor)).toContain('auto-report.system');
+    expect(fields.map((entry) => entry.anchor)).toContain('prompt-summary.system');
+    expect(new Set(fields.map((entry) => entry.anchor)).size).toBe(fields.length);
   });
 
   it('covers every settings tab and only known tabs', () => {
@@ -33,7 +37,7 @@ describe('settings search index', () => {
     for (const entry of SETTINGS_SEARCH_ENTRIES) {
       expect(SETTINGS_CATEGORY_ORDER).toContain(entry.tab);
       expect(entry.group.trim().length).toBeGreaterThan(0);
-      expect(entry.keywords.length).toBeGreaterThan(0);
+      expect(entry.anchor.length).toBeGreaterThan(0);
     }
   });
 });
@@ -69,14 +73,46 @@ describe('searchSettings', () => {
   });
 
   it('hides groups the current config or permission keeps closed', () => {
-    expect(hitIds('tunnel', NO_ACCESS)).toEqual([]);
+    expect(hitIds('tunnel', NO_ACCESS)).not.toContain('remote-tunnel');
     expect(hitIds('tunnel', FULL_ACCESS)).toContain('remote-tunnel');
-    expect(hitIds('change password', NO_ACCESS)).toEqual([]);
+    expect(hitIds('change password', NO_ACCESS)).not.toContain('change-password');
+    expect(hitIds('new password', NO_ACCESS)).not.toContain('authorization-settings.14');
     expect(hitIds('change password', FULL_ACCESS)).toContain('change-password');
     expect(hitIds('permissions', NO_ACCESS)).toEqual([]);
     expect(hitIds('permissions', FULL_ACCESS)).toContain('agent-permissions');
     // Always-rendered groups stay searchable without any permission.
-    expect(hitIds('sidebar', NO_ACCESS)).toEqual(['sidebar']);
+    expect(hitIds('sidebar', NO_ACCESS)).toContain('sidebar');
+  });
+});
+
+describe('shared field descriptions', () => {
+  it('does not leak hidden operational prose through a shared anchor', () => {
+    const entries = createSettingsIndex([
+      { id: 'visible.setting', tab: 'behavior', label: 'Visible setting', anchor: 'stable.field' },
+      { id: 'operation.status', tab: 'behavior', label: 'Secret pending result', anchor: 'stable.field', searchable: false },
+      { id: 'authorized.field', tab: 'behavior', label: 'Private configuration', anchor: 'stable.field', gate: 'authorized' },
+    ]);
+    expect(searchSettings(entries, 'secret pending', NO_ACCESS)).toEqual([]);
+    expect(searchSettings(entries, 'private configuration', NO_ACCESS)).toEqual([]);
+    expect(searchSettings(entries, 'visible setting', NO_ACCESS).map(entry => entry.id)).toEqual(['visible.setting']);
+  });
+
+  it('indexes a new field label, hint and aliases without a second search registration', () => {
+    const description = { id: 'future.setting', tab: 'behavior' as const,
+      label: 'Future setting', hint: 'Preserve pending messages', aliases: ['future policy'] };
+    const entries = createSettingsIndex([description]);
+    expect(searchSettings(entries, 'future messages', FULL_ACCESS).map((entry) => entry.id)).toEqual(['future.setting']);
+    expect(searchSettings(entries, 'future policy', FULL_ACCESS)).toHaveLength(1);
+    const root = document.createElement('div');
+    root.innerHTML = '<label data-settings-id="future.setting"><input type="checkbox" />Renamed label</label>';
+    expect(findSettingsAnchor(root, entries[0]!)).toBe(root.firstElementChild);
+  });
+
+  it('uses capability visibility before searching the actual field text', () => {
+    const entries = createSettingsIndex([{ id: 'native.fixture', tab: 'adapters', label: 'Native fixture',
+      capability: 'terminal.native' }]);
+    expect(searchSettings(entries, 'native fixture', { ...FULL_ACCESS, capabilities: { 'terminal.native': false } })).toEqual([]);
+    expect(searchSettings(entries, 'native fixture', { ...FULL_ACCESS, capabilities: { 'terminal.native': true } })).toHaveLength(1);
   });
 });
 

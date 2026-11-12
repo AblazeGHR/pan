@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useEffect, useState } from 'react';
 import { lockerRequest } from '@/views/lockerModel';
 
@@ -21,11 +22,10 @@ export function UserCardReminderSettings() {
   }, []);
   return (
     <section className="rounded-md border border-border-muted bg-bg-primary p-3 space-y-2">
-      <label className="flex items-center justify-between gap-3 text-xs text-text-secondary">
-        Reminding-card reminder interval (minutes)
-        <input
+      <label className="flex items-center justify-between gap-3 text-xs text-text-secondary" data-settings-id="user-card-reminder-settings.1">
+        {settingsText("user-card-reminder-settings.1")}<input
           className="w-20 shrink-0 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-          aria-label="Reminding-card reminder interval (minutes)"
+          aria-label={settingsText("user-card-reminder-settings.2")}
           type="number"
           min={1}
           max={1440}
@@ -49,10 +49,10 @@ export function UserCardReminderSettings() {
               .then((result) => setMinutes(result.minutes))
               .catch((value) => setError(String(value)))
               .finally(() => setBusy(false));
-          }}
+          }} data-settings-id="user-card-reminder-settings.2"
         />
       </label>
-      <p className="text-[11px] leading-relaxed text-text-tertiary">Default: 10 minutes. Reminding-card notifications enter the owning Session queue.</p>
+      <p className="text-[11px] leading-relaxed text-text-tertiary" data-settings-id="user-card-reminder-settings.3">{settingsText("user-card-reminder-settings.3")}</p>
       {error && <p role="alert">{error}</p>}
     </section>
   );

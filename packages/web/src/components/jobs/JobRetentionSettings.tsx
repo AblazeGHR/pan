@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   fetchCompletedJobRetentionSettings, updateCompletedJobRetentionSettings, canonicalRequest,
@@ -13,33 +14,33 @@ const pendingStorage = 'pan:job-retention-pending';
 type PendingRetention = Omit<RetentionUpdate, 'expectedRequestScope'> & { expectedRequestScope?: string; requestScope?: string };
 const RETENTION_RULE_META: Array<{
   key: JobRetentionRule;
-  label: string;
-  description: string;
+  label: string; labelId: string;
+  description: string; descriptionId: string;
 }> = [
   {
     key: 'completed',
-    label: 'Completed Runs',
-    description: 'Cleans eligible completed Run history after the configured retention period.',
+    labelId: "job-retention-settings.1", label: settingsText("job-retention-settings.1"),
+    descriptionId: "job-retention-settings.2", description: settingsText("job-retention-settings.2"),
   },
   {
     key: 'failed',
-    label: 'Failed Runs',
-    description: 'Cleans eligible failed Run history after the configured retention period.',
+    labelId: "job-retention-settings.3", label: settingsText("job-retention-settings.3"),
+    descriptionId: "job-retention-settings.4", description: settingsText("job-retention-settings.4"),
   },
   {
     key: 'timed_out',
-    label: 'Timed out Runs',
-    description: 'Cleans eligible timed-out Run history after the configured retention period.',
+    labelId: "job-retention-settings.5", label: settingsText("job-retention-settings.5"),
+    descriptionId: "job-retention-settings.6", description: settingsText("job-retention-settings.6"),
   },
   {
     key: 'cancelled',
-    label: 'Cancelled Runs',
-    description: 'Cleans eligible cancelled Run history after the configured retention period.',
+    labelId: "job-retention-settings.7", label: settingsText("job-retention-settings.7"),
+    descriptionId: "job-retention-settings.8", description: settingsText("job-retention-settings.8"),
   },
   {
     key: 'logs',
-    label: 'Run log files',
-    description: 'Cleans eligible Run logs independently from Run history.',
+    labelId: "job-retention-settings.9", label: settingsText("job-retention-settings.9"),
+    descriptionId: "job-retention-settings.10", description: settingsText("job-retention-settings.10"),
   },
 ];
 
@@ -177,24 +178,22 @@ export function JobRetentionSettings() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-sm font-semibold text-text-primary">Automatic cleanup settings</h2>
-        <p className="mt-1 text-xs leading-5 text-text-secondary">
-          Each rule is independent. A blank day count prevents cleanup even when a switch is on.
-          The four status rules apply to terminal Run history; logs are managed independently.
-          Job definitions and schedules remain available. Active, unknown, pinned and referenced records are protected.
-        </p>
+        <h2 className="text-sm font-semibold text-text-primary" data-settings-id="jobs-retention">{settingsText("jobs-retention")}</h2>
+        <p className="mt-1 text-xs leading-5 text-text-secondary" data-settings-id="job-retention-settings.11">
+          {settingsText("job-retention-settings.11")}</p>
       </div>
 
       {loading ? (
-        <p className="text-xs text-text-tertiary" role="status">Loading settings…</p>
+        <p className="text-xs text-text-tertiary" role="status" data-settings-id="job-retention-settings.12">{settingsText("job-retention-settings.12")}</p>
       ) : (
         <>
-          {RETENTION_RULE_META.map(({ key, label, description }) => {
+          {RETENTION_RULE_META.map(({ key, label, labelId, description, descriptionId }) => {
             const rule = draft[key];
             const lastRun = lastRuns?.[key] ?? null;
             return (
               <section
                 key={key}
+                data-settings-id={labelId}
                 aria-labelledby={`job-retention-${key}-title`}
                 className="flex flex-col gap-3 rounded border border-border-muted bg-bg-secondary/40 p-4"
               >
@@ -205,17 +204,13 @@ export function JobRetentionSettings() {
                   >
                     {label}
                   </h3>
-                  <p className="mt-1 text-xs leading-5 text-text-secondary">{description}</p>
+                  <p className="mt-1 text-xs leading-5 text-text-secondary" data-settings-id={descriptionId}>{description}</p>
                   {key === 'logs' ? (
-                    <p className="mt-1 text-xs leading-5 text-text-secondary">
-                      Log cleanup does not delete Job definitions or Run history. A Run may remain
-                      after its expired log is removed, but that log can no longer be viewed.
-                      Logs with unknown ownership and active execution logs are protected.
-                    </p>
+                    <p className="mt-1 text-xs leading-5 text-text-secondary" data-settings-id="job-retention-settings.13">
+                      {settingsText("job-retention-settings.13")}</p>
                   ) : (
-                    <p className="mt-1 text-xs leading-5 text-text-secondary">
-                      Other Run statuses are unaffected; this rule does not infer or group statuses.
-                    </p>
+                    <p className="mt-1 text-xs leading-5 text-text-secondary" data-settings-id="job-retention-settings.14">
+                      {settingsText("job-retention-settings.14")}</p>
                   )}
                 </div>
 
@@ -234,11 +229,11 @@ export function JobRetentionSettings() {
                     }}
                     className="mt-0.5 accent-accent"
                   />
-                  <span>Enable automatic cleanup</span>
+                  <span data-settings-id="job-retention-settings.15">{settingsText("job-retention-settings.15")}</span>
                 </label>
 
                 <label className="flex max-w-[24rem] flex-col gap-1 text-xs text-text-secondary">
-                  <span>Keep {label} for at least</span>
+                  <span data-settings-id="job-retention-settings.16">{settingsText("job-retention-settings.16")}{label} {settingsText("job-retention-settings.17")}</span>
                   <span className="flex items-center gap-2">
                     <input
                       aria-label={`Keep ${label} for days`}
@@ -261,32 +256,32 @@ export function JobRetentionSettings() {
                       }}
                       className={`${selectClass} max-w-32`}
                     />
-                    <span>days</span>
+                    <span data-settings-id="job-retention-settings.18">{settingsText("job-retention-settings.18")}</span>
                   </span>
-                  <span>Leave blank to prevent this rule from running.</span>
+                  <span data-settings-id="job-retention-settings.19">{settingsText("job-retention-settings.19")}</span>
                 </label>
 
                 <div className="border-t border-border-muted pt-2 text-xs text-text-tertiary">
-                  <p className="font-medium text-text-secondary">Last check for this rule</p>
+                  <p className="font-medium text-text-secondary" data-settings-id="job-retention-settings.20">{settingsText("job-retention-settings.20")}</p>
                   {lastRun ? (
                     <>
-                      <p className="mt-1">
-                        {new Date(lastRun.at * 1000).toLocaleString()} · expired {lastRun.expired}
-                        {' · '}protected {lastRun.protected}{' · '}errors {lastRun.errors.length}
+                      <p className="mt-1" data-settings-id="job-retention-settings.21">
+                        {new Date(lastRun.at * 1000).toLocaleString()} {settingsText("job-retention-settings.21")}{lastRun.expired}
+                        {' · '}{settingsText("job-retention-settings.22")}{lastRun.protected}{' · '}{settingsText("job-retention-settings.23")}{lastRun.errors.length}
                       </p>
                       {lastRun.errors.length > 0 && (
                         <details className="mt-1">
-                          <summary className="cursor-pointer">Error details</summary>
+                          <summary className="cursor-pointer" data-settings-id="job-retention-settings.24">{settingsText("job-retention-settings.24")}</summary>
                           <ul className="mt-1 list-disc pl-4">
                             {lastRun.errors.map((message, index) => (
-                              <li key={`${key}-error-${index}`}>{message.code} · Run {message.runId} · Attempt {message.attemptId}</li>
+                              <li key={`${key}-error-${index}`} data-settings-id="job-retention-settings.25">{message.code} {settingsText("job-retention-settings.25")}{message.runId} {settingsText("job-retention-settings.26")}{message.attemptId}</li>
                             ))}
                           </ul>
                         </details>
                       )}
                     </>
                   ) : (
-                    <p className="mt-1">No automatic check has run for this rule yet.</p>
+                    <p className="mt-1" data-settings-id="job-retention-settings.27">{settingsText("job-retention-settings.27")}</p>
                   )}
                 </div>
               </section>
@@ -302,9 +297,8 @@ export function JobRetentionSettings() {
             >
               {saving ? 'Saving…' : 'Save settings'}
             </button>
-            {pending && <div className="text-xs text-warning" role="status">Unresolved request {pending.requestKey}. {pending.requestScope && pending.requestScope === requestScope ? 'The original account and profile match.' : 'The original account and profile cannot be verified; lookup is unavailable.'} The original request is preserved.
-              <details><summary>Original request</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(pending, null, 2)}</pre></details>
-              <button type="button" disabled={saving || !pending.requestScope || pending.requestScope !== requestScope} onClick={() => void queryOriginal()} className="underline disabled:opacity-50">Query original operation</button>
+            {pending && <div className="text-xs text-warning" role="status" data-settings-id="job-retention-settings.28">{settingsText("job-retention-settings.28")}{pending.requestKey}. {pending.requestScope && pending.requestScope === requestScope ? 'The original account and profile match.' : 'The original account and profile cannot be verified; lookup is unavailable.'} {settingsText("job-retention-settings.29")}<details><summary data-settings-id="job-retention-settings.30">{settingsText("job-retention-settings.30")}</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify(pending, null, 2)}</pre></details>
+              <button type="button" disabled={saving || !pending.requestScope || pending.requestScope !== requestScope} onClick={() => void queryOriginal()} className="underline disabled:opacity-50" data-settings-id="job-retention-settings.31">{settingsText("job-retention-settings.31")}</button>
             </div>}
             {feedback && <span className="text-xs text-warning" role="status">{feedback}</span>}
             {error && (
@@ -314,10 +308,9 @@ export function JobRetentionSettings() {
                   <button
                     type="button"
                     onClick={() => void loadSettings()}
-                    className="underline underline-offset-2"
+                    className="underline underline-offset-2" data-settings-id="job-retention-settings.32"
                   >
-                    Retry
-                  </button>
+                    {settingsText("job-retention-settings.32")}</button>
                 )}
               </span>
             )}

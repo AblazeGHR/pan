@@ -10,6 +10,7 @@ import { ChevronDown } from 'lucide-react';
 export function RemoteSettingsSection({
   id,
   title,
+  settingId,
   description,
   status,
   testId,
@@ -17,6 +18,7 @@ export function RemoteSettingsSection({
 }: {
   id: string;
   title: string;
+  settingId?: string;
   description: ReactNode;
   status?: ReactNode;
   testId?: string;
@@ -40,7 +42,7 @@ export function RemoteSettingsSection({
           className="flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
         >
           <span className="min-w-0 space-y-1">
-            <span id={titleId} className="block text-xs font-semibold text-text-primary">
+            <span id={titleId} className="block text-xs font-semibold text-text-primary" data-settings-id={settingId}>
               {title}
             </span>
             <span className="block text-[11px] leading-relaxed text-text-secondary">
@@ -109,12 +111,14 @@ export function RemoteField({
 
 /** Boolean row shared by the Remote panels; toggles the draft only. */
 export function RemoteSwitchRow({
+  settingId,
   label,
   hint,
   checked,
   onChange,
   disabled = false,
 }: {
+  settingId?: string;
   label: string;
   hint?: string;
   checked: boolean;
@@ -125,6 +129,7 @@ export function RemoteSwitchRow({
     <button
       type="button"
       role="switch"
+      data-settings-id={settingId}
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}

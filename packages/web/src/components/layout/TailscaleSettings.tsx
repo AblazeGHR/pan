@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { beginForegroundRequest } from '@/services/foregroundActivity';
@@ -57,10 +58,11 @@ export function TailscaleSettings() {
     ? `${busy ? '处理中…' : status.running ? '已开启' : status.pendingCleanup ? '待协调' : '已关闭'} · Tailscale ${status.online ? '在线' : '未就绪'}`
     : busy ? '正在读取状态…' : '状态不可用';
   return <RemoteSettingsSection
+    settingId="tailscale"
     id="remote-tailscale"
     testId="remote-tailscale-section"
-    title="Tailscale 备用访问"
-    description="Cloudflare 隧道不可用时，同一 tailnet 的设备可访问 Pan。自动绑定 Tailscale 地址，Pan 继续监听回环；不开放 Funnel 公网。"
+    title={settingsText("tailscale")}
+    description={settingsText("tailscale-settings.1")}
     status={<RemoteStatus tone={status?.running ? 'ok' : 'idle'}>{runState}</RemoteStatus>}
   >
     <div className="flex flex-wrap items-center justify-end gap-2">
@@ -70,21 +72,22 @@ export function TailscaleSettings() {
     </div>
     {config && status && <>
       <RemoteSwitchRow
-        label="下次启动 Pan 默认开启"
-        hint="保存默认配置不会启停当前入口；当前开关即时生效，无需重启 Pan。"
+        settingId="tailscale-settings.2"
+        label={settingsText("tailscale-settings.2")}
+        hint={settingsText("tailscale-settings.3")}
         checked={config.startupEnabled}
         disabled={busy}
         onChange={value => setConfig({ ...config, startupEnabled: value })}
       />
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_6rem_auto] sm:items-end">
-        <RemoteField id="tailscale-protocol" label="协议">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_6rem_auto] sm:items-end" data-settings-id="tailscale-settings.4">
+        <RemoteField id="tailscale-protocol" label={settingsText("tailscale-settings.4")}>
           <select id="tailscale-protocol" disabled={busy} value={config.protocol}
             className={`${remoteControlClass} w-full max-w-full`}
             onChange={event => setConfig({ ...config, protocol: event.target.value as Config['protocol'] })}>
-            <option value="http">HTTP + Tailscale IP（推荐）</option><option value="https">HTTPS + Serve 域名</option>
+            <option value="http" data-settings-id="tailscale-settings.5">{settingsText("tailscale-settings.5")}</option><option value="https" data-settings-id="tailscale-settings.6">{settingsText("tailscale-settings.6")}</option>
           </select>
         </RemoteField>
-        <RemoteField id="tailscale-port" label="访问端口">
+        <RemoteField id="tailscale-port" label={settingsText("tailscale-settings.7")}>
           <input id="tailscale-port" type="number" min={1} max={65535} disabled={busy} value={config.port}
             className={`${remoteControlClass} w-full`}
             onChange={event => setConfig({ ...config, port: Number(event.target.value) })} />
@@ -92,25 +95,25 @@ export function TailscaleSettings() {
         <Button size="sm" disabled={busy || !changed} onClick={() => void action('save')}>{busy && pending === 'save' ? '保存中…' : '保存配置'}</Button>
       </div>
       <div className="space-y-1 text-[11px] leading-relaxed text-text-tertiary">
-        <p className="break-all">自动检测：{status.ip || '无 IP'} · {status.dns || '无域名'}</p>
-        <p className="break-all">目标：{status.target}</p>
+        <p className="break-all" data-settings-id="tailscale-settings.8">{settingsText("tailscale-settings.8")}{status.ip || '无 IP'} · {status.dns || '无域名'}</p>
+        <p className="break-all" data-settings-id="tailscale-settings.9">{settingsText("tailscale-settings.9")}{status.target}</p>
       </div>
       {status.url && <div className="min-w-0 space-y-2">
-        <p className="text-[11px] text-text-secondary">访问地址 <span className="text-text-tertiary">{status.running ? '· 当前入口' : '· 预览地址（尚未确认开启）'}</span></p>
+        <p className="text-[11px] text-text-secondary" data-settings-id="tailscale-settings.10">{settingsText("tailscale-settings.10")}<span className="text-text-tertiary">{status.running ? '· 当前入口' : '· 预览地址（尚未确认开启）'}</span></p>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
           <code className="min-w-0 break-all text-xs">{status.url}</code>
           <Button size="sm" disabled={busy} onClick={() => {
             void navigator.clipboard.writeText(status.url).catch(() => setError('复制失败，请选择地址手动复制'));
-          }}>复制地址</Button>
+          }} data-settings-id="tailscale-settings.11">{settingsText("tailscale-settings.11")}</Button>
         </div>
       </div>}
-      <p className="text-[11px] leading-relaxed text-text-tertiary">HTTP 默认端口 8768，地址易记；HTTPS 使用 Tailscale 原生证书，首次使用可能需要在管理界面启用 HTTPS。地址由 Tailscale 分配，不能自定义绑定其它网卡。</p>
+      <p className="text-[11px] leading-relaxed text-text-tertiary" data-settings-id="tailscale-settings.12">{settingsText("tailscale-settings.12")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" disabled={busy || changed} onClick={() => void action('start')}>{busy && pending === 'start' ? '启动中…' : status.running ? '应用已保存入口' : '开启当前访问'}</Button>
         <Button size="sm" disabled={busy} onClick={() => void action('stop')}>{busy && pending === 'stop' ? '停止中…' : '关闭当前访问'}</Button>
       </div>
-      {changed && <p className="text-[11px] text-text-secondary">请先保存配置，再开启或应用入口；关闭始终可用。</p>}
-      <p className="text-[11px] leading-relaxed text-text-tertiary">正常退出会关闭本功能入口。异常退出时 Serve 可能持续保留映射，Pan 下次启动会先清理，再按默认配置恢复；清理失败会就地报错。修改中的外部 Serve 入口不会被接管。</p>
+      {changed && <p className="text-[11px] text-text-secondary" data-settings-id="tailscale-settings.13">{settingsText("tailscale-settings.13")}</p>}
+      <p className="text-[11px] leading-relaxed text-text-tertiary" data-settings-id="tailscale-settings.14">{settingsText("tailscale-settings.14")}</p>
     </>}
     {(error || status?.error) && <p role="alert" className="text-xs text-danger whitespace-pre-wrap">{error || status?.error}</p>}
   </RemoteSettingsSection>;

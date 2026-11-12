@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { QqContactName, QqContactSearch } from '@/components/shared/QqContactSearch';
 import { matchesQqContact } from '@/utils/qqContactSearch';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -102,22 +103,22 @@ export function CompletionBridgeDefaultsPanel() {
 
   return (
     <div className="mb-5 rounded-md border border-border-muted bg-bg-primary p-3 space-y-3">
-      <h3 className="text-xs font-semibold text-text-primary">Completion bell defaults</h3>
-      <p className="text-[11px] text-text-secondary">Choose one or more connections to start when an unlit Session bell is enabled. Editing defaults preserves all running connections.</p>
+      <h3 className="text-xs font-semibold text-text-primary" data-settings-id="completion-bell">{settingsText("completion-bell")}</h3>
+      <p className="text-[11px] text-text-secondary" data-settings-id="completion-bridge-defaults-panel.1">{settingsText("completion-bridge-defaults-panel.1")}</p>
       <div className="flex flex-wrap gap-4 text-xs">
-        {([['system', 'System'], ['browser', 'Browser'], ['qqReport', 'QQ Report'], ['qqSubscribe', 'QQ Subscribe']] as const).map(([key, label]) => (
-          <label key={key} className="flex items-center gap-2">
-            <input type="checkbox" checked={draft[key]} disabled={busy} onChange={(e) => update({ [key]: e.target.checked })} />{label}
+        {(['system', 'browser', 'qqReport', 'qqSubscribe'] as const).map((key) => (
+          <label key={key} className="flex items-center gap-2" data-settings-id={'completion-bell.' + key}>
+            <input type="checkbox" checked={draft[key]} disabled={busy} onChange={(e) => update({ [key]: e.target.checked })} />{settingsText('completion-bell.' + key)}
           </label>
         ))}
       </div>
-      <p className="text-[11px] text-text-tertiary">Browser delivery also requires browser notification permission. QQ Report sends task results; QQ Subscribe receives inbox reminders.</p>
+      <p className="text-[11px] text-text-tertiary" data-settings-id="completion-bridge-defaults-panel.2">{settingsText("completion-bridge-defaults-panel.2")}</p>
       {needsContacts && <div className="space-y-2">
-        <div className="text-xs text-text-primary">Default QQ contacts · {draft.qqTargets.length} selected</div>
-        {loading && <p role="status" className="text-xs text-text-secondary">Loading contacts…</p>}
+        <div className="text-xs text-text-primary" data-settings-id="completion-bridge-defaults-panel.3">{settingsText("completion-bridge-defaults-panel.3")}{draft.qqTargets.length} {settingsText("completion-bridge-defaults-panel.4")}</div>
+        {loading && <p role="status" className="text-xs text-text-secondary" data-settings-id="completion-bridge-defaults-panel.5">{settingsText("completion-bridge-defaults-panel.5")}</p>}
         {contactError && <p className="text-xs text-danger" role="status">{contactError}</p>}
         <QqContactSearch value={query} onChange={setQuery} disabled={busy} />
-        {selected.length > 0 && <div className="flex flex-wrap gap-1" aria-label="Selected QQ contacts">
+        {selected.length > 0 && <div className="flex flex-wrap gap-1" aria-label={settingsText("completion-bridge-defaults-panel.6")} data-settings-id="completion-bridge-defaults-panel.6">
           {selected.map((row) => <button key={row.target} type="button" disabled={busy}
             aria-label={`Remove ${row.name} (${row.target})`}
             onClick={() => update({ qqTargets: draft.qqTargets.filter((target) => target !== row.target) })}
@@ -132,7 +133,7 @@ export function CompletionBridgeDefaultsPanel() {
             <span className="min-w-0"><QqContactName name={row.name} number={row.target} /><span className="block break-all text-[10px] text-text-tertiary">{row.target}</span></span>
           </label>)}
         </div>
-        {invalid && <p id="completion-defaults-error" role="alert" className="text-xs text-danger">Select at least one QQ contact before saving QQ Report or Subscribe as a default.</p>}
+        {invalid && <p id="completion-defaults-error" role="alert" className="text-xs text-danger" data-settings-id="completion-bridge-defaults-panel.7">{settingsText("completion-bridge-defaults-panel.7")}</p>}
       </div>}
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       {notice && <p role="status" className="text-xs text-text-secondary">{notice}</p>}

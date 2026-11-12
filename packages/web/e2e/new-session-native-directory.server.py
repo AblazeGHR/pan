@@ -6,6 +6,7 @@ because a native dialog cannot be driven from Chromium; the route, picker
 singleton, gate, timeout and cleanup stay the product ones. Real-dialog
 behavior is proven separately by ``evidence/new-session-native-directory-*``.
 """
+import argparse
 import asyncio
 import importlib.util
 import os
@@ -15,11 +16,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--port', type=int, required=True)
+parser.add_argument('--runtime', type=Path, required=True)
+args = parser.parse_args()
+assert args.port not in (8767, 8768)
+assert args.runtime.resolve().is_relative_to(ROOT / 'packages/web/test-results')
+
 for key in [name for name in os.environ if name.upper().startswith('PAN_')]:
     del os.environ[key]
-os.environ.setdefault('PAN_E2E_RUNTIME', str(Path(__file__).parents[1] / 'test-results' / 'native-directory-runtime'))
+os.environ['PAN_E2E_RUNTIME'] = str(args.runtime.resolve())
 os.environ.setdefault('PAN_E2E_FAKE_CLI', str(ROOT / 'tests/support/frontend_stream_cli.py'))
-os.environ.setdefault('PAN_PORT', '8765')
+os.environ['PAN_PORT'] = str(args.port)
 
 spec = importlib.util.spec_from_file_location(
     'native_directory_browser_fixture', Path(__file__).with_name('server.py'),

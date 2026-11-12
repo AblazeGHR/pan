@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useEffect, useState } from 'react';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
 
@@ -27,10 +28,10 @@ export function CodexNativePassthrough({ sessionId }: { sessionId: string | null
   }, [sessionId]);
   return (
     <div className="px-3 py-2">
-      <label className="flex items-center gap-2 text-xs text-text-primary">
+      <label className="flex items-center gap-2 text-xs text-text-primary" data-settings-id="codex-native-passthrough.2">
         <input
           type="checkbox"
-          aria-label="允许所有 Codex 原生操作"
+          aria-label={settingsText("codex-native-passthrough.1")}
           checked={state?.passthrough === true}
           disabled={!sessionId || loadedId !== sessionId || busy}
           onChange={(event) => {
@@ -40,24 +41,19 @@ export function CodexNativePassthrough({ sessionId }: { sessionId: string | null
               .getState()
               .configurePassthrough(sessionId, event.target.checked)
               .catch(() => setError('原生操作设置未确认，请重试；不会自动重启 Worker。'));
-          }}
+          }} data-settings-id="codex-native-passthrough.1"
         />
-        允许所有 Codex 原生操作
-      </label>
-      <p className="mt-1 text-[11px] leading-4 text-text-tertiary">
+        {settingsText("codex-native-passthrough.2")}</label>
+      <p className="mt-1 text-[11px] leading-4 text-text-tertiary" data-settings-id="codex-native-passthrough.3">
         {sessionId ? '仅当前 Codex Session。' : '请先选择一个 Codex Session。'}
-        默认拦截；开启后原生操作可修改 Codex 全局配置，Pan 设置可能与事实不符。 Pan
-        只同步已知事件，不推测未知操作；成功重启 Worker 后取消不一致标记。
-      </p>
+        {settingsText("codex-native-passthrough.3")}</p>
       {state?.settingsUncertain && (
-        <p role="status" className="mt-1 text-[11px] text-warning">
-          Pan Session 设置可能与事实不符（成功重启 Worker 后重新确认）。
-        </p>
+        <p role="status" className="mt-1 text-[11px] text-warning" data-settings-id="codex-native-passthrough.4">
+          {settingsText("codex-native-passthrough.4")}</p>
       )}
       {state?.passthroughPending && (
-        <p role="status" className="mt-1 text-[11px] text-warning">
-          设置已保存，Worker 尚未确认；请重试。
-        </p>
+        <p role="status" className="mt-1 text-[11px] text-warning" data-settings-id="codex-native-passthrough.5">
+          {settingsText("codex-native-passthrough.5")}</p>
       )}
       {error && (
         <p role="alert" className="mt-1 text-[11px] text-danger">

@@ -8,11 +8,12 @@
 /* global console, fetch */
 import assert from 'node:assert/strict';
 import process from 'node:process';
+import path from 'node:path';
 import { chromium, expect } from '@playwright/test';
 
 const base = process.env.PAN_E2E_BASE_URL ?? 'http://127.0.0.1:8765';
 const identity = await (await fetch(`${base}/__e2e/identity`)).json();
-assert.ok(identity.checkout.endsWith('new-session-native-directory-20261112'), identity);
+assert.equal(path.resolve(identity.checkout), path.resolve(process.cwd(), '../..'), 'owned checkout identity');
 assert.ok(![8767, 8768].includes(identity.port), identity);
 const before = await (await fetch(`${base}/__probe/state`)).json();
 

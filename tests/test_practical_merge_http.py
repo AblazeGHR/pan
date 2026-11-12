@@ -28,6 +28,22 @@ def test_production_search_and_select_use_real_session_endpoints(runtime):
             hit.click()
             expect(page.get_by_role('tab', name='Behavior', exact=True)).to_have_attribute('aria-selected', 'true')
             expect(page.get_by_test_id('illegal-queue-behavior-section')).to_be_visible()
+            # A same-tab field label and hint come from one description, and jump to the real switch.
+            page.get_by_role('tab', name='Search', exact=True).click()
+            field.fill('automatically lock queued turning this off')
+            field_hit = page.get_by_test_id('settings-search-hit-app-settings-modal.110')
+            expect(field_hit).to_be_visible()
+            field_hit.click()
+            control = page.locator('[data-settings-id="app-settings-modal.110"]')
+            expect(control).to_have_attribute('role', 'switch')
+            expect(control).to_be_visible()
+            assert 'ring-2' in control.get_attribute('class')
+            # The independent Search tab and its touch-scroll strip remain usable on a narrow viewport.
+            page.set_viewport_size({'width': 320, 'height': 844})
+            page.get_by_role('tab', name='Search', exact=True).click()
+            expect(field).to_be_visible()
+            assert page.locator('.app-settings-card').evaluate('(el) => el.scrollWidth <= el.clientWidth + 1')
+            page.set_viewport_size({'width': 1440, 'height': 1000})
             page.screenshot(path=str(out / 'search-behavior-desktop.png'))
             page.keyboard.press('Escape')
 

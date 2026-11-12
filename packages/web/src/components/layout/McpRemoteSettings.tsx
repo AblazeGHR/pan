@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useEffect, useState } from 'react';
 import { beginForegroundRequest } from '@/services/foregroundActivity';
 import { Button } from '@/components/ui/Button';
@@ -48,10 +49,11 @@ export function McpRemoteSettings() {
     ['config_path', 'MCP 隧道配置文件'], ['binary_path', 'cloudflared 路径（可留空）']];
   const ready = Boolean(status?.gateway.listening && status?.tunnel.running);
   return <RemoteSettingsSection
+    settingId="mcp-remote"
     id="remote-mcp"
     testId="remote-mcp-section"
-    title="MCP 远程连接"
-    description="独立管理 MCP 网关和隧道，不影响前端隧道。"
+    title={settingsText("mcp-remote")}
+    description={settingsText("mcp-remote-settings.1")}
     status={<RemoteStatus tone={ready ? 'ok' : 'idle'}>
       {status
         ? `网关：${status.gateway.listening ? '就绪' : '未就绪'} · 隧道进程：${status.tunnel.running ? '运行中' : '已停止'}`
@@ -60,28 +62,29 @@ export function McpRemoteSettings() {
   >
     {config && <>
       <RemoteSwitchRow
-        label="随 Pan 启动"
-        hint="保存配置并启动或重启 MCP 后生效。"
+        settingId="mcp-remote-settings.2"
+        label={settingsText("mcp-remote-settings.2")}
+        hint={settingsText("mcp-remote-settings.3")}
         checked={config.enabled}
         disabled={busy}
         onChange={value => setConfig({ ...config, enabled: value })}
       />
       {status?.publicUrl && <div className="min-w-0 space-y-2">
-        <p className="text-[11px] text-text-secondary">公网地址</p>
+        <p className="text-[11px] text-text-secondary" data-settings-id="mcp-remote-settings.4">{settingsText("mcp-remote-settings.4")}</p>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
           <code className="min-w-0 break-all text-xs">{status.publicUrl}</code>
           <Button size="sm" disabled={busy} onClick={() => {
             void navigator.clipboard.writeText(status.publicUrl).catch(() => setError('复制失败，请选择地址手动复制'));
-          }}>复制公网地址</Button>
+          }} data-settings-id="mcp-remote-settings.5">{settingsText("mcp-remote-settings.5")}</Button>
         </div>
       </div>}
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-text-primary">连接配置</p>
+      <div className="space-y-2" data-settings-id="mcp-remote-settings.7">
+        <p className="text-xs font-medium text-text-primary" data-settings-id="mcp-remote-settings.6">{settingsText("mcp-remote-settings.6")}</p>
         {fields.map(([key, label]) => <RemoteField key={key} id={`mcp-${key}`} label={label}>
           <input id={`mcp-${key}`} disabled={busy} className={`${remoteControlClass} w-full`} value={config[key]}
             onChange={e => setConfig({ ...config, [key]: e.target.value })} />
         </RemoteField>)}
-        <RemoteField id="mcp-port" label="网关端口">
+        <RemoteField id="mcp-port" label={settingsText("mcp-remote-settings.7")}>
           <input id="mcp-port" type="number" min="1024" max="65535" value={config.port} disabled={busy}
             className={`${remoteControlClass} w-full sm:w-40`}
             onChange={e => setConfig({ ...config, port: Number(e.target.value) })} />
@@ -90,9 +93,9 @@ export function McpRemoteSettings() {
       <div className="flex flex-wrap gap-2">{([['save', '保存配置'], ['start', '启动'], ['restart', '重启 MCP'], ['stop', '停止 MCP']] as const).map(([name, label]) =>
         <Button key={name} size="sm" disabled={busy} onClick={() => void action(name)}>{busy && pending === name ? busyLabels[name] : label}</Button>)}
       </div>
-      <p className="text-[11px] leading-relaxed text-text-tertiary">保存后启动或重启使配置生效。停止会中断 ChatGPT 连接。隧道进程运行不代表公网已连接。</p>
+      <p className="text-[11px] leading-relaxed text-text-tertiary" data-settings-id="mcp-remote-settings.8">{settingsText("mcp-remote-settings.8")}</p>
     </>}
-    {!config && !error && <p role="status" className="text-xs text-text-secondary">正在读取 MCP 状态…</p>}
+    {!config && !error && <p role="status" className="text-xs text-text-secondary" data-settings-id="mcp-remote-settings.9">{settingsText("mcp-remote-settings.9")}</p>}
     {error && <p role="alert" className="text-xs text-danger">{error}</p>}
   </RemoteSettingsSection>;
 }

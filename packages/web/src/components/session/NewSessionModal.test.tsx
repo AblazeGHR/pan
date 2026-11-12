@@ -273,6 +273,7 @@ describe('New Session directory input', () => {
     });
     apiMock.pickNativeServerDirectory.mockResolvedValue({ status: 'cancelled', paths: [] });
     await renderReady();
+    await waitFor(() => expect(workdirInput().value).toBe('D:\\saved\\work'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Browse server folders' }));
 

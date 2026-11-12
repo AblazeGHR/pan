@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { QqContactName, QqContactSearch } from '@/components/shared/QqContactSearch';
 import { matchesQqContact } from '@/utils/qqContactSearch';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -140,27 +141,27 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
 
   return (
     <div data-testid={`notification-source-${source}`} className="mb-5 rounded-md border border-border-muted bg-bg-primary p-3 space-y-3">
-      <h3 className="text-xs font-semibold text-text-primary">{source === 'lockerUnread' ? 'Locker new unread' : 'New errors'}</h3>
-      <p className="text-[11px] text-text-secondary">Forward new events from the server, including while the browser is closed. Matching Session and global routes are delivered once per event and target.</p>
+      <h3 data-settings-id={source === 'lockerUnread' ? 'locker-new-unread' : 'new-errors'} className="text-xs font-semibold text-text-primary">{settingsText(source === 'lockerUnread' ? 'locker-new-unread' : 'new-errors')}</h3>
+      <p className="text-[11px] text-text-secondary" data-settings-id="source-notification-panel.1">{settingsText("source-notification-panel.1")}</p>
       <div className="flex flex-wrap gap-4 text-xs">
-        {([['enabled', 'Enabled'], ['system', 'System'], ['browser', 'Browser'], ['qqReport', 'QQ Report']] as const).map(([key, label]) => (
-          <label key={key} className="flex items-center gap-2">
-            <input type="checkbox" checked={draft[key]} disabled={busy} onChange={(e) => update({ [key]: e.target.checked })} />{label}
+        {(['enabled', 'system', 'browser', 'qqReport'] as const).map((key) => (
+          <label key={key} className="flex items-center gap-2" data-settings-id={(source === 'lockerUnread' ? 'locker-new-unread' : 'new-errors') + '.' + key}>
+            <input type="checkbox" checked={draft[key]} disabled={busy} onChange={(e) => update({ [key]: e.target.checked })} />{settingsText((source === 'lockerUnread' ? 'locker-new-unread' : 'new-errors') + '.' + key)}
           </label>
         ))}
       </div>
-      <p className="text-[11px] text-text-tertiary">Changes are saved as soon as you make them. Browser requires notification permission and an authenticated open page. System and QQ Report run on the server. QQ forwards notifications only.</p>
+      <p className="text-[11px] text-text-tertiary" data-settings-id="source-notification-panel.2">{settingsText("source-notification-panel.2")}</p>
       {draft.browser && <div className="flex items-center gap-2 text-xs">
         <button type="button" disabled={permission === 'unsupported'} className="rounded border border-border-default px-2 py-1"
-          onClick={async () => setPermission(await requestLockerNotificationPermission())}>Request browser permission</button>
-        <span>Browser permission: {permission}</span>
+          onClick={async () => setPermission(await requestLockerNotificationPermission())} data-settings-id="source-notification-panel.3">{settingsText("source-notification-panel.3")}</button>
+        <span data-settings-id="source-notification-panel.4">{settingsText("source-notification-panel.4")}{permission}</span>
       </div>}
       {needsContacts && <div className="space-y-2">
-        <div className="text-xs text-text-primary">QQ Report contacts · {draft.qqTargets.length} selected</div>
-        {loading && <p role="status" className="text-xs text-text-secondary">Loading contacts…</p>}
+        <div className="text-xs text-text-primary" data-settings-id="source-notification-panel.5">{settingsText("source-notification-panel.5")}{draft.qqTargets.length} {settingsText("source-notification-panel.6")}</div>
+        {loading && <p role="status" className="text-xs text-text-secondary" data-settings-id="source-notification-panel.7">{settingsText("source-notification-panel.7")}</p>}
         {contactError && <p className="text-xs text-danger" role="status">{contactError}</p>}
         <QqContactSearch value={query} onChange={setQuery} disabled={busy} />
-        {selected.length > 0 && <div className="flex flex-wrap gap-1" aria-label="Selected QQ contacts">
+        {selected.length > 0 && <div className="flex flex-wrap gap-1" aria-label={settingsText("source-notification-panel.8")} data-settings-id="source-notification-panel.8">
           {selected.map((row) => <button key={row.target} type="button" disabled={busy}
             aria-label={`Remove ${row.name} (${row.target})`}
             onClick={() => update({ qqTargets: draft.qqTargets.filter((target) => target !== row.target) })}
@@ -177,7 +178,7 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
             <span className="min-w-0"><QqContactName name={row.name} number={row.target} /><span className="block break-all text-[10px] text-text-tertiary">{row.target}</span></span>
           </label>)}
         </div>
-        {invalid && <p id={`${source}-error`} role="alert" className="text-xs text-danger">Select at least one QQ Report contact. That change was not saved.</p>}
+        {invalid && <p id={`${source}-error`} role="alert" className="text-xs text-danger" data-settings-id="source-notification-panel.9">{settingsText("source-notification-panel.9")}</p>}
       </div>}
       {source === 'newError' && <ErrorNotificationExclusions />}
       {busy && <p role="status" className="text-xs text-text-secondary">Saving…</p>}

@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { Modal } from '@/components/ui/Modal';
 import { scanWorkdirs, type WorkdirRetentionResult } from '@/services/api';
 import { useState, type ReactNode } from 'react';
@@ -27,38 +28,38 @@ interface DataSettingsPanelProps {
 
 const POLICY_CARDS: Array<{
   id: DataRetentionPolicyId;
-  label: string;
-  description: string;
+  label: string; labelId: string;
+  description: string; descriptionId: string;
 }> = [
   {
     id: 'workdirs',
-    label: 'Orphan workdirs',
-    description: 'Only direct directories under the default data/workdirs root, with no Session or Workspace references, are eligible. Session expiry always preserves workdirs.',
+    labelId: "data-settings-panel.1", label: settingsText("data-settings-panel.1"),
+    descriptionId: "data-settings-panel.2", description: settingsText("data-settings-panel.2"),
   },
   {
     id: 'sessions',
-    label: 'Sessions 与 history',
-    description: 'Delete only when Session, history, queue and task references are safe. Workdirs are retained separately.',
+    labelId: "data-settings-panel.3", label: settingsText("data-settings-panel.3"),
+    descriptionId: "data-settings-panel.4", description: settingsText("data-settings-panel.4"),
   },
   {
     id: 'attachments',
-    label: '已登记上传附件',
-    description: '独立于 Session 历史；过期上传文件可以使旧链接失效，清理 owner sidecar。',
+    labelId: "data-settings-panel.5", label: settingsText("data-settings-panel.5"),
+    descriptionId: "data-settings-panel.6", description: settingsText("data-settings-panel.6"),
   },
   {
     id: 'qq_history',
-    label: '已保存的 QQ history',
-    description: '按每条记录时间移除过期记录；格式或时间不确定时保留整个文件。',
+    labelId: "data-settings-panel.7", label: settingsText("data-settings-panel.7"),
+    descriptionId: "data-settings-panel.8", description: settingsText("data-settings-panel.8"),
   },
   {
     id: 'qq_media',
-    label: 'QQ media',
-    description: '按文件修改时间清理普通文件；引用可能失效，QQ inbox 永不自动清理。',
+    labelId: "data-settings-panel.9", label: settingsText("data-settings-panel.9"),
+    descriptionId: "data-settings-panel.10", description: settingsText("data-settings-panel.10"),
   },
   {
     id: 'pan_logs',
-    label: 'Pan 主日志轮转文件',
-    description: '清理 data/logs 中同名过期轮转普通文件；当前活动日志和外部日志路径保留。',
+    labelId: "data-settings-panel.11", label: settingsText("data-settings-panel.11"),
+    descriptionId: "data-settings-panel.12", description: settingsText("data-settings-panel.12"),
   },
 ];
 
@@ -101,14 +102,13 @@ function CategoryCard({
           <div key={`${entry.label}:${entry.path}`} className="min-w-0 px-3 py-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-[10px] text-text-secondary">{entry.label}</span>
-              {!entry.exists && <span className="text-[10px] text-text-tertiary">尚未创建</span>}
+              {!entry.exists && <span className="text-[10px] text-text-tertiary" data-settings-id="data-settings-panel.13">{settingsText("data-settings-panel.13")}</span>}
               {entry.overridden && (
                 <span className="text-[10px] text-text-tertiary">{entry.source}</span>
               )}
               {entry.external && (
-                <span className="rounded border border-border-muted px-1 text-[10px] text-text-tertiary">
-                  外部路径
-                </span>
+                <span className="rounded border border-border-muted px-1 text-[10px] text-text-tertiary" data-settings-id="data-settings-panel.14">
+                  {settingsText("data-settings-panel.14")}</span>
               )}
             </div>
             <code className="mt-1 block min-w-0 break-all font-mono text-[10px] leading-relaxed text-text-tertiary">
@@ -159,12 +159,12 @@ function RetentionControls({
   onSave: () => void;
 }) {
   if (loading) {
-    return <p role="status" className="text-[11px] text-text-tertiary">正在读取清理策略…</p>;
+    return <p role="status" className="text-[11px] text-text-tertiary" data-settings-id="data-settings-panel.15">{settingsText("data-settings-panel.15")}</p>;
   }
   if (error || !draft || !saved) {
     return (
-      <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
-        无法读取清理策略：{error || '响应无效'}
+      <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger" data-settings-id="data-settings-panel.16">
+        {settingsText("data-settings-panel.16")}{error || '响应无效'}
       </p>
     );
   }
@@ -172,21 +172,20 @@ function RetentionControls({
   return (
     <section className="min-w-0 space-y-2 rounded-md border border-border-muted bg-bg-secondary p-3">
       <div>
-        <h3 className="text-xs font-semibold text-text-primary">自动清理策略</h3>
-        <p className="mt-1 text-[10px] leading-relaxed text-text-tertiary">
-          每类默认关闭且天数为空；空值表示不清理。符合期限的内容最多每日扫描一次；任何活动、归属、路径或时间不确定都会跳过并记录原因。
-        </p>
+        <h3 className="text-xs font-semibold text-text-primary" data-settings-id="data-retention">{settingsText("data-retention")}</h3>
+        <p className="mt-1 text-[10px] leading-relaxed text-text-tertiary" data-settings-id="data-settings-panel.17">
+          {settingsText("data-settings-panel.17")}</p>
       </div>
       <div className="space-y-2">
         {POLICY_CARDS.map((item) => {
           const policy = draft[item.id] ?? { enabled: false, days: null };
           const result = saved.lastScans[item.id];
           return (
-            <section key={item.id} className="min-w-0 rounded border border-border-muted bg-bg-primary p-3">
+            <section key={item.id} data-settings-id={item.labelId} className="min-w-0 rounded border border-border-muted bg-bg-primary p-3">
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-medium text-text-primary">{item.label}</h4>
-                  <p className="mt-1 text-[10px] leading-relaxed text-text-tertiary">{item.description}</p>
+                  <h4 className="text-xs font-medium text-text-primary" data-settings-id={item.labelId}>{item.label}</h4>
+                  <p className="mt-1 text-[10px] leading-relaxed text-text-tertiary" data-settings-id={item.descriptionId}>{item.description}</p>
                 </div>
                 <button
                   type="button"
@@ -224,8 +223,8 @@ function RetentionControls({
                   className="w-20 rounded border border-border-muted bg-bg-primary px-2 py-1 text-xs text-text-primary"
                 />
               </label>
-              <p className="mt-2 break-words text-[10px] leading-relaxed text-text-tertiary">
-                {item.id === 'workdirs' ? `Last scan: ${result?.lastScanAt ?? 'Never'}; scanned ${result?.scanned ?? 0}, deleted ${result?.deleted ?? 0}, skipped ${result?.skipped ?? 0}` : <>最近扫描：{formatWhen(result?.lastScanAt)}；扫描 {result?.scanned ?? 0}，删除 {result?.deleted ?? 0}，跳过 {result?.skipped ?? 0}</>}
+              <p className="mt-2 break-words text-[10px] leading-relaxed text-text-tertiary" data-settings-id="data-settings-panel.18">
+                {item.id === 'workdirs' ? `Last scan: ${result?.lastScanAt ?? 'Never'}; scanned ${result?.scanned ?? 0}, deleted ${result?.deleted ?? 0}, skipped ${result?.skipped ?? 0}` : <>{settingsText("data-settings-panel.18")}{formatWhen(result?.lastScanAt)}{settingsText("data-settings-panel.19")}{result?.scanned ?? 0}{settingsText("data-settings-panel.20")}{result?.deleted ?? 0}{settingsText("data-settings-panel.21")}{result?.skipped ?? 0}</>}
                 {result?.skipReasons && Object.keys(result.skipReasons).length > 0
                   ? `（${Object.entries(result.skipReasons).map(([reason, count]) => `${reason}: ${count}`).join('；')}）`
                   : ''}
@@ -236,10 +235,10 @@ function RetentionControls({
         })}
       </div>
       {saveError && (
-        <p role="alert" className="text-[10px] text-danger">保存失败：{saveError}</p>
+        <p role="alert" className="text-[10px] text-danger" data-settings-id="data-settings-panel.22">{settingsText("data-settings-panel.22")}{saveError}</p>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[10px] text-text-tertiary">保存在 config.json 的 data_retention。</span>
+        <span className="text-[10px] text-text-tertiary" data-settings-id="data-settings-panel.23">{settingsText("data-settings-panel.23")}</span>
         <button
           type="button"
           disabled={!dirty || saving}
@@ -271,20 +270,18 @@ export function DataSettingsPanel({
   return (
     <div className="min-w-0 space-y-3" data-testid="data-settings-panel">
       <section>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">
-          Data locations
-        </h3>
-        <p className="mt-1 text-[11px] leading-relaxed text-text-tertiary">
-          Registered Pan storage categories and paths. Orphan workdir candidates are scanned only when requested or when their automatic policy is enabled; other unregistered data directories are excluded.
-        </p>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary" data-settings-id="data-locations">
+          {settingsText("data-locations")}</h3>
+        <p className="mt-1 text-[11px] leading-relaxed text-text-tertiary" data-settings-id="data-settings-panel.24">
+          {settingsText("data-settings-panel.24")}</p>
       </section>
 
       {loading && (
-        <p role="status" className="text-[11px] text-text-tertiary">正在读取存储路径…</p>
+        <p role="status" className="text-[11px] text-text-tertiary" data-settings-id="data-settings-panel.25">{settingsText("data-settings-panel.25")}</p>
       )}
       {error && (
-        <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
-          无法读取存储路径：{error}
+        <p role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger" data-settings-id="data-settings-panel.26">
+          {settingsText("data-settings-panel.26")}{error}
         </p>
       )}
       <RetentionControls
@@ -346,30 +343,29 @@ export function WorkdirCleanup({ days }: { days: number | null }) {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
-  return <div className="mt-2 space-y-2 text-xs">
-    <p className="rounded border border-amber-500/50 bg-amber-500/10 p-2 text-amber-500">
-      The “no changes for N days” check may be inaccurate. Enable automatic cleanup with caution; manual cleanup is recommended.
-    </p>
-    <button type="button" className={actionClass} disabled={!valid} onClick={() => { setOpen(true); void load(); }}>Browse cleanup candidates</button>
-    {!valid && <p>Set a day count from 1 to 36500 to browse candidates.</p>}
-    <Modal open={open} onClose={() => { if (!busy) setOpen(false); }} title="Orphan workdir cleanup" size="lg">
+  return <div className="mt-2 space-y-2 text-xs" data-settings-id="data-settings-panel.30">
+    <p className="rounded border border-amber-500/50 bg-amber-500/10 p-2 text-amber-500" data-settings-id="data-settings-panel.27">
+      {settingsText("data-settings-panel.27")}</p>
+    <button type="button" className={actionClass} disabled={!valid} onClick={() => { setOpen(true); void load(); }} data-settings-id="data-settings-panel.28">{settingsText("data-settings-panel.28")}</button>
+    {!valid && <p data-settings-id="data-settings-panel.29">{settingsText("data-settings-panel.29")}</p>}
+    <Modal open={open} onClose={() => { if (!busy) setOpen(false); }} title={settingsText("data-settings-panel.30")} size="lg">
       <div className="space-y-3 text-xs">
-        <p>Directories with no changes for {days} days. Deleting a directory is permanent. Sessions are never deleted here. Every selected directory is checked again before deletion.</p>
+        <p data-settings-id="data-settings-panel.31">{settingsText("data-settings-panel.31")}{days} {settingsText("data-settings-panel.32")}</p>
         <button type="button" className={actionClass} disabled={busy} onClick={() => void load()}>Refresh</button>
-        {busy && <p role="status">Scanning or deleting directories…</p>}
-        {error && <p role="alert">Cleanup failed: {error}</p>}
+        {busy && <p role="status" data-settings-id="data-settings-panel.33">{settingsText("data-settings-panel.33")}</p>}
+        {error && <p role="alert" data-settings-id="data-settings-panel.34">{settingsText("data-settings-panel.34")}{error}</p>}
         {result && <>
-          <p>Scanned: {result.scanned}. Skipped: {result.skipped}. {Object.entries(result.skipReasons).map(([key, count]) => `${key}: ${count}`).join('; ')}</p>
-          {result.candidates.length === 0 ? <p>No eligible workdirs found.</p> : <>
-            <label><input type="checkbox" disabled={busy} checked={selected.length === result.candidates.length} onChange={e => setSelected(e.target.checked ? result.candidates.map(row => row.name) : [])} /> Select all</label>
+          <p data-settings-id="data-settings-panel.35">{settingsText("data-settings-panel.35")}{result.scanned}{settingsText("data-settings-panel.36")}{result.skipped}. {Object.entries(result.skipReasons).map(([key, count]) => `${key}: ${count}`).join('; ')}</p>
+          {result.candidates.length === 0 ? <p data-settings-id="data-settings-panel.37">{settingsText("data-settings-panel.37")}</p> : <>
+            <label data-settings-id="data-settings-panel.38"><input type="checkbox" disabled={busy} checked={selected.length === result.candidates.length} onChange={e => setSelected(e.target.checked ? result.candidates.map(row => row.name) : [])} /> {settingsText("data-settings-panel.38")}</label>
             <div className="max-h-80 space-y-2 overflow-auto">
               {result.candidates.map(row => <label key={row.name} className="block break-all rounded border border-border-muted p-2">
                 <input type="checkbox" disabled={busy} checked={selected.includes(row.name)} onChange={e => setSelected(current => e.target.checked ? [...current, row.name] : current.filter(name => name !== row.name))} /> {row.name}
                 <span className="block">{row.path}</span>
-                <span className="block">Last modified: {row.modifiedAt} · Entries: {row.entries}</span>
+                <span className="block" data-settings-id="data-settings-panel.39">{settingsText("data-settings-panel.39")}{row.modifiedAt} {settingsText("data-settings-panel.40")}{row.entries}</span>
               </label>)}
             </div>
-            <button type="button" className={`${actionClass} text-danger`} disabled={busy || !selected.length} onClick={() => void load(true)}>Delete selected ({selected.length})</button>
+            <button type="button" className={`${actionClass} text-danger`} disabled={busy || !selected.length} onClick={() => void load(true)} data-settings-id="data-settings-panel.41">{settingsText("data-settings-panel.41")}{selected.length})</button>
           </>}
         </>}
         {outcomes.map(row => <p key={row.name} role={row.deleted ? 'status' : 'alert'}>{row.name}: {row.deleted ? 'Deleted' : `Failed — ${row.reason}`}</p>)}

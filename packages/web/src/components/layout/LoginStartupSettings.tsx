@@ -1,3 +1,4 @@
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useEffect, useRef, useState } from 'react';
 
 type Status = {
@@ -49,22 +50,22 @@ export function LoginStartupSettings() {
     // Component is mounted only while the Settings section is visible.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return <section className="space-y-2" aria-label="Login startup">
-    <h3 className="text-xs font-semibold uppercase text-text-tertiary">Login startup</h3>
-    <button type="button" role="switch" aria-label="Start Pan after login"
+  return <section className="space-y-2" aria-label={settingsText("login-startup")} data-settings-id="login-startup">
+    <h3 className="text-xs font-semibold uppercase text-text-tertiary" data-settings-id="login-startup-settings.1">{settingsText("login-startup-settings.1")}</h3>
+    <button type="button" role="switch" aria-label={settingsText("login-startup-settings.2")}
       aria-checked={status?.enabled ?? false}
       disabled={busy || !status || status.conflict || (!status.available && !status.registered)}
       onClick={() => void action(!(status?.registered ?? false))}
-      className="w-full rounded-md border border-border-muted px-3 py-2 text-left text-xs disabled:opacity-50">
-      Start Pan after login <span className="float-right">{busy ? 'Checking…' : !status ? 'Unknown' : status.enabled ? 'On' : status.registered ? 'Disabled by OS' : 'Off'}</span>
+      className="w-full rounded-md border border-border-muted px-3 py-2 text-left text-xs disabled:opacity-50" data-settings-id="login-startup-settings.2">
+      {settingsText("login-startup-settings.3")}<span className="float-right">{busy ? 'Checking…' : !status ? 'Unknown' : status.enabled ? 'On' : status.registered ? 'Disabled by OS' : 'Off'}</span>
     </button>
-    <p className="text-[11px] text-text-secondary">Starts Pan for the current user after login. This is not a system service and does not start before login. Worker recovery follows the existing Pan startup policy.</p>
+    <p className="text-[11px] text-text-secondary" data-settings-id="login-startup-settings.4">{settingsText("login-startup-settings.4")}</p>
     {status && <div className="break-all text-[11px] text-text-tertiary">
-      <p>Installation: {status.targetRoot}</p><p>Data: {status.dataDirectory}</p><p>Entry: {status.entry}</p>
+      <p data-settings-id="login-startup-settings.5">{settingsText("login-startup-settings.5")}{status.targetRoot}</p><p data-settings-id="login-startup-settings.6">{settingsText("login-startup-settings.6")}{status.dataDirectory}</p><p data-settings-id="login-startup-settings.7">{settingsText("login-startup-settings.7")}{status.entry}</p>
       {status.reason && <p role="status">{status.reason}</p>}
       {status.conflict && <pre className="whitespace-pre-wrap">{status.registration}</pre>}
     </div>}
     {error && <p role="alert" className="text-xs text-danger">{error}</p>}
-    <button type="button" disabled={busy} onClick={() => void action()} className="text-xs underline">Refresh login startup status</button>
+    <button type="button" disabled={busy} onClick={() => void action()} className="text-xs underline" data-settings-id="login-startup-settings.8">{settingsText("login-startup-settings.8")}</button>
   </section>;
 }

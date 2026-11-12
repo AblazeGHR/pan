@@ -1,3 +1,5 @@
+import { useSettingsAvailability } from './settingsAvailability';
+import { settingsText, settingsVisible } from '@/components/layout/settingsCatalog';
 import { UserCardReminderSettings } from './UserCardReminderSettings';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -26,7 +28,8 @@ import type { LucideIcon } from 'lucide-react';
 import { SETTINGS_CATEGORY_LABELS, SETTINGS_TABS } from './settingsCategories';
 import type { SettingsTab } from './settingsCategories';
 import { SettingsSearchField, SettingsSearchResults } from './SettingsSearchPanel';
-import { SETTINGS_SEARCH_ENTRIES, findSettingsGroupHeading, searchSettings } from './settingsSearch';
+import { useShortcutActions } from '@/shortcuts/registry';
+import { createSettingsIndex, SETTINGS_SEARCH_ENTRIES, findSettingsAnchor, searchSettings } from './settingsSearch';
 import type { SettingsSearchEntry } from './settingsSearch';
 import { useAutomationAuth } from '@/stores/automationStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
@@ -91,10 +94,10 @@ interface AppSettingsModalProps {
   onClose: () => void;
 }
 
-const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
-  { value: 'none', label: 'Off' },
-  { value: 'workdir', label: 'Working directory' },
-  { value: 'manager', label: 'Manager' },
+const GROUP_OPTIONS: { value: GroupMode; label: string; labelId: string }[] = [
+  { value: 'none', labelId: "app-settings-modal.1", label: settingsText("app-settings-modal.1") },
+  { value: 'workdir', labelId: "app-settings-modal.2", label: settingsText("app-settings-modal.2") },
+  { value: 'manager', labelId: "app-settings-modal.3", label: settingsText("app-settings-modal.3") },
 ];
 
 const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
@@ -142,8 +145,8 @@ function MainLifecycleRunningChoice({
 }) {
   if (strategy !== 'ask') {
     return (
-      <p className="mt-3 text-[11px] text-text-secondary">
-        Saved policy: stop all Workers and {strategy === 'offline'
+      <p className="mt-3 text-[11px] text-text-secondary" data-settings-id="app-settings-modal.4">
+        {settingsText("app-settings-modal.4")}{strategy === 'offline'
           ? 'safely retire stopped execution.'
           : 'preserve unfinished execution as Illegal.'}
       </p>
@@ -152,9 +155,8 @@ function MainLifecycleRunningChoice({
 
   return (
     <fieldset className="mt-3 space-y-2">
-      <legend className="text-[11px] text-text-secondary">
-        For Sessions with outstanding execution or Illegal status:
-      </legend>
+      <legend className="text-[11px] text-text-secondary" data-settings-id="app-settings-modal.5">
+        {settingsText("app-settings-modal.5")}</legend>
       <label className="flex items-start gap-2 text-[11px] text-text-primary">
         <input
           type="radio"
@@ -162,7 +164,7 @@ function MainLifecycleRunningChoice({
           checked={markRunningOffline === true}
           onChange={() => onChange(true)}
         />
-        <span>Safely retire execution after all Workers have stopped.</span>
+        <span data-settings-id="app-settings-modal.6">{settingsText("app-settings-modal.6")}</span>
       </label>
       <label className="flex items-start gap-2 text-[11px] text-text-primary">
         <input
@@ -171,14 +173,14 @@ function MainLifecycleRunningChoice({
           checked={markRunningOffline === false}
           onChange={() => onChange(false)}
         />
-        <span>Stop Workers and preserve unfinished execution as Illegal.</span>
+        <span data-settings-id="app-settings-modal.7">{settingsText("app-settings-modal.7")}</span>
       </label>
     </fieldset>
   );
 }
 
-const SETTINGS_TAB_META: Record<SettingsTab, { label: string; Icon: LucideIcon }> = {
-  search: { label: 'Search', Icon: Search },
+const SETTINGS_TAB_META: Record<SettingsTab, { label: string; labelId?: string; hintId?: string; descriptionId?: string; Icon: LucideIcon }> = {
+  search: { label: settingsText('settings-search-nav'), Icon: Search },
   lifecycle: { label: SETTINGS_CATEGORY_LABELS.lifecycle, Icon: Power },
   behavior: { label: SETTINGS_CATEGORY_LABELS.behavior, Icon: ToggleLeft },
   remote: { label: SETTINGS_CATEGORY_LABELS.remote, Icon: Globe },
@@ -198,13 +200,15 @@ type MainExitState = 'idle' | 'confirming' | 'exiting' | 'exited' | 'error';
 type BehaviorAnchor = 'exit-strategy' | 'startup-preference';
 
 function SwitchRow({
+  settingId,
   label,
   hint,
   checked,
   onChange,
   disabled = false,
 }: {
-  label: string;
+  settingId?: string;
+  label: string; labelId?: string; hintId?: string; descriptionId?: string;
   hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
@@ -213,6 +217,7 @@ function SwitchRow({
   return (
     <button
       type="button"
+      data-settings-id={settingId}
       role="switch"
       aria-checked={checked}
       disabled={disabled}
@@ -241,9 +246,9 @@ function SwitchRow({
 }
 
 const CHAT_VIEW_OPTIONS = [
-  { value: 'tui', label: 'TUI', hint: 'Full-width role-bar rows with rendered Markdown (default).' },
-  { value: 'bubble', label: 'Bubble', hint: 'Shrink-to-fit bubbles with rendered Markdown.' },
-  { value: 'raw', label: 'Raw', hint: 'TUI rows, but each message body shows its original text, unrendered.' },
+  { value: 'tui', labelId: "app-settings-modal.9", label: settingsText("app-settings-modal.9"), hintId: "app-settings-modal.10", hint: settingsText("app-settings-modal.10") },
+  { value: 'bubble', labelId: "app-settings-modal.11", label: settingsText("app-settings-modal.11"), hintId: "app-settings-modal.12", hint: settingsText("app-settings-modal.12") },
+  { value: 'raw', labelId: "app-settings-modal.13", label: settingsText("app-settings-modal.13"), hintId: "app-settings-modal.14", hint: settingsText("app-settings-modal.14") },
 ] as const;
 
 /**
@@ -263,8 +268,8 @@ function ChatViewSelect({
     <div className="px-3 py-3">
       <div
         role="radiogroup"
-        aria-label="Chat view"
-        className="flex gap-1 rounded border border-border-default bg-bg-tertiary p-1"
+        aria-label={settingsText("chat-view")}
+        className="flex gap-1 rounded border border-border-default bg-bg-tertiary p-1" data-settings-id="chat-view"
       >
         {CHAT_VIEW_OPTIONS.map((option) => (
           <button
@@ -277,7 +282,7 @@ function ChatViewSelect({
               value === option.value
                 ? 'bg-bg-primary text-text-primary shadow-sm'
                 : 'text-text-secondary hover:text-text-primary'
-            }`}
+            }`} data-settings-id={option.labelId}
           >
             {option.label}
           </button>
@@ -289,13 +294,15 @@ function ChatViewSelect({
 }
 
 function ReloadRow({
+  settingId,
   label,
   hint,
   busy,
   action = 'Reload',
   onClick,
 }: {
-  label: string;
+  settingId?: string;
+  label: string; labelId?: string; hintId?: string; descriptionId?: string;
   hint: string;
   busy: boolean;
   action?: string;
@@ -304,6 +311,7 @@ function ReloadRow({
   return (
     <button
       type="button"
+      data-settings-id={settingId}
       disabled={busy}
       onClick={onClick}
       className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -343,34 +351,33 @@ function WorkerEditModal({
   onClose: () => void;
 }) {
   const FIELD_HINTS: Record<string, string> = {
-    timeout_sec: 'Silence timeout — queued no-output / MCP read',
-    task_timeout_sec: 'Stream running task duration cap',
-    idle_sec: 'Idle reclaim timeout',
+    timeout_sec: settingsText("appsettingsmodal.extra.1"),
+    task_timeout_sec: settingsText("appsettingsmodal.extra.2"),
+    idle_sec: settingsText("appsettingsmodal.extra.3"),
   };
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Edit worker config"
+      aria-label={settingsText("app-settings-modal.15")}
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
-      }}
+      }} data-settings-id="app-settings-modal.15"
     >
       <div className="w-[min(420px,92vw)] bg-bg-primary border border-border-default rounded-lg shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b border-border-default px-4 py-3">
           <div>
-            <h3 className="text-sm font-semibold text-text-primary">Edit worker config</h3>
-            <p className="mt-0.5 text-[11px] text-text-tertiary">
-              Saved to config.json and applied without restart.
-            </p>
+            <h3 className="text-sm font-semibold text-text-primary" data-settings-id="app-settings-modal.16">{settingsText("app-settings-modal.16")}</h3>
+            <p className="mt-0.5 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.17">
+              {settingsText("app-settings-modal.17")}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
-            className="text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0"
+            aria-label={settingsText("app-settings-modal.18")}
+            className="text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0" data-settings-id="app-settings-modal.18"
           >
             <X size={16} />
           </button>
@@ -396,12 +403,11 @@ function WorkerEditModal({
                 onChange={(e) => onValueChange(k, e.target.value)}
                 className="mt-1 w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary font-mono outline-none focus:border-accent disabled:opacity-50"
               />
-              <p className="mt-1 text-[10px] text-text-tertiary leading-relaxed">
-                {FIELD_HINTS[k]} (seconds)
-              </p>
+              <p className="mt-1 text-[10px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.19">
+                {FIELD_HINTS[k]} {settingsText("app-settings-modal.19")}</p>
             </div>
           ))}
-          {loading && <p className="text-[11px] text-text-tertiary">Loading current values…</p>}
+          {loading && <p className="text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.20">{settingsText("app-settings-modal.20")}</p>}
           {error && (
             <div className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
               {error}
@@ -446,8 +452,8 @@ function PluginResult({ plugin }: { plugin: NonNullable<ApiConfigReloadResponse[
   const changed = added.length > 0 || removed.length > 0;
   return (
     <>
-      <div>
-        plugin manifests: {plugin.before.length} → {plugin.after.length}
+      <div data-settings-id="app-settings-modal.21">
+        {settingsText("app-settings-modal.21")}{plugin.before.length} → {plugin.after.length}
         {changed ? ' (changed)' : ''}
       </div>
       {added.map((p, i) => (
@@ -460,9 +466,8 @@ function PluginResult({ plugin }: { plugin: NonNullable<ApiConfigReloadResponse[
           − {p}
         </div>
       ))}
-      <div>
-        templates: {plugin.sessionTemplates ?? '?'} · servers: {plugin.mcpServers ?? '?'} ·
-        characters: {plugin.characters ?? '?'} · routes: {plugin.commandRoutes ?? '?'}
+      <div data-settings-id="app-settings-modal.22">
+        {settingsText("app-settings-modal.22")}{plugin.sessionTemplates ?? '?'} {settingsText("app-settings-modal.23")}{plugin.mcpServers ?? '?'} {settingsText("app-settings-modal.24")}{plugin.characters ?? '?'} {settingsText("app-settings-modal.25")}{plugin.commandRoutes ?? '?'}
       </div>
     </>
   );
@@ -545,7 +550,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [behaviorAnchor, setBehaviorAnchor] = useState<BehaviorAnchor | null>(null);
   // Search owns its own tab panel, just like every settings category.
   const [settingsQuery, setSettingsQuery] = useState('');
-  const [settingsJump, setSettingsJump] = useState<{ group: string; nonce: number } | null>(null);
+  const [settingsJump, setSettingsJump] = useState<{ anchor: string; nonce: number } | null>(null);
   const settingsJumpNonce = useRef(0);
   const tabPanelRef = useRef<HTMLDivElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
@@ -699,6 +704,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   // unanswered probe leaves the existing status-driven behavior untouched.
   const serviceLifecycle = useCapability('service.lifecycle');
   const platform = usePlatformStore((state) => state.platform);
+  const platformCapabilities = usePlatformStore((state) => state.capabilities);
   const lifecycleUnavailableLabel = `Not available on this platform (${platformLabel(platform)})`;
   const [mainRestartState, setMainRestartState] = useState<MainRestartState>('idle');
   const [mainRestartHealthCheckActive, setMainRestartHealthCheckActive] = useState(false);
@@ -724,20 +730,35 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     Boolean(state.token || state.authenticated),
   );
   const settingsSearchActive = settingsQuery.trim().length > 0;
+  const availability = useSettingsAvailability();
+  const shortcutActions = useShortcutActions();
+  const settingsSearchEntries = useMemo(() => [...SETTINGS_SEARCH_ENTRIES,
+    ...createSettingsIndex(availability.pluginSources.flatMap(source => ['auto-report', 'prompt-summary'].map(scope => ({
+      id: scope + '.plugin.' + source.id, tab: 'behavior' as const, label: source.label,
+      hint: settingsText(scope), anchor: scope + '.plugin.' + source.id,
+    })))),
+    ...createSettingsIndex(shortcutActions.map(action => ({id: 'shortcut.' + action.id,
+      tab: 'shortcuts' as const, label: action.label, hint: action.description, anchor: 'shortcut.' + action.id}))),
+  ], [shortcutActions, availability.pluginSources]);
   const settingsSearchResults = useMemo(
     () =>
-      searchSettings(SETTINGS_SEARCH_ENTRIES, settingsQuery, {
+      searchSettings(settingsSearchEntries, settingsQuery, {
         remoteTunnel: Boolean(remoteStatus?.available && remoteStatus.enabled),
         authorizationLoggedIn,
+        ...availability,
+        completionContacts: Boolean(notifications.completionBridge?.qqReport || notifications.completionBridge?.qqSubscribe),
+        notificationContacts: Boolean(notifications.lockerUnread?.qqReport || notifications.newError?.qqReport),
+        capabilities: platformCapabilities,
+        codexSession: currentSession?.adapter === 'codex' && !currentSession.readonlySession,
       }),
-    [settingsQuery, remoteStatus, authorizationLoggedIn],
+    [settingsQuery, remoteStatus, authorizationLoggedIn, platformCapabilities, currentSession, settingsSearchEntries, availability, notifications],
   );
 
   const openSettingsSearchHit = useCallback((entry: SettingsSearchEntry) => {
     settingsJumpNonce.current += 1;
     setSettingsQuery('');
     setActiveTab(entry.tab);
-    setSettingsJump({ group: entry.group, nonce: settingsJumpNonce.current });
+    setSettingsJump({ anchor: entry.anchor, nonce: settingsJumpNonce.current });
   }, []);
 
   // Choosing a tab by hand leaves the search results, so the tab shows its own panel.
@@ -752,7 +773,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     if (!settingsJump) return;
     const panel = tabPanelRef.current;
     if (!panel) return;
-    const heading = findSettingsGroupHeading(panel, settingsJump.group);
+    const heading = findSettingsAnchor(panel, settingsJump);
     const target = heading ?? panel;
     if (typeof target.scrollIntoView === 'function') target.scrollIntoView({ block: 'center' });
     panel.focus({ preventScroll: true });
@@ -1400,26 +1421,25 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="App Settings"
+      aria-label={settingsText("app-settings-modal.26")}
       className="app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
-      }}
+      }} data-settings-id="app-settings-modal.26"
     >
       <div className="app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0">
           <div>
-            <h2 className="text-sm font-semibold text-text-primary">App Settings</h2>
-            <p className="mt-0.5 text-[11px] text-text-tertiary">
-              Global preferences for the Pan app.
-            </p>
+            <h2 className="text-sm font-semibold text-text-primary" data-settings-id="app-settings-modal.27">{settingsText("app-settings-modal.27")}</h2>
+            <p className="mt-0.5 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.28">
+              {settingsText("app-settings-modal.28")}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
-            className="text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0"
+            aria-label={settingsText("app-settings-modal.29")}
+            className="text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0" data-settings-id="app-settings-modal.29"
           >
             <X size={16} />
           </button>
@@ -1429,7 +1449,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           <div
             ref={tabListRef}
             role="tablist"
-            aria-label="App settings sections"
+            aria-label={settingsText("app-settings-modal.30")}
             className="flex min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             onKeyDown={(event) => {
               const currentIndex = SETTINGS_TABS.indexOf(activeTab);
@@ -1448,7 +1468,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               const nextTab = SETTINGS_TABS[nextIndex]!;
               document.getElementById(`app-settings-tab-${nextTab}`)?.focus();
               activateSettingsTab(nextTab);
-            }}
+            }} data-settings-id="app-settings-modal.30"
           >
             {SETTINGS_TABS.map((tab) => {
               const { label, Icon } = SETTINGS_TAB_META[tab];
@@ -1487,9 +1507,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 space-y-6"
         >
           {activeTab === 'search' ? (
-            <section className="mx-auto w-full max-w-2xl space-y-4" aria-label="Search settings panel">
+            <section className="mx-auto w-full max-w-2xl space-y-4" aria-label={settingsText('settings-search-panel')}>
               <div>
-                <h3 className="text-sm font-semibold text-text-primary">Search settings</h3>
+                <h3 className="text-sm font-semibold text-text-primary">{settingsText('settings-search-heading')}</h3>
                 <p className="mt-1 mb-3 text-xs text-text-tertiary">Find a setting across all categories.</p>
                 <SettingsSearchField value={settingsQuery} onChange={setSettingsQuery} />
               </div>
@@ -1504,21 +1524,20 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           ) : activeTab === 'adapters' ? (
             <>
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                Codex
-              </h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="codex-adapter">
+                {settingsText("codex-adapter")}</h3>
               <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                 <SwitchRow
-                  label="Show Codex terminal input popup"
-                  hint="默认隐藏；Codex 子进程等待终端输入时显示输入框"
+                  label={settingsText("app-settings-modal.31")}
+                  hint={settingsText("app-settings-modal.32")}
                   checked={showCodexTerminalInput}
-                  onChange={setShowCodexTerminalInput}
+                  onChange={setShowCodexTerminalInput} settingId="app-settings-modal.31"
                 />
                 <CodexNativePassthrough
                   sessionId={currentSession?.adapter === 'codex' && !currentSession.readonlySession ? currentSession.id : null}
                 />
                 <div className="px-3 py-2">
-                  <div className="text-xs text-text-primary">Model whitelist</div>
+                  <div className="text-xs text-text-primary" data-settings-id="app-settings-modal.33">{settingsText("app-settings-modal.33")}</div>
                   <div className="mt-1 text-[10px] text-text-tertiary font-mono break-words">
                     {codexModelsLoading
                       ? 'Loading…'
@@ -1534,10 +1553,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="min-w-0">
-                    <span className="block text-xs text-text-primary">替换为官方模型目录</span>
-                    <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
-                      用 codex debug models 的可见模型覆盖 config.json 白名单
-                    </span>
+                    <span className="block text-xs text-text-primary" data-settings-id="app-settings-modal.34">{settingsText("app-settings-modal.34")}</span>
+                    <span className="block text-[10px] text-text-tertiary font-mono mt-0.5" data-settings-id="app-settings-modal.35">
+                      {settingsText("app-settings-modal.35")}</span>
                   </span>
                   <span className="shrink-0 text-[11px] text-text-tertiary">
                     {codexRefreshBusy ? 'Refreshing…' : 'Replace'}
@@ -1551,21 +1569,20 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               )}
               {!codexRefreshError && codexRefreshResult && (
                 <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
-                  <div>before: {codexRefreshResult.before.join(', ') || '(empty)'}</div>
-                  <div>after: {codexRefreshResult.after.join(', ') || '(empty)'}</div>
+                  <div data-settings-id="app-settings-modal.36">{settingsText("app-settings-modal.36")}{codexRefreshResult.before.join(', ') || '(empty)'}</div>
+                  <div data-settings-id="app-settings-modal.37">{settingsText("app-settings-modal.37")}{codexRefreshResult.after.join(', ') || '(empty)'}</div>
                 </div>
               )}
             </section>
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                Adapter reload
-              </h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="adapter-reload">
+                {settingsText("adapter-reload")}</h3>
               <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                 <ReloadRow
-                  label="Reload adapters"
-                  hint="Refresh adapter model lists from config.json"
+                  label={settingsText("app-settings-modal.38")}
+                  hint={settingsText("app-settings-modal.39")}
                   busy={reloadScope === 'adapters'}
-                  onClick={() => handleReload('adapters')}
+                  onClick={() => handleReload('adapters')} settingId="app-settings-modal.38"
                 />
               </div>
               {reloadError && reloadSection === 'adapters' && (
@@ -1576,15 +1593,13 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               {!reloadError && reloadResult && reloadSection === 'adapters' && (
                 <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
                   {reloadResult.adapters?.map((adapter) => (
-                    <div key={adapter.name}>
-                      {adapter.name}: {adapter.modelsBefore ?? '?'} → {adapter.modelsAfter ?? '?'} models
-                    </div>
+                    <div key={adapter.name} data-settings-id="app-settings-modal.40">
+                      {adapter.name}: {adapter.modelsBefore ?? '?'} → {adapter.modelsAfter ?? '?'} {settingsText("app-settings-modal.40")}</div>
                   ))}
                 </div>
               )}
-              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                Applies adapter configuration changes without restarting the server.
-              </p>
+              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.41">
+                {settingsText("app-settings-modal.41")}</p>
             </section>
             </>
           ) : activeTab === 'notifications' ? (
@@ -1594,12 +1609,11 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               <SourceNotificationPanel source="newError" />
               <UnreadRecordingPanel />
               <div className="mb-5" data-testid="locker-desktop-notify-section">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Locker
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="locker-desktop">
+                  {settingsText("locker-desktop")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Locker new messages"
+                    label={settingsText("app-settings-modal.42")}
                     hint={
                       lockerPermission === 'unsupported'
                         ? 'This browser does not support system notifications.'
@@ -1607,55 +1621,45 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     }
                     checked={notifications.lockerDesktop}
                     disabled={lockerPermission === 'unsupported'}
-                    onChange={(v) => void toggleLockerDesktopNotify(v)}
+                    onChange={(v) => void toggleLockerDesktopNotify(v)} settingId="app-settings-modal.42"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Off by default. Reuses the 30-second Locker unread poll: one notification per
-                  increase while Pan is in the background, never on first load and never when
-                  messages are read. Clicking the notification opens Locker.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.43">
+                  {settingsText("app-settings-modal.43")}</p>
                 {notifications.lockerDesktop && lockerPermission === 'denied' && (
                   <div
                     role="alert"
                     data-testid="locker-notification-denied"
-                    className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger"
+                    className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger" data-settings-id="app-settings-modal.44"
                   >
-                    Browser notification permission is denied for this site. Locker alerts stay
-                    silent until notifications are allowed in the browser's site settings; the
-                    switch keeps your preference.
-                  </div>
+                    {settingsText("app-settings-modal.44")}</div>
                 )}
               </div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                CLI adapter warnings
-              </h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="cli-adapter-warnings">
+                {settingsText("cli-adapter-warnings")}</h3>
               <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                 <SwitchRow
-                  label="Codex warnings via Toast"
-                  hint="Native Codex error, MCP startup failure, and model reroute warnings"
+                  label={settingsText("app-settings-modal.45")}
+                  hint={settingsText("app-settings-modal.46")}
                   checked={notifications.codexWarningToast}
-                  onChange={setCodexWarningToast}
+                  onChange={setCodexWarningToast} settingId="app-settings-modal.45"
                 />
                 <div className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left opacity-60">
                   <span className="min-w-0">
-                    <span className="block text-xs text-text-primary">CBC warnings via Toast</span>
-                    <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
-                      Native CBC warning events are not available yet
-                    </span>
+                    <span className="block text-xs text-text-primary" data-settings-id="app-settings-modal.47">{settingsText("app-settings-modal.47")}</span>
+                    <span className="block text-[10px] text-text-tertiary font-mono mt-0.5" data-settings-id="app-settings-modal.48">
+                      {settingsText("app-settings-modal.48")}</span>
                   </span>
-                  <span className="shrink-0 text-[11px] text-text-tertiary">Not available</span>
+                  <span className="shrink-0 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.49">{settingsText("app-settings-modal.49")}</span>
                 </div>
               </div>
-              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                These settings control warning Toasts, completion delivery defaults, and unread
-                recording. Confirmation prompts live on Behavior.
-              </p>
+              <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.50">
+                {settingsText("app-settings-modal.50")}</p>
             </section>
           ) : activeTab === 'appearance' ? (
             <>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Panel order</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="panel-order">{settingsText("panel-order")}</h3>
                 <div data-testid="panel-order-list" className="rounded-md border border-border-muted bg-bg-primary divide-y divide-border-muted">
                   {orderedEntries.map((entry, index) => <div key={entry.id}
                     className={`relative flex items-center gap-2 px-3 py-2 text-xs ${dropEntry?.id === entry.id ? (dropEntry.zone === 'before' ? 'border-t-2' : 'border-b-2') + ' border-accent' : ''}`}
@@ -1668,184 +1672,158 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     <button type="button" aria-label={`Move ${entry.label} down`} disabled={index === orderedEntries.length - 1} onClick={() => moveEntry(entry.id, 1)} className="px-1 disabled:opacity-30">↓</button>
                   </div>)}
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary">Drag an entry to the insertion line, or use the move buttons. This order also controls navigation pages, the collapsed rail, and panel shortcut display.</p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.51">{settingsText("app-settings-modal.51")}</p>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Chat view
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="app-settings-modal.52">
+                  {settingsText("app-settings-modal.52")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <ChatViewSelect value={chatViewStyle} onChange={setChatViewStyle} />
                   <SwitchRow
-                    label="Show chat view switcher"
-                    hint="The TUI / Bubble / Raw selector in the Chat top bar. Terminal TUI / Upgrades stays available."
+                    label={settingsText("app-settings-modal.53")}
+                    hint={settingsText("app-settings-modal.54")}
                     checked={showChatViewSwitcher}
-                    onChange={setShowChatViewSwitcher}
+                    onChange={setShowChatViewSwitcher} settingId="app-settings-modal.53"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  On by default. Hiding the switcher only removes that control; viewing the chat,
-                  Terminal TUI / Upgrades, and every navigation route stay available.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.55">
+                  {settingsText("app-settings-modal.55")}</p>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Sidebar
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="sidebar">
+                  {settingsText("sidebar")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Show sidebar collapse handle"
-                    hint="Floating handle on the desktop sidebar edge; the header and collapsed-rail buttons stay available."
+                    label={settingsText("app-settings-modal.56")}
+                    hint={settingsText("app-settings-modal.57")}
                     checked={showSidebarCollapseHandle}
-                    onChange={setShowSidebarCollapseHandle}
+                    onChange={setShowSidebarCollapseHandle} settingId="app-settings-modal.56"
                   />
                 </div>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Session list
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="session-list">
+                  {settingsText("session-list")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Show Group by"
-                    hint="When hidden, the Session list always uses Manager grouping."
+                    label={settingsText("app-settings-modal.58")}
+                    hint={settingsText("app-settings-modal.59")}
                     checked={showGroupBy}
-                    onChange={setShowGroupBy}
+                    onChange={setShowGroupBy} settingId="app-settings-modal.58"
                   />
                   <div className="px-3 py-2">
                     <label
                       htmlFor="app-settings-default-group-by"
-                      className="block text-xs text-text-secondary mb-1"
+                      className="block text-xs text-text-secondary mb-1" data-settings-id="app-settings-modal.60"
                     >
-                      Default group by
-                    </label>
+                      {settingsText("app-settings-modal.60")}</label>
                     <select
-                      id="app-settings-default-group-by"
+                      data-settings-id="app-settings-modal.60" id="app-settings-default-group-by"
                       value={defaultGroupBy}
                       onChange={(e) => setDefaultGroupBy(e.target.value as GroupMode)}
                       className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
                     >
                       {GROUP_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
+                        <option key={o.value} value={o.value} data-settings-id={o.labelId}>
                           {o.label}
                         </option>
                       ))}
                     </select>
-                    <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                      Applies to the session list as the default grouping. You can still cycle
-                      grouping per view with the group button.
-                    </p>
+                    <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.61">
+                      {settingsText("app-settings-modal.61")}</p>
                   </div>
                 </div>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Message visibility
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="message-visibility">
+                  {settingsText("message-visibility")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Show meta-agent info"
-                    hint="////by agent"
+                    label={settingsText("app-settings-modal.62")}
+                    hint={settingsText("app-settings-modal.63")}
                     checked={showMetaAgent}
-                    onChange={setShowMetaAgent}
+                    onChange={setShowMetaAgent} settingId="app-settings-modal.62"
                   />
                   <SwitchRow
-                    label="Show task-agent info"
-                    hint="@@@@by agent"
+                    label={settingsText("app-settings-modal.64")}
+                    hint={settingsText("app-settings-modal.65")}
                     checked={showTaskAgent}
-                    onChange={setShowTaskAgent}
+                    onChange={setShowTaskAgent} settingId="app-settings-modal.64"
                   />
                   <SwitchRow
-                    label="Show QQ messages"
-                    hint="@@@@by qq"
+                    label={settingsText("app-settings-modal.66")}
+                    hint={settingsText("app-settings-modal.67")}
                     checked={showQQ}
-                    onChange={setShowQQ}
+                    onChange={setShowQQ} settingId="app-settings-modal.66"
                   />
                 </div>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Message grouping
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="message-grouping">
+                  {settingsText("message-grouping")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Group consecutive tool and thinking blocks"
-                    hint="One collapsible parent per adjacent run; disabled by default."
+                    label={settingsText("app-settings-modal.68")}
+                    hint={settingsText("app-settings-modal.69")}
                     checked={mergeConsecutiveNonBodyBlocks}
-                    onChange={setMergeConsecutiveNonBodyBlocks}
+                    onChange={setMergeConsecutiveNonBodyBlocks} settingId="app-settings-modal.68"
                   />
                 </div>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Scroll position
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="scroll-position">
+                  {settingsText("scroll-position")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Keep reading position per session"
-                    hint="Restore where you were reading when you switch back to a session."
+                    label={settingsText("app-settings-modal.70")}
+                    hint={settingsText("app-settings-modal.71")}
                     checked={keepScrollOnSessionSwitch}
-                    onChange={setKeepScrollOnSessionSwitch}
+                    onChange={setKeepScrollOnSessionSwitch} settingId="app-settings-modal.70"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Off by default: selecting a session shows its newest message. Leaving and
-                  re-entering the Chat view (Editor / Manage / any route) always restores your
-                  position either way.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.72">
+                  {settingsText("app-settings-modal.72")}</p>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Quick location
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="quick-location">
+                  {settingsText("quick-location")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Show message navigation rail"
-                    hint="The narrow quick-location strip on the chat's right edge."
+                    label={settingsText("app-settings-modal.73")}
+                    hint={settingsText("app-settings-modal.74")}
                     checked={showMessageNavigationRail}
-                    onChange={setShowMessageNavigationRail}
+                    onChange={setShowMessageNavigationRail} settingId="app-settings-modal.73"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  On by default. The strip includes a background scan of the session history (one
-                  request per 200 messages), so turning it off saves that cost on long sessions.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.75">
+                  {settingsText("app-settings-modal.75")}</p>
               </section>
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  History search
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="history-search">
+                  {settingsText("history-search")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                  label="Enable Session and global history search"
-                  hint="Search the current Session or search messages across all Sessions."
+                  label={settingsText("app-settings-modal.76")}
+                  hint={settingsText("app-settings-modal.77")}
                     checked={showHistorySearch}
-                    onChange={setShowHistorySearch}
+                    onChange={setShowHistorySearch} settingId="app-settings-modal.76"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  On by default. Search starts only after you enter a query. Results use stable
-                  message IDs for navigation; older history without IDs may not appear.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.78">
+                  {settingsText("app-settings-modal.78")}</p>
               </section>
               <section className="border-t border-border-muted pt-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Reset
+                <h3 data-settings-id="reset-ui-preferences" className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  {settingsText('reset-ui-preferences')}
                 </h3>
-                <p className="text-[11px] text-text-tertiary leading-relaxed">
-                  Resets the UI preferences saved in config.json: the Appearance options, the
-                  Notification options, and the related Behavior toggles (new-Session Workspace
-                  placement, automatic Force send, worker stop reports, confirmation prompts)
-                  plus the Codex terminal input popup on Adapters. It does not reset Pan lifecycle policies, worker
-                  timeouts, Data retention, Remote settings, adapter model lists, or plugins.
-                </p>
+                <p className="text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.79">
+                  {settingsText("app-settings-modal.79")}</p>
                 <button
                   type="button"
                   onClick={resetSettings}
-                  className="mt-2 text-[11px] text-text-tertiary hover:text-text-primary underline underline-offset-2"
+                  className="mt-2 text-[11px] text-text-tertiary hover:text-text-primary underline underline-offset-2" data-settings-id="app-settings-modal.80"
                 >
-                  Reset saved UI preferences
-                </button>
+                  {settingsText("app-settings-modal.80")}</button>
               </section>
             </>
           ) : activeTab === 'shortcuts' ? (
@@ -1861,11 +1839,10 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 tabIndex={-1}
                 className="focus:outline-none"
               >
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Session legal-state lifecycle
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="session-lifecycle">
+                  {settingsText("session-lifecycle")}</h3>
                 {sessionLifecycleLoading && !sessionLifecycleLoaded && (
-                  <p className="mb-2 text-[11px] text-text-tertiary">Loading lifecycle preferences…</p>
+                  <p className="mb-2 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.81">{settingsText("app-settings-modal.81")}</p>
                 )}
                 {sessionLifecycleLoaded && (
                   <div className="space-y-3">
@@ -1874,11 +1851,10 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       tabIndex={-1}
                       className="rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                     >
-                      <label htmlFor="session-exit-strategy" className="mb-1 block text-xs text-text-secondary">
-                        Restart and Exit Session policy
-                      </label>
+                      <label htmlFor="session-exit-strategy" className="mb-1 block text-xs text-text-secondary" data-settings-id="app-settings-modal.82">
+                        {settingsText("app-settings-modal.82")}</label>
                       <select
-                        id="session-exit-strategy"
+                        data-settings-id="app-settings-modal.82" id="session-exit-strategy"
                         value={sessionLifecycle.exitStrategy}
                         disabled={
                           sessionLifecycleSaving ||
@@ -1892,17 +1868,16 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         })}
                         className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent disabled:opacity-60"
                       >
-                        <option value="ask">Ask every time</option>
-                        <option value="offline">Default to safely retiring stopped execution</option>
-                        <option value="preserve-running">Default to preserving unfinished execution as Illegal</option>
+                        <option value="ask" data-settings-id="app-settings-modal.83">{settingsText("app-settings-modal.83")}</option>
+                        <option value="offline" data-settings-id="app-settings-modal.84">{settingsText("app-settings-modal.84")}</option>
+                        <option value="preserve-running" data-settings-id="app-settings-modal.85">{settingsText("app-settings-modal.85")}</option>
                       </select>
-                      <p className="mt-1 text-[10px] text-text-tertiary">
-                        Every option stops live Workers before Restart or Exit.
-                      </p>
+                      <p className="mt-1 text-[10px] text-text-tertiary" data-settings-id="app-settings-modal.86">
+                        {settingsText("app-settings-modal.86")}</p>
                     </div>
                     <div>
-                      <label htmlFor="session-wake-message" className="mb-1 block text-xs text-text-secondary">Wake message</label>
-                      <textarea id="session-wake-message" key={sessionLifecycle.wakeMessage}
+                      <label htmlFor="session-wake-message" className="mb-1 block text-xs text-text-secondary" data-settings-id="app-settings-modal.87">{settingsText("app-settings-modal.87")}</label>
+                      <textarea data-settings-id="app-settings-modal.87" id="session-wake-message" key={sessionLifecycle.wakeMessage}
                         defaultValue={sessionLifecycle.wakeMessage || '继续'} maxLength={32000}
                         disabled={sessionLifecycleSaving}
                         onBlur={(event) => {
@@ -1913,18 +1888,17 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         }}
                         className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary"
                       />
-                      <p className="mt-1 text-[10px] text-text-tertiary">Wake enqueues this message, releases its Illegal lock and moves it to the front. Pause and other safety gates still apply. Saved when you leave this field.</p>
+                      <p className="mt-1 text-[10px] text-text-tertiary" data-settings-id="app-settings-modal.88">{settingsText("app-settings-modal.88")}</p>
                     </div>
                     <div
                       data-settings-anchor="startup-preference"
                       tabIndex={-1}
                       className="rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                     >
-                      <label htmlFor="session-startup-preference" className="mb-1 block text-xs text-text-secondary">
-                        Startup preference
-                      </label>
+                      <label htmlFor="session-startup-preference" className="mb-1 block text-xs text-text-secondary" data-settings-id="app-settings-modal.89">
+                        {settingsText("app-settings-modal.89")}</label>
                       <select
-                        id="session-startup-preference"
+                        data-settings-id="app-settings-modal.89" id="session-startup-preference"
                         value={sessionLifecycle.startupPreference}
                         disabled={sessionLifecycleSaving}
                         onChange={(event) => void saveSessionLifecycle({
@@ -1932,14 +1906,13 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         })}
                         className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent disabled:opacity-60"
                       >
-                        <option value="ask">Ask every time</option>
-                        <option value="wake-running">Automatically recover Illegal Sessions</option>
-                        <option value="clear-illegal">Clear Illegal status for all Sessions and treat them as safely offline</option>
-                        <option value="preserve-running">Keep Illegal Sessions pending recovery without waking them</option>
+                        <option value="ask" data-settings-id="app-settings-modal.90">{settingsText("app-settings-modal.90")}</option>
+                        <option value="wake-running" data-settings-id="app-settings-modal.91">{settingsText("app-settings-modal.91")}</option>
+                        <option value="clear-illegal" data-settings-id="app-settings-modal.92">{settingsText("app-settings-modal.92")}</option>
+                        <option value="preserve-running" data-settings-id="app-settings-modal.93">{settingsText("app-settings-modal.93")}</option>
                       </select>
-                      <p className="mt-1 text-[10px] text-text-tertiary">
-                        Clear Illegal retires previous incidents and releases their automatic locks; Manual locks and live or unknown owner protections remain.
-                      </p>
+                      <p className="mt-1 text-[10px] text-text-tertiary" data-settings-id="app-settings-modal.94">
+                        {settingsText("app-settings-modal.94")}</p>
                     </div>
                   </div>
                 )}
@@ -1950,25 +1923,23 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       type="button"
                       disabled={sessionLifecycleLoading}
                       onClick={() => setSessionLifecycleReloadSeq((value) => value + 1)}
-                      className="ml-2 underline underline-offset-2 disabled:opacity-60"
+                      className="ml-2 underline underline-offset-2 disabled:opacity-60" data-settings-id="app-settings-modal.95"
                     >
-                      Retry
-                    </button>
+                      {settingsText("app-settings-modal.95")}</button>
                   </div>
                 )}
               </section>
 
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Worker configuration
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="worker-config">
+                  {settingsText("worker-config")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <ReloadRow
-                    label="Edit worker config"
-                    hint="Worker timeout_sec / task_timeout_sec / idle_sec"
+                    label={settingsText("app-settings-modal.96")}
+                    hint={settingsText("app-settings-modal.97")}
                     busy={false}
                     action="Edit"
-                    onClick={openWorkerEdit}
+                    onClick={openWorkerEdit} settingId="app-settings-modal.96"
                   />
                 </div>
                 {reloadError && reloadSection === 'worker' && (
@@ -1983,37 +1954,31 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         const before = reloadResult.worker?.before[k];
                         const after = reloadResult.worker?.after[k];
                         return (
-                          <div key={k}>
-                            worker.{k}: {before ?? '?'} → {after ?? '?'}
+                          <div key={k} data-settings-id="app-settings-modal.98">
+                            {settingsText("app-settings-modal.98")}{k}: {before ?? '?'} → {after ?? '?'}
                             {before !== undefined && before !== after ? ' (changed)' : ''}
                           </div>
                         );
                       })}
                   </div>
                 )}
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Applies worker timeout changes without restarting the server.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.99">
+                  {settingsText("app-settings-modal.99")}</p>
               </section>
 
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Worker stop reports
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="worker-stop-reports">
+                  {settingsText("worker-stop-reports")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Report errors when stopping a running worker"
-                    hint="Applies when you stop a running or queued worker yourself."
+                    label={settingsText("app-settings-modal.100")}
+                    hint={settingsText("app-settings-modal.101")}
                     checked={reportWorkerKillErrors}
-                    onChange={(v) => void toggleReportWorkerKillErrors(v)}
+                    onChange={(v) => void toggleReportWorkerKillErrors(v)} settingId="app-settings-modal.100"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Off by default. While off, stopping a worker yourself never queues an error
-                  report for its Manager. Real crashes, abnormal exits, and watchdog timeouts
-                  are still reported. The stop itself, task cleanup, and queue state are
-                  unaffected either way.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.102">
+                  {settingsText("app-settings-modal.102")}</p>
                 {killReportError && (
                   <div role="alert" className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
                     {killReportError}
@@ -2022,41 +1987,33 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               </section>
 
               <section data-testid="auto-force-send-section">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Message auto force send
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="auto-force-send">
+                  {settingsText("auto-force-send")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Job terminal notifications"
-                    hint="background_job_terminal notices"
+                    label={settingsText("app-settings-modal.103")}
+                    hint={settingsText("app-settings-modal.104")}
                     checked={autoForceSend.system}
                     disabled={autoForceSaving !== null}
-                    onChange={(v) => void toggleAutoForceSend('system', v)}
+                    onChange={(v) => void toggleAutoForceSend('system', v)} settingId="app-settings-modal.103"
                   />
                   <SwitchRow
-                    label="Meta-agent (MA) messages"
-                    hint="sender is the target's manager/ancestor"
+                    label={settingsText("app-settings-modal.105")}
+                    hint={settingsText("app-settings-modal.106")}
                     checked={autoForceSend.ma}
                     disabled={autoForceSaving !== null}
-                    onChange={(v) => void toggleAutoForceSend('ma', v)}
+                    onChange={(v) => void toggleAutoForceSend('ma', v)} settingId="app-settings-modal.105"
                   />
                   <SwitchRow
-                    label="Completion reports"
-                    hint="report / manual report items"
+                    label={settingsText("app-settings-modal.107")}
+                    hint={settingsText("app-settings-modal.108")}
                     checked={autoForceSend.report}
                     disabled={autoForceSaving !== null}
-                    onChange={(v) => void toggleAutoForceSend('report', v)}
+                    onChange={(v) => void toggleAutoForceSend('report', v)} settingId="app-settings-modal.107"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  All off by default. Applies only to newly enqueued messages and reuses Force
-                  send routing: native Steer while running, otherwise move the original item to
-                  the queue head and restart. Idle Sessions use a normal send. Pause, read-only,
-                  Illegal locks, edit leases, delayed restarts, and unknown Steer outcomes are
-                  never bypassed (accepted means the CLI accepted it, not that the model consumed
-                  it). Original queue IDs, sources, tasks, attachments, and bodies are preserved;
-                  nothing is enqueued twice.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.109">
+                  {settingsText("app-settings-modal.109")}</p>
                 {autoForceError && (
                   <div role="alert" className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
                     {autoForceError}
@@ -2065,64 +2022,60 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               </section>
 
               <section data-testid="illegal-queue-behavior-section">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Illegal queue safety
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="illegal-queue-safety">
+                  {settingsText("illegal-queue-safety")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Automatically lock queued messages when Illegal"
-                    hint="Locks messages already queued when the Session enters Illegal and new messages added while Illegal. Turning this off does not unlock existing locks."
+                    label={settingsText("app-settings-modal.110")}
+                    hint={settingsText("app-settings-modal.111")}
                     checked={behavior.autoLockIllegalQueue}
                     disabled={behaviorSaving}
-                    onChange={(v) => void toggleIllegalAutoLock(v)}
+                    onChange={(v) => void toggleIllegalAutoLock(v)} settingId="app-settings-modal.110"
                   />
                 </div>
               </section>
 
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  New Sessions
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="new-sessions">
+                  {settingsText("new-sessions")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="Place new Sessions in the current Workspace by default"
-                    hint="Sessions created from All or Ungrouped remain ungrouped."
+                    label={settingsText("app-settings-modal.112")}
+                    hint={settingsText("app-settings-modal.113")}
                     checked={defaultNewSessionToCurrentWorkspace}
-                    onChange={setDefaultNewSessionToCurrentWorkspace}
+                    onChange={setDefaultNewSessionToCurrentWorkspace} settingId="app-settings-modal.112"
                   />
                 </div>
               </section>
 
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Confirmations
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="confirmations">
+                  {settingsText("confirmations")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <SwitchRow
-                    label="修改 agent/系统队列消息前确认"
-                    hint="关闭仅跳过提醒，仍遵循队列编辑校验。"
+                    label={settingsText("app-settings-modal.114")}
+                    hint={settingsText("app-settings-modal.115")}
                     checked={notifications.confirmAgentSystemQueueEdit}
-                    onChange={setConfirmAgentSystemQueueEdit}
+                    onChange={setConfirmAgentSystemQueueEdit} settingId="app-settings-modal.114"
                   />
                   <SwitchRow
-                    label="Confirm management changes across workspaces"
-                    hint="Moving a managed Session subtree to another workspace detaches it from its current manager."
+                    label={settingsText("app-settings-modal.116")}
+                    hint={settingsText("app-settings-modal.117")}
                     checked={notifications.confirmCrossWorkspaceManagement}
-                    onChange={setConfirmCrossWorkspaceManagement}
+                    onChange={setConfirmCrossWorkspaceManagement} settingId="app-settings-modal.116"
                   />
                 </div>
               </section>
 
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Memory advanced
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="memory-advanced">
+                  {settingsText("memory-advanced")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <ReloadRow
-                    label="Reload memory config"
-                    hint="memory.enabled injection switch"
+                    label={settingsText("app-settings-modal.118")}
+                    hint={settingsText("app-settings-modal.119")}
                     busy={reloadScope === 'memory'}
-                    onClick={() => handleReload('memory')}
+                    onClick={() => handleReload('memory')} settingId="app-settings-modal.118"
                   />
                 </div>
                 {reloadError && reloadSection === 'memory' && (
@@ -2133,8 +2086,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 {!reloadError && reloadResult && reloadSection === 'memory' && (
                   <div className="mt-2 rounded-md border border-border-muted bg-bg-tertiary px-3 py-2 text-[11px] font-mono text-text-secondary space-y-0.5">
                     {reloadResult.memory && (
-                      <div>
-                        memory.enabled: {String(reloadResult.memory.before.enabled ?? '?')} →{' '}
+                      <div data-settings-id="app-settings-modal.120">
+                        {settingsText("app-settings-modal.120")}{String(reloadResult.memory.before.enabled ?? '?')} →{' '}
                         {String(reloadResult.memory.after.enabled ?? '?')}
                         {reloadResult.memory.before.enabled !== undefined &&
                         reloadResult.memory.before.enabled !== reloadResult.memory.after.enabled
@@ -2153,14 +2106,15 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               section with enabled=true. Restart kills only Pan's own
               launcher-recorded tunnel process and picks up port +
               remote.protocol. */}
-              {remoteStatus?.available && remoteStatus.enabled && (
+              {remoteStatus && settingsVisible('remoteTunnel', { remoteTunnel: Boolean(remoteStatus.available && remoteStatus.enabled) }) && (
                 <RemoteSettingsSection
                   id="remote-tunnel"
+                  settingId="remote-tunnel"
                   testId="remote-tunnel-section"
-                  title="Remote / Tunnel"
-                  description="cloudflared 隧道，由 Pan 启动器托管；重启会按当前 config.json 重新拉起。"
+                  title={settingsText("remote-tunnel")}
+                  description={settingsText("app-settings-modal.121")}
                   status={<RemoteStatus tone={remoteStatus.running ? 'ok' : 'off'}>
-                    cloudflared · {remoteStatus.running ? 'running' : 'stopped'}
+                    {settingsText("app-settings-modal.122")}{remoteStatus.running ? 'running' : 'stopped'}
                     {remoteStatus.protocol ? ` · ${remoteStatus.protocol}` : ''}
                     {remoteStatus.port ? ` · :${remoteStatus.port}` : ''}
                   </RemoteStatus>}
@@ -2170,10 +2124,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       {remoteBusy ? 'Restarting…' : 'Restart tunnel'}
                     </Button>
                   </div>
-                  <p className="text-[11px] text-text-tertiary leading-relaxed">
-                    Stops Pan's own launcher-recorded cloudflared only — the cloudflared-ssh service
-                    is untouched — and restarts it with the current config.json.
-                  </p>
+                  <p className="text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.123">
+                    {settingsText("app-settings-modal.123")}</p>
                 </RemoteSettingsSection>
               )}
               <McpRemoteSettings />
@@ -2185,15 +2137,14 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               <LocalPluginPanelsSettings />
               <QqPluginsPanel />
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Plugin manifests
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="plugin-manifests">
+                  {settingsText("plugin-manifests")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <ReloadRow
-                    label="Reload plugin manifests"
-                    hint="plugin_manifests list in config.json (add/remove manifests)"
+                    label={settingsText("app-settings-modal.124")}
+                    hint={settingsText("app-settings-modal.125")}
                     busy={reloadScope === 'plugin'}
-                    onClick={() => handleReload('plugin')}
+                    onClick={() => handleReload('plugin')} settingId="app-settings-modal.124"
                   />
                 </div>
                 {reloadError && reloadSection === 'plugin' && (
@@ -2206,10 +2157,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     {reloadResult.plugin && <PluginResult plugin={reloadResult.plugin} />}
                   </div>
                 )}
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Re-applies the plugin_manifests list; port / logging / remote stay
-                  startup-frozen and need a server restart to apply.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.126">
+                  {settingsText("app-settings-modal.126")}</p>
               </section>
             </>
           ) : activeTab === 'data' ? (
@@ -2234,13 +2183,11 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               restarts. The API only schedules a detached supervisor; the
               browser expects a short disconnect while Pan is replaced. */}
               <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Pan service
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="pan-service">
+                  {settingsText("pan-service")}</h3>
                 {mainLifecycleStatusLoading && (
-                  <p className="mb-2 text-[11px] text-text-tertiary">
-                    Checking current Pan lifecycle status…
-                  </p>
+                  <p className="mb-2 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.127">
+                    {settingsText("app-settings-modal.127")}</p>
                 )}
                 {mainLifecycleStatusError && (
                   <div role="alert" className="mb-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
@@ -2249,19 +2196,15 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       type="button"
                       disabled={mainLifecycleStatusLoading}
                       onClick={() => void refreshMainLifecycleStatus()}
-                      className="ml-2 underline underline-offset-2 disabled:opacity-60"
+                      className="ml-2 underline underline-offset-2 disabled:opacity-60" data-settings-id="app-settings-modal.128"
                     >
-                      Refresh status
-                    </button>
+                      {settingsText("app-settings-modal.128")}</button>
                   </div>
                 )}
                 {mainRestartState === 'confirming' ? (
                   <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-3">
-                    <p className="text-xs text-text-primary">
-                      Restart the Pan main service? The dashboard will briefly disconnect and all
-                      workers will be stopped; durable queued work is recovered by the new service
-                      process.
-                    </p>
+                    <p className="text-xs text-text-primary" data-settings-id="app-settings-modal.129">
+                      {settingsText("app-settings-modal.129")}</p>
                     <MainLifecycleRunningChoice
                       strategy={sessionLifecycle.exitStrategy}
                       markRunningOffline={mainLifecycleMarkRunningOffline}
@@ -2296,10 +2239,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                           mainExitState === 'exiting' ||
                           mainLifecycleActionInFlightRef.current
                         }
-                        className="rounded bg-warning px-3 py-1.5 text-xs text-black hover:opacity-90"
+                        className="rounded bg-warning px-3 py-1.5 text-xs text-black hover:opacity-90" data-settings-id="app-settings-modal.130"
                       >
-                        Confirm restart
-                      </button>
+                        {settingsText("app-settings-modal.130")}</button>
                     </div>
                   </div>
                 ) : (
@@ -2328,9 +2270,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     className="w-full flex items-center justify-between gap-3 rounded-md border border-border-muted bg-bg-primary px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="min-w-0">
-                      <span className="block text-xs text-text-primary">
-                        Restart Pan main service
-                      </span>
+                      <span className="block text-xs text-text-primary" data-settings-id="app-settings-modal.131">
+                        {settingsText("app-settings-modal.131")}</span>
                       <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
                         {mainRestartState === 'restarting'
                           ? mainRestartHealthCheckActive
@@ -2354,15 +2295,13 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   <button
                     type="button"
                     onClick={cancelMainRestartCheck}
-                    className="mt-2 text-[11px] text-text-tertiary hover:text-text-primary underline underline-offset-2"
+                    className="mt-2 text-[11px] text-text-tertiary hover:text-text-primary underline underline-offset-2" data-settings-id="app-settings-modal.132"
                   >
-                    Stop checking (restart continues)
-                  </button>
+                    {settingsText("app-settings-modal.132")}</button>
                 )}
                 {mainRestartState === 'restored' && (
-                  <p className="mt-1.5 text-[11px] text-success">
-                    Pan main service is healthy again.
-                  </p>
+                  <p className="mt-1.5 text-[11px] text-success" data-settings-id="app-settings-modal.133">
+                    {settingsText("app-settings-modal.133")}</p>
                 )}
                 {mainRestartError && (
                   <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
@@ -2370,22 +2309,18 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   </div>
                 )}
                 {mainRestartState === 'cancelled' && (
-                  <p className="mt-1.5 text-[11px] text-text-tertiary">
-                    Health checking stopped; the scheduled restart was not cancelled.
-                  </p>
+                  <p className="mt-1.5 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.134">
+                    {settingsText("app-settings-modal.134")}</p>
                 )}
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Restarts this Pan instance through the internal Python launcher supervisor.
-                  Worker and Remote/Tunnel restart controls are separate.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.135">
+                  {settingsText("app-settings-modal.135")}</p>
               </section>
 
               {/* Both buttons only navigate to the real Behavior settings.
               They never schedule Restart/Exit and never write a value. */}
-              <section aria-label="Session policy shortcuts">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Session policy
-                </h3>
+              <section aria-label={settingsText("app-settings-modal.136")} data-settings-id="app-settings-modal.136">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="session-policy">
+                  {settingsText("session-policy")}</h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <button
                     type="button"
@@ -2394,14 +2329,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors"
                   >
                     <span className="min-w-0">
-                      <span className="block text-xs text-text-primary">
-                        退出/重启时的Session策略
-                      </span>
-                      <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
-                        Behavior → Restart and Exit Session policy
-                      </span>
+                      <span className="block text-xs text-text-primary" data-settings-id="app-settings-modal.137">
+                        {settingsText("app-settings-modal.137")}</span>
+                      <span className="block text-[10px] text-text-tertiary font-mono mt-0.5" data-settings-id="app-settings-modal.138">
+                        {settingsText("app-settings-modal.138")}</span>
                     </span>
-                    <span className="shrink-0 text-[11px] text-text-tertiary">Open</span>
+                    <span className="shrink-0 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.139">{settingsText("app-settings-modal.139")}</span>
                   </button>
                   <button
                     type="button"
@@ -2410,20 +2343,16 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors"
                   >
                     <span className="min-w-0">
-                      <span className="block text-xs text-text-primary">
-                        启动后的Session恢复策略
-                      </span>
-                      <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
-                        Behavior → Startup preference
-                      </span>
+                      <span className="block text-xs text-text-primary" data-settings-id="app-settings-modal.140">
+                        {settingsText("app-settings-modal.140")}</span>
+                      <span className="block text-[10px] text-text-tertiary font-mono mt-0.5" data-settings-id="app-settings-modal.141">
+                        {settingsText("app-settings-modal.141")}</span>
                     </span>
-                    <span className="shrink-0 text-[11px] text-text-tertiary">Open</span>
+                    <span className="shrink-0 text-[11px] text-text-tertiary" data-settings-id="app-settings-modal.142">{settingsText("app-settings-modal.142")}</span>
                   </button>
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Opens the matching Behavior setting. It does not restart or exit Pan and does
-                  not change the saved policy.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.143">
+                  {settingsText("app-settings-modal.143")}</p>
               </section>
 
               <LoginStartupSettings />
@@ -2431,15 +2360,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               {/* Stop-only Pan exit — intentionally has no health-recovery
               polling because this action makes the current service unavailable. */}
               <section className="mt-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                  Exit Pan service
-                </h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2" data-settings-id="exit-pan-service">
+                  {settingsText("exit-pan-service")}</h3>
                 {mainExitState === 'confirming' ? (
                   <div className="rounded-md border border-danger/40 bg-danger/10 px-3 py-3">
-                    <p className="text-xs text-text-primary">
-                      Stop this Pan service and all live Workers? Pan will not restart and the
-                      dashboard will disconnect after the stop is scheduled.
-                    </p>
+                    <p className="text-xs text-text-primary" data-settings-id="app-settings-modal.144">
+                      {settingsText("app-settings-modal.144")}</p>
                     <MainLifecycleRunningChoice
                       strategy={sessionLifecycle.exitStrategy}
                       markRunningOffline={mainLifecycleMarkRunningOffline}
@@ -2474,10 +2400,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                           mainRestartState === 'restarting' ||
                           mainLifecycleActionInFlightRef.current
                         }
-                        className="rounded bg-danger px-3 py-1.5 text-xs text-white hover:opacity-90"
+                        className="rounded bg-danger px-3 py-1.5 text-xs text-white hover:opacity-90" data-settings-id="app-settings-modal.145"
                       >
-                        Confirm exit
-                      </button>
+                        {settingsText("app-settings-modal.145")}</button>
                     </div>
                   </div>
                 ) : (
@@ -2506,7 +2431,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                     className="w-full flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-bg-primary px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="min-w-0">
-                      <span className="block text-xs text-text-primary">Exit Pan main service</span>
+                      <span className="block text-xs text-text-primary" data-settings-id="app-settings-modal.146">{settingsText("app-settings-modal.146")}</span>
                       <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
                         {mainExitState === 'exiting'
                           ? 'Stopping Workers and Pan…'
@@ -2525,19 +2450,16 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   </button>
                 )}
                 {mainExitState === 'exited' && (
-                  <p className="mt-1.5 text-[11px] text-success">
-                    Pan exit is scheduled. No health-recovery check will run.
-                  </p>
+                  <p className="mt-1.5 text-[11px] text-success" data-settings-id="app-settings-modal.147">
+                    {settingsText("app-settings-modal.147")}</p>
                 )}
                 {mainExitError && (
                   <div className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
                     {mainExitError}
                   </div>
                 )}
-                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
-                  Pan first closes its own live Workers through the internal shutdown path, then a
-                  detached stop-only supervisor stops this checkout. Restart remains separate.
-                </p>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed" data-settings-id="app-settings-modal.148">
+                  {settingsText("app-settings-modal.148")}</p>
               </section>
 
             </>

@@ -1,3 +1,5 @@
+import { useSettingsAvailability } from './settingsAvailability';
+import { settingsText } from '@/components/layout/settingsCatalog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   buildLocalPluginPanel, fetchLocalPluginPanels, setLocalPluginPanelEnabled, unbuildLocalPluginPanel,
@@ -36,6 +38,7 @@ export function LocalPluginPanelsSettings() {
       const next = await fetchLocalPluginPanels();
       if (mounted.current) {
         setPanels(next);
+        useSettingsAvailability.setState({localPanels: next.length > 0});
         setLoaded(true);
         setError(null);
       }
@@ -82,19 +85,17 @@ export function LocalPluginPanelsSettings() {
     }
   };
 
-  return <section className="space-y-3" aria-label="Local plugin panels">
+  return <section className="space-y-3" aria-label={settingsText("local-plugin-panels")} data-settings-id="local-plugin-panels">
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">Local plugin panels</h3>
-      <p className="mt-1 text-[11px] text-text-secondary">
-        Build a plugin-declared web UI, enable it, then open it from the view entries. A panel can only be
-        enabled after a successful build; a failed rebuild keeps the previous build.
-      </p>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary" data-settings-id="local-plugin-panels-settings.1">{settingsText("local-plugin-panels-settings.1")}</h3>
+      <p className="mt-1 text-[11px] text-text-secondary" data-settings-id="local-plugin-panels-settings.2">
+        {settingsText("local-plugin-panels-settings.2")}</p>
     </div>
     {error && <p role="alert" className="rounded border border-danger/30 bg-danger/10 p-2 text-xs text-danger">{error}</p>}
     {!loaded && !error && <p className="text-xs text-text-secondary">Loading…</p>}
     {loaded && panels.length === 0 && (
-      <p className="rounded border border-border-default bg-bg-primary p-2 text-xs text-text-secondary">
-        No panels declare <span className="font-mono">web-app/v1</span>.
+      <p className="rounded border border-border-default bg-bg-primary p-2 text-xs text-text-secondary" data-settings-id="local-plugin-panels-settings.3">
+        {settingsText("local-plugin-panels-settings.3")}<span className="font-mono" data-settings-id="local-plugin-panels-settings.4">{settingsText("local-plugin-panels-settings.4")}</span>.
       </p>
     )}
     {panels.map((panel) => {
@@ -120,30 +121,30 @@ export function LocalPluginPanelsSettings() {
             disabled={pending || panel.status === 'building' || !panel.available || panel.enabled}
             title={!panel.available ? 'Build the panel before enabling it' : undefined}
             onClick={() => void run(panel, key('enable'),
-              () => setLocalPluginPanelEnabled(panel.pluginId, panel.panelId, true), true)}>Enable</button>
+              () => setLocalPluginPanelEnabled(panel.pluginId, panel.panelId, true), true)} data-settings-id="local-plugin-panels-settings.5">{settingsText("local-plugin-panels-settings.5")}</button>
           <button type="button" className={button} disabled={pending || panel.status === 'building' || !panel.enabled}
             onClick={() => void run(panel, key('disable'),
-              () => setLocalPluginPanelEnabled(panel.pluginId, panel.panelId, false), true)}>Disable</button>
+              () => setLocalPluginPanelEnabled(panel.pluginId, panel.panelId, false), true)} data-settings-id="local-plugin-panels-settings.6">{settingsText("local-plugin-panels-settings.6")}</button>
           <button type="button" className={dangerButton}
             disabled={pending || panel.status === 'building' || (!panel.available && panel.status === 'unbuilt')}
             onClick={() => void run(panel, key('unbuild'),
-              () => unbuildLocalPluginPanel(panel.pluginId, panel.panelId), true)}>Unbuild</button>
+              () => unbuildLocalPluginPanel(panel.pluginId, panel.panelId), true)} data-settings-id="local-plugin-panels-settings.7">{settingsText("local-plugin-panels-settings.7")}</button>
           {panel.available && panel.builtAt != null && (
-            <span className="ml-auto text-[10px] text-text-tertiary">
-              Built {new Date(panel.builtAt).toLocaleString()}
+            <span className="ml-auto text-[10px] text-text-tertiary" data-settings-id="local-plugin-panels-settings.8">
+              {settingsText("local-plugin-panels-settings.8")}{new Date(panel.builtAt).toLocaleString()}
             </span>
           )}
         </div>
         {actionError[id] && <p role="alert" className="text-[11px] text-danger break-words">{actionError[id]}</p>}
         {panel.status === 'building' && (
-          <p role="status" className="text-[11px] text-accent">Build in progress…</p>
+          <p role="status" className="text-[11px] text-accent" data-settings-id="local-plugin-panels-settings.9">{settingsText("local-plugin-panels-settings.9")}</p>
         )}
         {panel.lastError && panel.status !== 'building' && (
           <p role="status" className="text-[11px] text-warning break-words">{panel.lastError}</p>
         )}
         {panel.log && (
           <details open>
-            <summary className="cursor-pointer text-[10px] text-text-tertiary">Build log</summary>
+            <summary className="cursor-pointer text-[10px] text-text-tertiary" data-settings-id="local-plugin-panels-settings.10">{settingsText("local-plugin-panels-settings.10")}</summary>
             <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded border border-border-muted bg-bg-tertiary p-2 font-mono text-[10px] text-text-secondary">
               {panel.log}
             </pre>

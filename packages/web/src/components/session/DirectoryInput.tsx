@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronUp, File as FileIcon, Folder, Loader2 } from 'lucide-react';
 import { fetchDirectories, pickNativeServerDirectory, type DirectoryListResponse } from '@/services/api';
 import { Button } from '@/components/ui/Button';
@@ -84,7 +84,7 @@ export function DirectoryInput({
 
   // Typing, a different prefill or a reopen makes any pending dialog result
   // stale: keep what the user has and drop the late answer.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const applied = nativeAppliedRef.current;
     nativeAppliedRef.current = null;
     if (applied !== null && value === applied) return;
