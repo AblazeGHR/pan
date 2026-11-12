@@ -49,7 +49,19 @@ def client(h, tcp):
     return httpx.Client(base_url=tcp, trust_env=False, headers={'Authorization': 'Bearer ' + h.token})
 
 
-def test_P6_CONFIG_01_actual_http_create_patch_cold_cursor_count_no_legacy_write(h, tcp):
+@pytest.mark.parametrize('slow_dispatch', [False, True], ids=['normal', 'slow-provider'])
+def test_P6_CONFIG_01_actual_http_create_patch_cold_cursor_count_no_legacy_write(h, tcp, monkeypatch, slow_dispatch):
+    import time
+    original_execute = h.service.executor.execute
+    calls = []
+    async def execute(**kwargs):
+        calls.append(copy.deepcopy(kwargs['effect_key']))
+        if slow_dispatch:
+            # A synchronous run-now waits for this original provider receipt.
+            # Keep the real executor and durable queue path after the delay.
+            await asyncio.sleep(5.25)
+        return await original_execute(**kwargs)
+    monkeypatch.setattr(h.service.executor, 'execute', execute)
     original = (h.root / h.mapping['sourceFile']).read_bytes()
     payload = {'targetSessionId': h.source['targetSessionId'], 'text': 'created task body',
         'schedule': {'kind': 'interval', 'intervalSec': 60, 'anchor': '2030-01-01T00:00:00', 'timezone': 'Asia/Shanghai'},
@@ -74,7 +86,16 @@ def test_P6_CONFIG_01_actual_http_create_patch_cold_cursor_count_no_legacy_write
         assert task['nextFireAt'] == cursor
         stale = c.patch('/api/scheduler/tasks/' + tid, json={'name': 'stale', 'expectedRevision': 1, 'requestKey': 'stale-edit'})
         assert stale.status_code == 409
-        ran = c.post('/api/scheduler/tasks/' + tid + '/run-now', json={'requestKey': 'new-task-sync'}).json()
+        started = time.monotonic()
+        # This endpoint waits for the original dispatch and durable provider
+        # receipt. Match the product HTTP transport's 30s operation budget;
+        # leave CRUD/replay reads on the client's default 5s timeout.
+        ran = c.post('/api/scheduler/tasks/' + tid + '/run-now', json={'requestKey': 'new-task-sync'}, timeout=30).json()
+        elapsed = time.monotonic() - started
+        if slow_dispatch:
+            assert elapsed >= 5.25
+        print('P6_CONFIG_SYNC_RECEIPT', json.dumps({'slowProvider': slow_dispatch, 'elapsed': elapsed,
+            'operation': ran['operation'], 'run': ran['run']}))
         assert ran['run']['status'] == 'dispatched', ran
         assert ran['run']['run']['result']['status'] == 'queued', ran
         from packages.core import session as sessions
@@ -85,6 +106,7 @@ def test_P6_CONFIG_01_actual_http_create_patch_cold_cursor_count_no_legacy_write
         assert again['operation']['runId'] == rid
         assert c.get('/api/scheduler/tasks/' + tid + '/runs').json()['runs'][0]['runId'] == rid
         assert c.get('/api/scheduler/tasks/' + tid).json()['task']['runCount'] == 1
+        assert len(calls) == 1
     cold = FinalService(h.service.root, h.service.auth)
     try:
         assert project(cold, tid, actor=USER)['task']['text'] == 'edited before dispatch'

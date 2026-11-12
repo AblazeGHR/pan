@@ -10,6 +10,11 @@ from playwright.sync_api import expect, sync_playwright
 from tests.test_real_queue_http_e2e import (
     ROOT, PORT, _PanRuntime, _EventRecorder, _create, _wait_for, _received,
 )
+from test_delayed_restart_locked_queue_http import _read_session_metadata
+
+
+def _stored(data, sid):
+    return _read_session_metadata(data / 'sessions' / f'{sid}.json')
 
 
 @pytest.mark.timeout(120)
@@ -36,7 +41,7 @@ def test_source_policy_real_http_ws_browser(tmp_path):
         return runtime.request(method, path, **({'json': body} if body is not None else {}))
 
     def stored(sid):
-        return json.loads((data / 'sessions' / f'{sid}.json').read_text(encoding='utf-8'))
+        return _stored(data, sid)
 
     def done(sid, count):
         return _wait_for(lambda: len(stored(sid).get('terminal_results', [])) >= count,
