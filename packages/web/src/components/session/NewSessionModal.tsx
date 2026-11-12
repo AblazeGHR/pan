@@ -680,6 +680,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
             onChange={setWorkdir}
             onSelect={setWorkdir}
             selectDirectories
+            nativeDirectoryPicker
             inputTestId="new-session-workdir-input"
           />
         </div>

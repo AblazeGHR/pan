@@ -1,4 +1,4 @@
-"""Isolated Windows file dialog. This module never registers or copies files."""
+"""Isolated Windows file/folder dialog. This module never registers or copies files."""
 import asyncio
 import atexit
 import ctypes
@@ -7,6 +7,10 @@ import os
 from pathlib import Path
 import subprocess
 import threading
+
+#: One helper, two dialog kinds: attachment file multi-select and the single
+#: working-directory selection used before a Session exists.
+_MODES = frozenset({'files', 'directories'})
 
 
 def interactive_desktop() -> bool:
@@ -31,14 +35,18 @@ class NativeFilePicker:
         self._process = None
         self._closed = False
 
-    async def pick(self, directory: str = '') -> dict:
+    async def pick(self, directory: str = '', mode: str = 'files') -> dict:
+        # The mode is part of the fixed helper protocol; an unknown value must
+        # fail explicitly instead of falling back to another dialog kind.
+        if mode not in _MODES:
+            return {'status': 'failed', 'paths': []}
         if not self._gate.acquire(blocking=False):
             return {'status': 'busy', 'paths': []}
         # Shield the bounded owner so HTTP cancellation cannot strand the gate
         # or transfer process cleanup to a different request.
-        return await asyncio.shield(asyncio.to_thread(self._pick, directory))
+        return await asyncio.shield(asyncio.to_thread(self._pick, directory, mode))
 
-    def _pick(self, directory: str) -> dict:
+    def _pick(self, directory: str, mode: str) -> dict:
         process = None
         try:
             if not interactive_desktop():
@@ -64,7 +72,10 @@ class NativeFilePicker:
                 self._process = process
             # UTF-8 input is ASCII escaped; PowerShell stdout JSON may contain
             # non-ASCII filenames, so explicitly request UTF-8 in the helper.
-            output, _ = process.communicate(json.dumps({'directory': initial}).encode('ascii'), timeout=self.timeout)
+            output, _ = process.communicate(
+                json.dumps({'directory': initial, 'mode': mode}).encode('ascii'),
+                timeout=self.timeout,
+            )
             result = json.loads(output.decode('utf-8-sig'))
             if not isinstance(result, dict):
                 return {'status': 'failed', 'paths': []}
@@ -74,6 +85,9 @@ class NativeFilePicker:
             if not isinstance(paths, list) or len(paths) > 256 or any(not isinstance(p, str) or not Path(p).is_absolute() for p in paths):
                 return {'status': 'failed', 'paths': []}
             if result['status'] == 'selected' and not paths:
+                return {'status': 'failed', 'paths': []}
+            # One folder dialog can only return the one selected folder.
+            if result['status'] == 'selected' and mode == 'directories' and len(paths) != 1:
                 return {'status': 'failed', 'paths': []}
             return {'status': result['status'], 'paths': paths if result['status'] == 'selected' else []}
         except subprocess.TimeoutExpired:

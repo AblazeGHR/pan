@@ -55,9 +55,36 @@ def test_selected_paths_only_fixed_helper_hidden_no_cwd_or_shell(helper, tmp_pat
     assert '-STA' in argv
     assert 'shell' not in options and 'cwd' not in options
     assert options['creationflags'] == subprocess.CREATE_NO_WINDOW
-    assert json.loads(process.inputs[0]) == {'directory': str(tmp_path.resolve())}
+    assert json.loads(process.inputs[0]) == {'directory': str(tmp_path.resolve()), 'mode': 'files'}
     assert native.os.getcwd() == original
     assert list(tmp_path.iterdir()) == []
+
+
+def test_directory_mode_is_explicit_in_the_same_fixed_helper(helper, tmp_path):
+    process, calls = helper
+    process.result = {'status': 'selected', 'paths': [str(tmp_path)]}
+    result = asyncio.run(native.NativeFilePicker().pick(str(tmp_path), 'directories'))
+    assert result == {'status': 'selected', 'paths': [str(tmp_path)]}
+    assert len(calls) == 1
+    assert json.loads(process.inputs[0]) == {
+        'directory': str(tmp_path.resolve()), 'mode': 'directories',
+    }
+
+
+def test_directory_mode_requires_exactly_one_selected_folder(helper, tmp_path):
+    process, _ = helper
+    process.result = {'status': 'selected', 'paths': [str(tmp_path), str(tmp_path / 'two')]}
+    assert asyncio.run(native.NativeFilePicker().pick('', 'directories')) == {
+        'status': 'failed', 'paths': [],
+    }
+
+
+def test_unknown_mode_fails_without_spawning_or_taking_the_gate(helper):
+    _, calls = helper
+    picker = native.NativeFilePicker()
+    assert asyncio.run(picker.pick('', 'everything')) == {'status': 'failed', 'paths': []}
+    assert not calls
+    assert not picker._gate.locked()
 
 
 @pytest.mark.parametrize('status', ['cancelled', 'failed'])
@@ -164,4 +191,62 @@ def test_api_invalid_session_and_directory(monkeypatch):
     monkeypatch.setattr(server.sess, 'get', lambda sid: object())
     with pytest.raises(HTTPException) as error:
         asyncio.run(server.pick_native_server_files('present', {'directory': ['invalid']}))
+    assert error.value.status_code == 400
+
+
+def test_attachment_route_keeps_file_mode(helper, monkeypatch, tmp_path):
+    import packages.web.server as server
+    from packages.core.session import Session
+    session = Session(id='ses_native_files', name='native files', workdir=str(tmp_path))
+    monkeypatch.setattr(server.sess, 'get', lambda sid: session if sid == session.id else None)
+    monkeypatch.setattr(native, 'native_file_picker', native.NativeFilePicker())
+    asyncio.run(server.pick_native_server_files(session.id, {'directory': str(tmp_path)}))
+    # A mode sent to the attachment route cannot turn it into a folder dialog.
+    asyncio.run(server.pick_native_server_files(
+        session.id, {'directory': str(tmp_path), 'mode': 'directories'},
+    ))
+    payloads = [json.loads(item) for item in helper[0].inputs if item]
+    assert payloads == [
+        {'directory': str(tmp_path.resolve()), 'mode': 'files'},
+        {'directory': str(tmp_path.resolve()), 'mode': 'files'},
+    ]
+
+
+def test_sessionless_directory_picker_needs_no_session_and_registers_nothing(
+    monkeypatch, tmp_path,
+):
+    import packages.web.server as server
+
+    class Picker:
+        def __init__(self):
+            self.calls = []
+
+        async def pick(self, directory: str = '', mode: str = 'files'):
+            self.calls.append((directory, mode))
+            return {'status': 'selected', 'paths': [str(tmp_path / 'picked')]}
+
+    picker = Picker()
+    monkeypatch.setattr(native, 'native_file_picker', picker)
+
+    def refuse_session_lookup(session_id):
+        raise AssertionError('the folder picker must not require or create a Session')
+
+    monkeypatch.setattr(server.sess, 'get', refuse_session_lookup)
+    monkeypatch.setattr(server, 'ATTACHMENTS_DIR', tmp_path / 'attachments')
+    result = asyncio.run(server.pick_native_server_directory({'directory': str(tmp_path)}))
+    assert result == {'status': 'selected', 'paths': [str(tmp_path / 'picked')]}
+    assert picker.calls == [(str(tmp_path), 'directories')]
+    # Paths are returned only: no attachment storage appears and nothing is
+    # copied, so the workdir still goes through the New Session validation.
+    assert not (tmp_path / 'attachments').exists()
+
+
+def test_sessionless_directory_picker_rejects_invalid_payload(monkeypatch):
+    import packages.web.server as server
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(server.pick_native_server_directory({'mode': 'everything'}))
+    assert error.value.status_code == 400
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(server.pick_native_server_directory({'directory': ['invalid']}))
     assert error.value.status_code == 400
