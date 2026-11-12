@@ -8,6 +8,28 @@ from tests.test_job_final_independent_execution import attempt,key
 from tests.test_job_hidden_production import wait_value
 
 
+def read_gate(path, timeout=20):
+    """Observe atomic fixture publication only after a successful complete read.
+
+    Windows can expose a replaced file before a transient sharing denial clears.
+    Existence alone is not a readable gate; exhausted access errors stay errors.
+    """
+    last_error = None
+    def read():
+        nonlocal last_error
+        try:
+            return json.loads(path.read_text())
+        except (FileNotFoundError, PermissionError) as error:
+            last_error = error
+            return None
+    try:
+        return wait_value(read, lambda row: row is not None, timeout=timeout)
+    except AssertionError:
+        if last_error is not None:
+            raise last_error
+        raise
+
+
 def check_creation_edge(tmp_path,fault,launch_mode):
     from tests.test_job_lifecycle_prevention import retain,kill,desktop_gone
     root=tmp_path/'canonical-executions';gate=tmp_path/'canonical-gate.json';marker=tmp_path/'must-not-run'
@@ -27,8 +49,7 @@ def check_creation_edge(tmp_path,fault,launch_mode):
         'frozenPlan':{'operation':'process','arguments':{'argv':[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()'],'cwd':str(tmp_path),'hideWindow':True}}}
     original=host.submit_execution(request);inner=outer=child=None
     try:
-        wait_value(gate.exists,bool)
-        row=json.loads(gate.read_text())
+        row=read_gate(gate)
         inner=retain(row['runnerPid'],row['runnerFiletime'])
         outer=inner if launch_mode=='base' else retain(row['runnerParent'],row['runnerParentFiletime'])
         if fault=='post-create':child=retain(row['pid'],row['creationFiletime'])
@@ -74,8 +95,7 @@ def check_multigeneration(tmp_path,failure):
         handles=[retain(row['pid'],row['creationFiletime']) for row in rows]
         assert len({row['desktop'] for row in rows})==1 and rows[0]['desktop'].startswith('PanJob_')
         if failure=='wait-error':
-            wait_value(gate.exists,bool)
-            observed=json.loads(gate.read_text())
+            observed=read_gate(gate)
             doc=host.get_execution(original['effectId'])
             assert observed['runnerPid']==doc['supervisorIdentity']['pid']
             assert str(observed['runnerFiletime'])==doc['supervisorIdentity']['birth']
