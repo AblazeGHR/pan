@@ -5546,22 +5546,26 @@ def _native_picker_initial_directory(data: dict) -> str:
 
 @app.post("/api/native-picker")
 async def pick_native_server_directory(data: dict):
-    """Open the Pan server's native dialog before any Session exists.
+    """Open one native *folder* dialog before any Session exists.
 
     New Session has no Session id to authorize against, so this route reuses the
     existing local API boundary that the same dialog already uses for read-only
     directory browsing (``GET /api/directories``) instead of inventing a second
     one. It never creates a Session, never registers or copies a path, and
-    returns selected paths only: the workdir still goes through the normal New
-    Session validation. The picker singleton, gate, timeout and cleanup are the
-    same ones the attachment route uses; only the dialog kind differs.
+    returns the selected folder only: the workdir still goes through the normal
+    New Session validation.
+
+    This entry is deliberately directory-only. File picking belongs to the
+    attachment route, whose ``sess.get`` check is its authorization; accepting
+    ``files`` here would let a caller bypass that check. Any other mode is
+    rejected before the picker (and therefore the helper process) is touched.
     """
     directory = _native_picker_initial_directory(data)
     mode = data.get("mode", "directories") if isinstance(data, dict) else "directories"
-    if not isinstance(mode, str) or mode not in {"files", "directories"}:
-        raise HTTPException(status_code=400, detail="Invalid dialog mode")
+    if mode != "directories":
+        raise HTTPException(status_code=400, detail="Only directory selection is available here")
     from packages.web.native_file_picker import native_file_picker
-    return await native_file_picker.pick(directory, mode)
+    return await native_file_picker.pick(directory, "directories")
 
 
 @app.post("/api/sessions/{session_id}/attachments/native-picker")

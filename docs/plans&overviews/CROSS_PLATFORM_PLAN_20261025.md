@@ -195,7 +195,8 @@ macOS 需要 `open`，Linux 需要 `xdg-open` 且存在 `DISPLAY`/`WAYLAND_DISPL
 - `files`（默认）：`POST /api/sessions/{id}/attachments/native-picker`，返回路径后
   仍走原有“确认 → `from-server-file` 注册”，附件原能力不变；
 - `directories`：`POST /api/native-picker`，供尚未创建 Session 的 New Session 回填
-  workdir。
+  workdir。该入口**只接受目录模式**（省略 `mode` 即为 `directories`）；`files` 或
+  未知值在调用 picker/helper 之前返回 `400`，避免绕过附件路由的 `sess.get` 授权。
 
 两种模式的并发 `status: busy`、90 秒超时、HTTP 取消与 helper 清理、`close()` 所有权
 完全一致；目录模式只多一条“恰好一个绝对路径”的契约校验。

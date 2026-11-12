@@ -495,7 +495,9 @@ export async function pickNativeServerFiles(sessionId: string, directory: string
  * mode, so the gate, timeout and cleanup behavior are identical. The local API
  * boundary is the one the picker dialog already browses with
  * (`GET /api/directories`): no Session is created to authorize the request, and
- * the returned path still goes through the normal New Session validation.
+ * the returned path still goes through the normal New Session validation. This
+ * entry is directory-only; the server rejects file mode (the attachment flow
+ * stays the only way to pick files).
  */
 export async function pickNativeServerDirectory(directory: string) {
   return request<NativePickerResult>(`${BASE}/native-picker`, {

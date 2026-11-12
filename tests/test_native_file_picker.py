@@ -235,18 +235,39 @@ def test_sessionless_directory_picker_needs_no_session_and_registers_nothing(
     monkeypatch.setattr(server, 'ATTACHMENTS_DIR', tmp_path / 'attachments')
     result = asyncio.run(server.pick_native_server_directory({'directory': str(tmp_path)}))
     assert result == {'status': 'selected', 'paths': [str(tmp_path / 'picked')]}
-    assert picker.calls == [(str(tmp_path), 'directories')]
+    # The default and the explicit directory mode both mean the folder dialog.
+    asyncio.run(server.pick_native_server_directory(
+        {'directory': str(tmp_path), 'mode': 'directories'},
+    ))
+    assert picker.calls == [(str(tmp_path), 'directories'), (str(tmp_path), 'directories')]
     # Paths are returned only: no attachment storage appears and nothing is
     # copied, so the workdir still goes through the New Session validation.
     assert not (tmp_path / 'attachments').exists()
 
 
-def test_sessionless_directory_picker_rejects_invalid_payload(monkeypatch):
+def test_sessionless_directory_picker_rejects_non_directory_modes(monkeypatch):
     import packages.web.server as server
     from fastapi import HTTPException
-    with pytest.raises(HTTPException) as error:
-        asyncio.run(server.pick_native_server_directory({'mode': 'everything'}))
-    assert error.value.status_code == 400
+
+    class Picker:
+        def __init__(self):
+            self.calls = []
+
+        async def pick(self, directory: str = '', mode: str = 'files'):
+            self.calls.append((directory, mode))
+            return {'status': 'selected', 'paths': ['D:/never-picked']}
+
+    picker = Picker()
+    monkeypatch.setattr(native, 'native_file_picker', picker)
+    # Negative control: the attachment file mode cannot reach this entry, so a
+    # caller without a Session cannot obtain the file dialog at all.
+    for payload in ({'mode': 'files'}, {'mode': 'everything'}, {'mode': ['directories']},
+                    {'directory': 'D:/x', 'mode': 'files'}):
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(server.pick_native_server_directory(payload))
+        assert error.value.status_code == 400, payload
+    assert picker.calls == []
     with pytest.raises(HTTPException) as error:
         asyncio.run(server.pick_native_server_directory({'directory': ['invalid']}))
     assert error.value.status_code == 400
+    assert picker.calls == []

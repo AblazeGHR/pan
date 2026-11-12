@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { NewSessionModal } from './NewSessionModal';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
@@ -61,6 +62,24 @@ async function renderReady() {
   ).toBe(false));
   return view;
 }
+
+/**
+ * Real modal host for close/reopen cases: the picker result must be discarded by
+ * `NewSessionModal` itself, not only by an isolated `DirectoryInput` unmount.
+ */
+function renderControllable() {
+  const control = { close: () => {}, reopen: () => {} };
+  function Host() {
+    const [open, setOpen] = useState(true);
+    control.close = () => setOpen(false);
+    control.reopen = () => setOpen(true);
+    return <NewSessionModal open={open} onClose={() => setOpen(false)} />;
+  }
+  const view = render(<Host />);
+  return { ...view, control };
+}
+
+const workdirInput = () => screen.getByTestId('new-session-workdir-input') as HTMLInputElement;
 
 describe('New Session directory input', () => {
   beforeEach(() => {
@@ -260,6 +279,58 @@ describe('New Session directory input', () => {
     await screen.findByTestId('native-picker-feedback');
     expect((screen.getByTestId('new-session-workdir-input') as HTMLInputElement).value)
       .toBe('D:\\saved\\work');
+  });
+
+  it('drops a pending folder result after the Modal is closed and reopened on the same workdir', async () => {
+    apiMock.fetchNewSessionDefaults.mockResolvedValue({
+      adapter: 'cbc', outputMode: '', sessionTemplate: '', workdir: 'D:\\saved\\work',
+    });
+    let resolve!: (value: { status: string; paths: string[] }) => void;
+    apiMock.pickNativeServerDirectory.mockReturnValue(new Promise((done) => { resolve = done; }));
+    const { control } = renderControllable();
+    await waitFor(() => expect(
+      (screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement).disabled,
+    ).toBe(false));
+    await waitFor(() => expect(workdirInput().value).toBe('D:\\saved\\work'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browse server folders' }));
+    await screen.findByTestId('native-picker-feedback');
+
+    act(() => control.close());
+    await waitFor(() => expect(screen.queryByTestId('new-session-workdir-input')).toBeNull());
+    act(() => control.reopen());
+    await waitFor(() => expect(
+      (screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement).disabled,
+    ).toBe(false));
+    await waitFor(() => expect(workdirInput().value).toBe('D:\\saved\\work'));
+
+    await act(async () => resolve({ status: 'selected', paths: ['D:\\late'] }));
+
+    expect(workdirInput().value).toBe('D:\\saved\\work');
+    expect(screen.queryByTestId('native-picker-feedback')).toBeNull();
+    // The reopened dialog is still wired, and its own result applies once.
+    apiMock.pickNativeServerDirectory.mockResolvedValue({
+      status: 'selected', paths: ['D:\\reopened'],
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Browse server folders' }));
+    await waitFor(() => expect(workdirInput().value).toBe('D:\\reopened'));
+    expect(apiMock.pickNativeServerDirectory).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops a pending folder result after a manual workdir edit in the real form', async () => {
+    let resolve!: (value: { status: string; paths: string[] }) => void;
+    apiMock.pickNativeServerDirectory.mockReturnValue(new Promise((done) => { resolve = done; }));
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browse server folders' }));
+    await screen.findByTestId('native-picker-feedback');
+    fireEvent.change(workdirInput(), { target: { value: 'D:\\manual\\work' } });
+    expect(workdirInput().value).toBe('D:\\manual\\work');
+
+    await act(async () => resolve({ status: 'selected', paths: ['D:\\late'] }));
+
+    expect(workdirInput().value).toBe('D:\\manual\\work');
+    expect(screen.queryByTestId('native-picker-feedback')).toBeNull();
   });
 
   it('prefills persisted New Session defaults and leaves saving opt-in', async () => {
