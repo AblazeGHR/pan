@@ -209,4 +209,5 @@ def bind(service):
         await service.engine.io(verify,service,event)
         return await original_authorize(event)
     adapter.authorize=bound_authorize
-    return adapter
+    from .action_binding import Adapter
+    return Adapter(service, adapter)

@@ -1,3 +1,4 @@
+import { InteractionUnits } from './InteractionUnits';
 import { AttachedReminder } from './AttachedReminder';
 import { TrustedChoice } from './TrustedChoice';
 import { CardQuestions, questionErrors } from './CardQuestions';
@@ -214,13 +215,15 @@ function Card({
         <code title={card.ownerSessionId}>{card.ownerSessionId}</code>
         <MessageTimestamp ts={card.createdAt} />
         <span className={`locker-status ${open ? 'open' : card.status}`}>
-          {open
-            ? 'Awaiting response'
-            : noAnswer
-              ? '无需回答 · No answer needed'
-              : card.status === 'rejected'
-                ? 'Rejected'
-                : 'Submitted'}
+          {card.unitStatus === 'partial'
+            ? '部分提交'
+            : open
+              ? 'Awaiting response'
+              : noAnswer
+                ? '无需回答 · No answer needed'
+                : card.status === 'rejected'
+                  ? 'Rejected'
+                  : 'Submitted'}
         </span>
         <button
           type="button"
@@ -254,7 +257,16 @@ function Card({
         content={card.definition.body + (attachments ? `\n\n${attachments}` : '')}
         attachmentIds={(card.definition.attachments ?? []).map((attachment) => attachment.id)}
       />
-      {open ? (
+      {card.units?.length ? (
+        <>
+          <InteractionUnits card={card} update={update} />
+          {(noAnswer || card.unitStatus === 'processed') && (
+            <Button variant="ghost" size="sm" onClick={() => void act('delete')}>
+              Delete record
+            </Button>
+          )}
+        </>
+      ) : open ? (
         <section className="locker-response" aria-label="Interaction response">
           {questions && (
             <CardQuestions
@@ -524,7 +536,11 @@ export default function LockerView() {
         allCards.push(...page.cards);
         after = page.nextAfter;
       }
-      if (generation.current !== run || (useAutomationAuth.getState().token || useAutomationAuth.getState().authenticated) !== token) return;
+      if (
+        generation.current !== run ||
+        (useAutomationAuth.getState().token || useAutomationAuth.getState().authenticated) !== token
+      )
+        return;
       setLockers(sourceResult.lockers.filter((locker) => locker.total > 0));
       setCards(allCards);
       setLoadedToken(token);

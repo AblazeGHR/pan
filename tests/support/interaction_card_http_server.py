@@ -45,6 +45,25 @@ server.app.state.interaction_trigger_adapter=TriggerReferenceAdapter(
     get_trigger=lambda tid:{'id':tid,'revision':1,'enabled':True} if tid=='synthetic-trigger' else None,
     authorize=lambda event,trigger:event['payload']['recipientId']=='test-user',submit=submit,lookup=lookup)
 
+
+@server.app.post('/__test/interaction-action')
+async def prepare_action():
+    """Owned fixture only: real canonical command and explicitly granted agent invoke."""
+    from packages.actions.command_execution import product_definition
+    from packages.jobs.final_service import object_ref
+    svc = server.app.state.automation
+    permissions = svc.auth._default_permissions()
+    for values in permissions.values():
+        for key in values:
+            values[key] = True
+    svc.auth.change_permissions(permissions, svc.auth.permissions_status()['revision'])
+    value = product_definition('process.command')
+    value['system'] = False
+    action = svc.final_jobs.publish_action('owned_card_command', value)
+    return {'actionRef': object_ref('action', action), 'arguments': {
+        'argv': [sys.executable, '-c', "from pathlib import Path; p=Path('card-effects.txt'); p.write_text(p.read_text()+'x' if p.exists() else 'x')"],
+        'cwd': str(root)}}
+
 @server.app.get('/__test/interaction-identity')
 async def identity_route():
     from packages.interactions.api import get_store

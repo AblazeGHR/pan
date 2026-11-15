@@ -1921,9 +1921,9 @@ class FinalService:
             self._permit(actor, record["kind"], "read")
             return copy.deepcopy(record["response"])
 
-    async def invoke_action(self, action_id, body, *, actor, source=None):
+    async def invoke_action(self, action_id, body, *, actor, source=None, effect_guard=None):
         from packages.actions.invocation import invoke
-        return await invoke(self, action_id, body, actor=actor, source=source)
+        return await invoke(self, action_id, body, actor=actor, source=source, effect_guard=effect_guard)
 
     def action_job_references(self, action_id, *, actor, cursor=None, limit=100):
         from packages.jobs.action_references import references

@@ -55,7 +55,7 @@ def guard(service, db, ref, actor, source=None):
     return definition
 
 
-async def invoke(service, action_id, body, *, actor, source=None):
+async def invoke(service, action_id, body, *, actor, source=None, effect_guard=None):
     ref = body["actionRef"]
     fc.check_request_key(body["requestKey"])
     if (not isinstance(ref, dict) or set(ref) != {"id", "revision", "digest"} or ref["id"] != action_id
@@ -95,20 +95,26 @@ async def invoke(service, action_id, body, *, actor, source=None):
         operation = action["execution"]["operation"]
         if operation == "job.create":
             from .job_creation import invoke as create_job
-            return create_job(service, action_id, body, actor=actor, source=source)
+            return create_job(service, action_id, body, actor=actor, source=source, effect_guard=effect_guard)
         if operation == 'template.instantiate':
             def instantiate(identity):
                 from .legacy_templates import instantiate_action
+                if effect_guard is not None:
+                    effect_guard()
                 result, refs = instantiate_action(service, db, action, ref, actor, identity, source=source)
                 return result, refs, False
             return service._operation(db, actor, 'invoke', body['requestKey'], payload, 'action', instantiate)
         if operation == "process":
             operation = "process.command"  # Original Job adapter remains IndependentExecutor.
         from .legacy_families import SYSTEM_OPERATIONS
+        from .session_invocation import OPERATIONS as SESSION_OPERATIONS, prepare as prepare_session
+        session_adapter = operation in SESSION_OPERATIONS
         system_adapter = operation in {'legacy.' + op for op in SYSTEM_OPERATIONS}
-        if operation not in OPERATIONS and operation not in {'api.get', 'session.pause-everything'} and not system_adapter:
+        if operation not in OPERATIONS and operation not in {'api.get', 'session.pause-everything'} and not system_adapter and not session_adapter:
             raise fc.ContractError("unsupported_operation", "This Action has no direct command adapter")
-        if system_adapter:
+        if session_adapter:
+            prepared = prepare_session(service, action, body['arguments'], actor)
+        elif system_adapter:
             from .family_execution import prepare_family
             service._permit(actor, 'job', 'execute', execution=True)
             prepared = prepare_family(action, body['arguments'])
@@ -128,22 +134,24 @@ async def invoke(service, action_id, body, *, actor, source=None):
         response = service._operation(db, actor, "invoke", body["requestKey"], payload, "action",
             lambda identity: ({"actionRef": ref, "invocationId": identity,
                 "status": "uncertain", "phase": "prepared", "commands": [],
-                **({'providerPlan': {key: copy.deepcopy(value) for key, value in prepared.items() if key != 'commands'}} if system_adapter else {}),
+                **({'providerPlan': {key: copy.deepcopy(value) for key, value in prepared.items() if key != 'commands'}} if system_adapter or session_adapter else {}),
                 **({'source': copy.deepcopy(source)} if source is not None else {})}, [ref], True))
         identity = response["operationId"]
         epoch = service.owner.token
 
     return await execute_prepared(service, identity, ref, actor, prepared, epoch, operation,
-                                  source=source, arguments=body['arguments'])
+                                  source=source, arguments=body['arguments'], effect_guard=effect_guard)
 
 
-async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None, source=None, arguments=None, event=None):
+async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None, source=None, arguments=None, event=None, effect_guard=None):
     @contextmanager
     def boundary():
         with service.transaction() as db:
             if service.owner.token != epoch:
                 raise fc.ContractError("revision_conflict", "Invocation owner changed")
             guard(service, db, ref, actor, source)
+            if effect_guard is not None:
+                effect_guard()
             if trigger_id is not None:
                 service._permit(actor, "trigger", "lifecycle", execution=True)
                 if service._get(db, "trigger", trigger_id)["state"] != "enabled":
@@ -166,6 +174,24 @@ async def execute_prepared(service, identity, ref, actor, commands, epoch, opera
     # Prepared is already durable. Any crash from here on is query-only, even
     # when no process happened to start. No automatic direct recovery.
     persist({"phase": "calling"})
+    from .session_invocation import OPERATIONS as SESSION_OPERATIONS, prepare as prepare_session
+    if operation in SESSION_OPERATIONS:
+        @contextmanager
+        def session_boundary():
+            with boundary():
+                # Source/targets/provider availability and current grants are
+                # checked before each provider/fanout effect, not only admission.
+                with service.transaction(readonly=True) as db:
+                    action = guard(service, db, ref, actor, source)
+                    prepare_session(service, action, arguments, actor)
+                yield
+        result = await service.executor.execute_provider(frozen_plan=commands,
+            context=CommandContext({'operationId': identity}, session_boundary,
+                lambda rows: persist({'providerReceipts': rows})))
+        persist({'providerReceipt': result, 'outcome': result['outcome'],
+            'status': {'succeeded': 'completed', 'rejected': 'failed', 'partial': 'partial', 'unknown': 'uncertain'}[result['outcome']],
+            'phase': 'settled'}, terminal=True)
+        return service.operation(identity, actor=actor)
     from .family_execution import OPERATIONS_FAMILY, execute_family
     if operation in OPERATIONS_FAMILY:
         @contextmanager

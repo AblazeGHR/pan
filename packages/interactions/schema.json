@@ -58,6 +58,9 @@
         },
         {
           "$ref": "#/$defs/DefinitionV2"
+        },
+        {
+          "$ref": "#/$defs/DefinitionV3"
         }
       ]
     },
@@ -111,11 +114,21 @@
           "$ref": "#/$defs/Id"
         },
         "answers": {
-          "$ref": "#/$defs/Answers"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Answers"
+            },
+            {
+              "$ref": "#/$defs/UnitAnswers"
+            }
+          ]
         },
         "text": {
           "type": "string",
           "maxLength": 32000
+        },
+        "unitAnswers": {
+          "$ref": "#/$defs/UnitAnswers"
         }
       }
     },
@@ -154,7 +167,14 @@
           ]
         },
         "answers": {
-          "$ref": "#/$defs/Answers"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Answers"
+            },
+            {
+              "$ref": "#/$defs/UnitAnswers"
+            }
+          ]
         }
       }
     },
@@ -204,7 +224,8 @@
         "schemaVersion": {
           "enum": [
             1,
-            2
+            2,
+            3
           ]
         },
         "id": {
@@ -228,7 +249,8 @@
             "open",
             "responded",
             "rejected",
-            "no_answer_needed"
+            "no_answer_needed",
+            "partial"
           ]
         },
         "response": {
@@ -344,6 +366,9 @@
             },
             "choiceId": {
               "$ref": "#/$defs/Id"
+            },
+            "actionRef": {
+              "$ref": "#/$defs/ActionRef"
             }
           }
         }
@@ -495,39 +520,109 @@
     },
     "ExecutionBinding": {
       "oneOf": [
-        { "$ref": "#/$defs/ExecutionBindingV1" },
-        { "$ref": "#/$defs/ExecutionBindingV2" }
+        {
+          "$ref": "#/$defs/ExecutionBindingV1"
+        },
+        {
+          "$ref": "#/$defs/ExecutionBindingV2"
+        },
+        {
+          "$ref": "#/$defs/ActionBinding"
+        }
       ]
     },
     "ExecutionBindingV2": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "version": { "const": 2 },
-        "triggerId": { "$ref": "#/$defs/Id" },
-        "triggerRevision": { "type": "integer", "minimum": 1 },
-        "triggerDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "jobId": { "$ref": "#/$defs/Id" },
-        "jobRevision": { "type": "integer", "minimum": 1, "description": "Canonical Job configRevision" },
-        "jobDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "version": {
+          "const": 2
+        },
+        "triggerId": {
+          "$ref": "#/$defs/Id"
+        },
+        "triggerRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "triggerDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "jobId": {
+          "$ref": "#/$defs/Id"
+        },
+        "jobRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Canonical Job configRevision"
+        },
+        "jobDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
         "actions": {
-          "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true,
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
           "items": {
-            "type": "object", "additionalProperties": false,
+            "type": "object",
+            "additionalProperties": false,
             "properties": {
-              "id": { "$ref": "#/$defs/Id" },
-              "revision": { "type": "integer", "minimum": 1 },
-              "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
             },
-            "required": ["id", "revision", "digest"]
+            "required": [
+              "id",
+              "revision",
+              "digest"
+            ]
           }
         },
-        "authorityDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "authorization": { "type": "object" },
-        "targetIds": { "type": "array", "minItems": 1, "maxItems": 256, "uniqueItems": true, "items": { "$ref": "#/$defs/Id" } },
-        "summary": { "type": "string" }
+        "authorityDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "authorization": {
+          "type": "object"
+        },
+        "targetIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "summary": {
+          "type": "string"
+        }
       },
-      "required": ["version", "triggerId", "triggerRevision", "triggerDigest", "jobId", "jobRevision", "jobDigest", "actions", "authorityDigest", "authorization", "targetIds", "summary"]
+      "required": [
+        "version",
+        "triggerId",
+        "triggerRevision",
+        "triggerDigest",
+        "jobId",
+        "jobRevision",
+        "jobDigest",
+        "actions",
+        "authorityDigest",
+        "authorization",
+        "targetIds",
+        "summary"
+      ]
     },
     "ExecutionBindingV1": {
       "type": "object",
@@ -792,6 +887,18 @@
             },
             "card": {
               "$ref": "#/$defs/Definition"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation"
+          ],
+          "properties": {
+            "operation": {
+              "const": "capabilities"
             }
           }
         }
@@ -1148,6 +1255,345 @@
       },
       "additionalProperties": {
         "$ref": "#/$defs/Answer"
+      }
+    },
+    "ActionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "revision",
+        "digest"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "Unit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "prompt",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "type": {
+          "enum": [
+            "single_choice",
+            "multi_choice",
+            "text"
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "triggerRef": {
+                "$ref": "#/$defs/TriggerRef"
+              },
+              "actionRef": {
+                "$ref": "#/$defs/ActionRef"
+              },
+              "arguments": {
+                "type": "object"
+              }
+            },
+            "allOf": [
+              {
+                "not": {
+                  "required": [
+                    "triggerRef",
+                    "actionRef"
+                  ]
+                }
+              },
+              {
+                "if": {
+                  "required": [
+                    "arguments"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "actionRef"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "choices"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "choices"
+            ]
+          }
+        }
+      ]
+    },
+    "DefinitionV3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "title",
+        "units"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "notification": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "tag": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        },
+        "correlation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "job": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "trigger": {
+              "$ref": "#/$defs/TriggerRef"
+            }
+          }
+        },
+        "summaryBody": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 500
+              }
+            }
+          }
+        },
+        "schemaVersion": {
+          "const": 3
+        },
+        "units": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/Unit"
+          }
+        }
+      }
+    },
+    "UnitAnswer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rejected"
+          ],
+          "properties": {
+            "rejected": {
+              "const": true
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "btw": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "btw": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "choiceId"
+          ],
+          "properties": {
+            "choiceId": {
+              "$ref": "#/$defs/Id"
+            },
+            "btw": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "choiceIds"
+          ],
+          "properties": {
+            "choiceIds": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/Id"
+              }
+            },
+            "btw": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
+        }
+      ]
+    },
+    "UnitAnswers": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 20,
+      "additionalProperties": {
+        "$ref": "#/$defs/UnitAnswer"
+      }
+    },
+    "ActionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "actionRef",
+        "arguments",
+        "authorization",
+        "summary",
+        "targetIds",
+        "actor"
+      ],
+      "properties": {
+        "version": {
+          "const": 3
+        },
+        "actionRef": {
+          "$ref": "#/$defs/ActionRef"
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "authorization": {
+          "type": "object"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "actor": {
+          "type": "object"
+        },
+        "creation": {
+          "type": "object"
+        }
       }
     }
   },

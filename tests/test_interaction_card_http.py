@@ -18,7 +18,7 @@ from packages.jobs.window import command_window_options
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def run_http_mcp(tmp_path,*,browser=False,no_answer=False):
+def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
     with socket.socket() as sock:
         sock.bind(('127.0.0.1',0))
         port=sock.getsockname()[1]
@@ -108,6 +108,53 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False):
         artifact={'instance':ident,'interaction':ports,'ownerSessionId':owner['id'],'cardId':card['id'],
             'eventId':event['id'],'receiptId':done['delivery']['receiptId'],'mcpProducerOnly':True,'oneResponse':True}
         (tmp_path/'interaction-evidence.json').write_text(json.dumps(artifact,indent=2),encoding='utf-8')
+        if units:
+            result=subprocess.run(['node',str(ROOT/'packages/web/e2e/interaction-units.e2e.mjs'),base,
+                env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser'),sys.executable],
+                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': (data/'automation/user.key').read_text(encoding='utf-8').strip()},
+                capture_output=True,text=True,encoding='utf-8',timeout=150)
+            (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
+            assert result.returncode==0,result.stdout+'\n'+result.stderr
+            summary=json.loads((tmp_path/'browser/browser.json').read_text(encoding='utf-8'))
+            assert (data/'card-effects.txt').read_text() == 'x'
+            session_path=data/'sessions'/(owner['id']+'.json')
+            original_session_queue=json.loads(session_path.read_text(encoding='utf-8'))['queue_pending']
+            for product in summary.get('sessionDirectProducts', []):
+                assert sum(q.get('text') == 'fixed '+product for q in original_session_queue) == 1
+            with sqlite3.connect(ports['cardPath']) as db:
+                notices=[json.loads(r[0]) for r in db.execute('SELECT document FROM unit_submissions')]
+                assert any(len(n['answers']) == 4 for n in notices)
+                for qid, state, payload in db.execute('SELECT id,state,payload FROM response_outbox'):
+                    assert state == 'accepted' and payload is None
+            assert call('POST','/__test/inbox-exit',{})['ok']
+            proc.wait(timeout=20)
+            proc=subprocess.Popen([sys.executable,'-m','tests.support.interaction_card_http_server','--port',str(port),
+                '--data-root',str(data)],cwd=ROOT,env=env,stdout=log,stderr=log,**command_window_options())
+            deadline=time.monotonic()+20
+            while True:
+                try:
+                    restarted=call('GET','/__test/inbox-identity')
+                    break
+                except OSError:
+                    assert time.monotonic()<deadline
+                    time.sleep(.1)
+            actual=psutil.Process(restarted['pid'])
+            assert restarted['nonce']==ident['nonce']
+            cold=call('GET',f"/api/user-inbox/{summary['actionCard']}",user=True)['card']
+            assert cold['unitStatus']=='processed'
+            call('POST',f"/api/user-inbox/{summary['actionCard']}/dispatch",{},user=True)
+            assert (data/'card-effects.txt').read_text() == 'x'
+            for session_card_id in summary.get('sessionDirectCards', []):
+                persisted=call('GET',f"/api/user-inbox/{session_card_id}",user=True)['card']
+                assert persisted['unitStatus']=='processed'
+                call('POST',f"/api/user-inbox/{session_card_id}/dispatch",{},user=True)
+            with sqlite3.connect(ports['cardPath']) as db:
+                assert db.execute('SELECT count(*) FROM unit_submissions WHERE card_id IN (' + ','.join('?' for _ in summary['sessionDirectCards']) + ')', summary['sessionDirectCards']).fetchone()[0] == 5
+            restored_session_queue=json.loads(session_path.read_text(encoding='utf-8'))['queue_pending']
+            for product in summary.get('sessionDirectProducts', []):
+                assert sum(q.get('text') == 'fixed '+product for q in restored_session_queue) == 1
+            summary['coldRestartNoReplay']=True
+            (tmp_path/'browser/browser.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
         if no_answer:
             result=subprocess.run(['node',str(ROOT/'packages/web/e2e/card-no-answer.e2e.mjs'),base,
                 env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser'),sys.executable],

@@ -10,6 +10,12 @@ from pathlib import Path
 from .contracts import InteractionError, canonical, identity, validate, validate_answers, selected_choices, choice_binding
 
 
+async def lookup_receipt(adapter, event):
+    if hasattr(adapter, 'lookup_event'):
+        return await adapter.lookup_event(event)
+    return await adapter.lookup(event['id'])
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -71,6 +77,9 @@ class InteractionStore:
             db.execute('CREATE TABLE IF NOT EXISTS rejection_outbox(id TEXT PRIMARY KEY,owner TEXT,payload TEXT,state TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS question_events(id TEXT PRIMARY KEY,card_id TEXT NOT NULL,event TEXT NOT NULL,delivery TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS response_outbox(id TEXT PRIMARY KEY,owner TEXT,payload TEXT,state TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS unit_submissions(id TEXT PRIMARY KEY,card_id TEXT NOT NULL,owner TEXT NOT NULL,document TEXT NOT NULL)')
+            db.execute('CREATE INDEX IF NOT EXISTS unit_submissions_card ON unit_submissions(card_id)')
+            db.execute('CREATE INDEX IF NOT EXISTS question_events_card ON question_events(card_id)')
             from packages.core.source_notifications import schema
             schema(db)
 
@@ -119,9 +128,11 @@ class InteractionStore:
         definition.setdefault('summaryBody',definition.get('notification',{}).get('summary',definition.get('body', '')))
         response=json.loads(row['response']) if row['response'] else None
         notice=db.execute('SELECT state FROM rejection_outbox WHERE id=?',(identity('rejection_',[row['id']]),)).fetchone()
-        return dict(schemaVersion=definition.get('schemaVersion', 1),lockerId=identity('ulocker_',[row['recipient'],row['owner']]),read=bool(row['is_read']),sourceName=row['owner'],id=row['id'],ownerSessionId=row['owner'],recipientId=row['recipient'],
+        from .units import project
+        projection = project(row, db)
+        return dict(**projection,schemaVersion=definition.get('schemaVersion', 1),lockerId=identity('ulocker_',[row['recipient'],row['owner']]),read=bool(row['is_read']),sourceName=row['owner'],id=row['id'],ownerSessionId=row['owner'],recipientId=row['recipient'],
                     relatedMessageId=row['related_message_id'],definition=definition,trustedChoices=json.loads(row['bindings']),createdAt=row['created_at'],revision=row['revision'],
-                    status='no_answer_needed' if row['no_answer_at'] else (('rejected' if response.get('outcome')=='reject' else 'responded') if response else 'open'),
+                    status='no_answer_needed' if row['no_answer_at'] else 'partial' if projection['unitStatus'] == 'partial' else (('rejected' if response.get('outcome')=='reject' else 'responded') if response else 'open'),
                     response=response,
                     delivery=json.loads(row['delivery']),rejectionDelivery={'state':notice[0] if notice else 'not_requested'})
 
@@ -140,7 +151,7 @@ class InteractionStore:
                     raise InteractionError('conflict','requestKey content conflict')
                 return self._view(row,db)
             db.execute('INSERT OR IGNORE INTO user_lockers(owner,recipient) VALUES(?,?)',(request['ownerSessionId'],request['recipientId']))
-            count = db.execute('SELECT count(*) FROM cards WHERE recipient=? AND response IS NULL AND no_answer_at IS NULL',(request['recipientId'],)).fetchone()[0]
+            count = db.execute("SELECT count(*) FROM cards WHERE recipient=? AND (response IS NULL OR (EXISTS(SELECT 1 FROM unit_submissions s WHERE s.card_id=cards.id) AND (SELECT count(*) FROM json_each(response,'$.answers')) < COALESCE(json_array_length(definition,'$.units'),json_array_length(definition,'$.questions'),1))) AND no_answer_at IS NULL",(request['recipientId'],)).fetchone()[0]
             if count >= self.capacity:
                 raise InteractionError('capacity','User Inbox capacity reached; existing cards retained')
             db.execute('''INSERT INTO cards(id,owner,recipient,request_key,signature,definition,created_at,delivery)
@@ -300,8 +311,8 @@ class InteractionStore:
                 if row is None:
                     raise InteractionError('not_found', 'Cursor not found for this producer')
                 cursor = row[0]
-            rows = db.execute('''SELECT * FROM cards WHERE producer=? AND rowid>? AND response IS NULL
-                AND no_answer_at IS NULL AND event IS NULL AND json_extract(delivery,'$.state')='not_requested'
+            rows = db.execute('''SELECT * FROM cards WHERE producer=? AND rowid>? AND (response IS NULL OR (EXISTS(SELECT 1 FROM unit_submissions s WHERE s.card_id=cards.id) AND (SELECT count(*) FROM json_each(response,'$.answers')) < COALESCE(json_array_length(definition,'$.units'),json_array_length(definition,'$.questions'),1)))
+                AND no_answer_at IS NULL
                 ORDER BY rowid LIMIT ?''', (producer, cursor, limit + 1)).fetchall()
             page = rows[:limit]
             return {'cards': [self._view(row, db) for row in page],
@@ -323,7 +334,7 @@ class InteractionStore:
             # The immediate transaction serializes this CAS with submit/reject.
             # Closing the card also reads it: no answer is ever expected of the user.
             changed = db.execute('''UPDATE cards SET no_answer_at=?,is_read=1,revision=revision+1
-                WHERE id=? AND producer=? AND revision=? AND response IS NULL AND no_answer_at IS NULL''',
+                WHERE id=? AND producer=? AND revision=? AND (response IS NULL OR (EXISTS(SELECT 1 FROM unit_submissions s WHERE s.card_id=cards.id) AND (SELECT count(*) FROM json_each(response,'$.answers')) < COALESCE(json_array_length(definition,'$.units'),json_array_length(definition,'$.questions'),1))) AND no_answer_at IS NULL''',
                 (now(), card_id, producer, expected_revision)).rowcount
             if changed != 1:
                 raise InteractionError('conflict', 'Card changed')
@@ -337,6 +348,12 @@ class InteractionStore:
 
     def respond(self,principal,card_id,data,*,allow_empty=False):
         validate('Respond',data)
+        unified = 'unitAnswers' in data
+        if 'answers' in data and not unified:
+            unified = self.get_for_user(principal, card_id)['schemaVersion'] == 3
+        if unified:
+            from .units import submit
+            return submit(self, principal, card_id, data)
         user_id=self._user_id(principal)
         supplied={k:data[k] for k in ('answer','choiceId','answers') if k in data}
         if 'text' in data:
@@ -439,8 +456,20 @@ class InteractionStore:
         with self.db() as db:
             self._user_row(db, principal, card_id)
             ids = [r[0] for r in db.execute('SELECT id FROM question_events WHERE card_id=? ORDER BY id', (card_id,))]
+            unified = db.execute('SELECT 1 FROM unit_submissions WHERE card_id=?', (card_id,)).fetchone() is not None
+        error = None
         for event_id in ids:
-            await self._dispatch_question_event(principal, card_id, adapter, event_id)
+            try:
+                await self._dispatch_question_event(principal, card_id, adapter, event_id)
+            except InteractionError as exc:
+                if not unified:
+                    raise
+                # One unit's revoked/stale authorization must not block the
+                # separately authorized intents of other submitted units.
+                self._settle_question(card_id, event_id, {'state': 'rejected' if exc.code in {'stale', 'forbidden', 'incomplete'} else 'unavailable'})
+                error = error or exc
+        if error:
+            raise error
         return self.get_for_user(principal, card_id)
 
     def _settle_question(self, card_id, event_id, result):
@@ -479,7 +508,7 @@ class InteractionStore:
 
     async def dispatch(self,principal,card_id,adapter):
         current = self.get_for_user(principal, card_id)
-        if current['schemaVersion'] == 2:
+        if current['schemaVersion'] in (2, 3) or current.get('submissions'):
             if current['status'] == 'no_answer_needed':
                 raise InteractionError('conflict', 'Card no longer requires an answer')
             return await self._dispatch_questions(principal, card_id, adapter)
@@ -515,7 +544,7 @@ class InteractionStore:
             if not reconcile:
                 db.execute('UPDATE cards SET delivery=? WHERE id=?',(canonical({'state':'in_flight'}),card_id))
         try:
-            result=(await adapter.lookup(event['id'])) if reconcile else (await adapter.accept(json.loads(canonical(event))))
+            result=(await lookup_receipt(adapter, event)) if reconcile else (await adapter.accept(json.loads(canonical(event))))
             if isinstance(result,dict) and result.get('status')=='accepted' and isinstance(result.get('receiptId'),str) and result['receiptId']:
                 settled={'state':'accepted','receiptId':result['receiptId']}
                 validate('Delivery',settled)
@@ -539,7 +568,7 @@ class InteractionStore:
                 raise InteractionError('conflict', 'No-answer-needed Cards only allow deletion')
             row=db.execute('SELECT * FROM question_events WHERE id=? AND card_id=?', (event_id, card_id)).fetchone()
             state=json.loads(row['delivery'])['state']
-            if state in {'not_requested','accepted'}:
+            if state in {'not_requested','accepted','rejected'}:
                 return self._view(self._user_row(db,principal,card_id),db)
             event=json.loads(row['event'])
         if adapter is None:
@@ -567,7 +596,7 @@ class InteractionStore:
             if not reconcile:
                 db.execute('UPDATE question_events SET delivery=? WHERE id=?',(canonical({'state':'in_flight'}),event_id))
         try:
-            result=(await adapter.lookup(event['id'])) if reconcile else (await adapter.accept(json.loads(canonical(event))))
+            result=(await lookup_receipt(adapter, event)) if reconcile else (await adapter.accept(json.loads(canonical(event))))
             if isinstance(result,dict) and result.get('status')=='accepted' and isinstance(result.get('receiptId'),str) and result['receiptId']:
                 settled={'state':'accepted','receiptId':result['receiptId']}
                 validate('Delivery',settled)
@@ -637,10 +666,18 @@ class InteractionStore:
             # The producer keeps its response receipt, not the user Card body.
             db.execute('INSERT OR IGNORE INTO owner_receipts VALUES(?,?,?,?,?)',
                        (card_id,row['owner'],user_id,row['response'],row['event']))
+            # Producer batch receipts retain the original event IDs and delivery
+            # facts even when the user's visible Card is removed.
+            for batch_row in db.execute('SELECT id,document FROM unit_submissions WHERE card_id=?', (card_id,)).fetchall():
+                batch = json.loads(batch_row['document'])
+                batch['executions'] = [dict(eventId=e['id'], **json.loads(e['delivery'])) for e in db.execute(
+                    "SELECT id,delivery FROM question_events WHERE card_id=? AND json_extract(event,'$.payload.response.requestId')=?",
+                    (card_id, batch['requestId']))]
+                db.execute('UPDATE unit_submissions SET document=? WHERE id=?', (canonical(batch), batch_row['id']))
             # Trigger intent must survive user-side deletion. This is an internal
             # delivery record, not a second user container or consumption cursor.
             db.execute('CREATE TABLE IF NOT EXISTS detached_deliveries(id TEXT PRIMARY KEY,recipient TEXT,event TEXT,delivery TEXT)')
-            if json.loads(row['definition']).get('schemaVersion', 1) == 2:
+            if json.loads(row['definition']).get('schemaVersion', 1) in (2, 3) or db.execute('SELECT 1 FROM unit_submissions WHERE card_id=?', (card_id,)).fetchone():
                 for item in db.execute('SELECT * FROM question_events WHERE card_id=?', (card_id,)).fetchall():
                     if json.loads(item['delivery'])['state'] not in {'accepted', 'not_requested', 'rejected'}:
                         db.execute('INSERT OR IGNORE INTO detached_deliveries VALUES(?,?,?,?)',
@@ -684,7 +721,7 @@ class InteractionStore:
                     'source':{'pluginId':'interaction','scope':'user','peerId':owner},
                     'content':{'text':'Interaction '+outcome+': '+canonical({
                         'cardId':payload['cardId'],'responseKind':payload.get('responseKind','reject' if outcome=='rejected' else 'submit'),
-                        'summaryBody':payload['summaryBody'],**{k:payload[k] for k in ('answer','choiceId','answers') if k in payload}}),
+                        'summaryBody':payload['summaryBody'],**{k:v for k,v in payload.items() if k not in {'id','lockerId','summaryBody'}}}),
                                'envelope':{'type':'interaction.'+outcome,**payload}}})
                 state='accepted' if receipt and receipt.get('status')=='accepted' else (
                     'pending' if not reconcile and receipt and receipt.get('status')=='rejected' else 'unknown')
@@ -720,7 +757,7 @@ class InteractionStore:
                 db.execute('UPDATE detached_deliveries SET delivery=? WHERE id=?',
                            (canonical({'state':'in_flight'}),card_id))
             try:
-                result=await adapter.lookup(event['id']) if reconcile else await adapter.accept(json.loads(canonical(event)))
+                result=await lookup_receipt(adapter, event) if reconcile else await adapter.accept(json.loads(canonical(event)))
                 if isinstance(result,dict) and result.get('status')=='accepted' and result.get('receiptId'):
                     settled={'state':'accepted','receiptId':result['receiptId']}
                     validate('Delivery',settled)

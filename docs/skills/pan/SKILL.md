@@ -78,6 +78,41 @@ Agent 向用户提出需要回答的问题后，先在对话中正常提问，�
 
 MA 与 TA 均适用；TA 对需由 MA 决策的问题仍先遵守任务汇报关系，不能把 MA 的实现意见等同用户授权。工具参数见 `interaction_card` 当前 schema；卡片回应不是 Trigger/Job 执行成功的证明。
 
+## 统一交互单元（V3，2026-11-09）
+
+`interaction_card` 仍是 Session→用户的唯一交互卡工具；`reminding_card` 仍是用户→Session 的反向提醒卡，不能代替用户答复或执行授权。
+
+新建卡使用 `card={schemaVersion:3,title,body?,units:[...]}`，每卡 1..20 单元。
+单元为 `{id,prompt,type,choices?}`，type 为 `text` / `single_choice` / `multi_choice`。
+选项为 `{id,label,triggerRef?}` 或 `{id,label,actionRef:{id,revision,digest},arguments:{...}}`；
+两种执行引用互斥，arguments 是创建时固定值。直接 ActionRef 支持命令/API，以及普通固定参数的
+`product_session_message` / `product_session_broadcast` / `product_session_message_v2` /
+`product_session_broadcast_v2` / `product_assign_v2`；通过原 canonical invoke 的 CommandContext
+复用 TypedExecutor.execute_provider、WorkerSessionProvider/WorkerAssignProvider 和原队列回执，不建隐藏 Job。
+显式选择的 `job.create` 与 `template.instantiate` 也可绑定：创建阶段完整校验固定 Job 定义/嵌套显式创建、TemplateRef、原 composition、source scope 和当前授权；投递复用原 canonical Job/Template 事务与回执，创建的是用户明确选择的 Job 本身，不包装第二个 Job。`start` 失败只表示原 lifecycle gate 拒绝启动，Job 创建事实仍保留在同一回执中。
+创建前可调用 `interaction_card(operation="capabilities")`，读取每个固定 ActionRef 的 bindable、具体原因和 inputSchema；
+实际创建仍复检 read/invoke/manageSystemActions、Session 动作的 job.execute、源 scope、固定目标存在性和 source 身份。
+`*_runtime_v1` 的 runtimeBeforeAcceptance 依赖 Job deliveryRuntime / frozen Run / Attempt-effect 子预约，
+不能用卡片 operation 身份伪造，创建阶段明确拒绝并保留已有 Job 路径。精确字段矩阵见
+[Session direct invoke 补充](../../design/Interaction-Units-Session-Direct-20261109.md)。
+
+用户在 Locker 中逐单元或批量提交。text 回答非空；每个单元均可点击“拒绝回答此问题”，无需填写 BTW。
+选择单元自动显示选填 BTW；拒绝文本问题后也可填 BTW。BTW 随本批答复发送给来源 TA，
+不会修改或阻止用户选择的固定动作，拒绝单元绝不执行动作。整批先校验、一次事务落盘；
+提交的单元锁定，剩余单元可继续。卡显示待答/部分提交/全部处理；单元答案与执行回执分别查询。
+
+每批得到独立 `submissionId`。本次 1..3 单元通知含完整题目、选项与答案/BTW；4..20 单元仅含摘要、
+标题、数量、reject 数量、submissionId 与读取命令。收到通知后使用
+`interaction_card(operation="submission",card_id="原卡ID",submission_id="通知中的submissionId")`
+读取**本批**；返回 answers/units/executions，不会混入其他批次。不要重新处理 get 返回的历史聚合答案。
+重复提交、冷恢复、丢通知均沿用原身份；unknown/in_flight 只查原回执，不得盲目重发或创建新卡。
+accepted 只证明 canonical 接纳，有执行结果仍需查看原 operation/receipt。
+
+V1/V2 原始定义、答案、选中动作和已有执行事件保持原身份，通过适配在同一单元界面显示/操作，
+不迁移重放。原 whole-card answers/choiceId/answer HTTP 客户端保留；新界面通过
+原 submit/respond 路由的 `unitAnswers` 原子提交子集，V3 也允许 `answers` 别名。
+完整兼容矩阵见 [统一交互单元设计](../../design/Interaction-Units-v3-20261109.md)。
+
 ## 0. 快速开始（30 秒冷启动）
 
 **主服务用户 CLI（Windows）**：Windows setup.bat / start_pan.bat 自动注册 `pan`（单纯 clone 不触发；任意分支或无 Git 可用；冲突警告不阻断启动），支持 start / exit / restart / debug / status / logs [-f] / doctor / show console / hide console / --help / --version。start 按 console_hidden 独立启动并等待 ready；exit/restart 走显式合法 API 与持久 Job 终态，ask 策略需 `--running offline|preserve`。debug 是前台 main.py，不改永久配置；doctor 只读。show/hide 只控制 Pan 独占交互窗口；logs 跟随退出不停止服务。status 区分 stopped/unknown 并显示运行版本。步骤见 [Pan CLI](../../PAN_CLI.md)。稳定安装的 PATH 不应指向临时 TA 树；注册与同步由任务授权决定。

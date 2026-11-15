@@ -2098,7 +2098,8 @@ def _local_producer_api(path, body):
 @mcp.tool()
 def interaction_card(operation: str, owner_session_id: str | None = None, card_id: str = "",
                      recipient_id: str = "", request_key: str = "", card: dict | None = None,
-                     expected_revision: int | None = None, limit: int = 100, after: str | None = None) -> dict:
+                     expected_revision: int | None = None, limit: int = 100, after: str | None = None,
+                     submission_id: str = "") -> dict:
     """Session→User cards (you create, the user answers). To answer user-created cards, use `reminding_card`.
 
     Create/get/receipt/list_pending/no_answer_needed for user questions.
@@ -2111,6 +2112,22 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
     approval/rejection and does not execute choices or send response notices.
     Neither operation accepts owner overrides or managed Session authority.
     Unknown results: query the original card; never invent a response.
+
+    operation="capabilities" lists fixed ActionRefs, bindable status, concrete
+    reasons and inputSchema before creation (current source agent grants).
+    V3 unified card: schemaVersion=3, title, units (1..20). Unit types are
+    text (nonblank answer), single_choice, multi_choice. Reject per unit with
+    {rejected:true,btw?}; BTW is optional for choices/rejection and never changes
+    or cancels the fixed selected action. Choices bind triggerRef or immutable
+    actionRef{id,revision,digest} plus fixed arguments. Canonical direct-adapter
+    limits apply; no hidden Jobs. User submits subsets atomically; committed
+    units lock while remaining units stay answerable. Execution receipts are
+    independent and unknown is query-only, never auto-replayed.
+    Each submission has a submissionId. Notifications include full new units
+    for 1..3, summary/title/count/rejectCount and read command for 4..20.
+    operation="submission" with card_id/submission_id reads ONLY that batch;
+    do not process old answers from aggregate get again. V1/V2 project into
+    the same unit UI without rewriting history or replaying old effects.
 
     V2 card: schemaVersion=2, title, optional body, questions (1..20).
     Each question has a stable id, prompt (<=500), type single_choice/multi_choice/text,
@@ -2129,6 +2146,10 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
 
     完整编排流程见 /pan skill。
     """
+    if operation == "capabilities":
+        if owner_session_id is not None:
+            return {"error": "Capabilities use current stdio identity; owner override forbidden"}
+        return _local_producer_api("/api/interaction-card-tools/capabilities", {})
     if operation in {"list_pending", "no_answer_needed"}:
         if owner_session_id is not None:
             return {"error": "Own creator scope only; owner override is forbidden"}
@@ -2139,8 +2160,8 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
         return _local_producer_api("/api/interaction-card-tools/create", {
             **({"ownerSessionId": owner_session_id} if owner_session_id is not None else {}),
             "recipientId": recipient_id, "requestKey": request_key, "card": card or {}})
-    if operation not in {"get", "receipt"}:
-        return {"error": "Only create/get/receipt/list_pending/no_answer_needed producer operations are available"}
+    if operation not in {"get", "receipt", "submission"}:
+        return {"error": "Only create/get/receipt/submission/list_pending/no_answer_needed producer operations are available"}
     caller, error = _require_caller()
     if error:
         return error
@@ -2148,6 +2169,8 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
     denied = _check_access(target, caller=caller)
     if denied:
         return denied
+    if operation == "submission":
+        return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + "/submissions/" + quote(submission_id, safe="") + "?" + urlencode({"ownerSessionId": target}))
     if operation in {"get", "receipt"}:
         suffix = "/receipt" if operation == "receipt" else ""
         return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + suffix + "?" + urlencode({"ownerSessionId": target}))

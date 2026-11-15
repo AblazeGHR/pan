@@ -17,23 +17,52 @@ interface TrustedBindingCommon {
   targetIds: string[];
   authorization?: { producerSessionId: string; basis: string };
 }
-export type TrustedBinding = TrustedBindingCommon & (
-  | { version?: 1; actionId: string; actionDigest: string; arguments: Record<string, unknown> }
-  | { version: 2; triggerId: string; triggerDigest: string;
-      jobId: string; jobRevision: number; jobDigest: string; authorityDigest: string;
-      actions: { id: string; revision: number; digest: string }[] }
-);
-export type QuestionAnswer =
+export type TrustedBinding =
+  | (TrustedBindingCommon &
+      (
+        | {
+            version?: 1;
+            actionId: string;
+            actionDigest: string;
+            arguments: Record<string, unknown>;
+          }
+        | {
+            version: 2;
+            triggerId: string;
+            triggerDigest: string;
+            jobId: string;
+            jobRevision: number;
+            jobDigest: string;
+            authorityDigest: string;
+            actions: { id: string; revision: number; digest: string }[];
+          }
+      ))
+  | {
+      version: 3;
+      summary: string;
+      targetIds: string[];
+      actionRef: { id: string; revision: number; digest: string };
+      creation?: { operation: string; name: string; startRequested: boolean; graphDigest: string };
+      arguments: Record<string, unknown>;
+      authorization?: { producerSessionId: string; basis: string };
+    };
+export type QuestionAnswer = { btw?: string } & (
   | { rejected: true; reason?: string }
   | { text: string }
   | { choiceId: string }
-  | { choiceIds: string[] };
+  | { choiceIds: string[] }
+);
 export interface CardQuestion {
   id: string;
   prompt: string;
   type: 'single_choice' | 'multi_choice' | 'text';
   required?: boolean;
-  choices?: { id: string; label: string; triggerRef?: { id: string; revision?: number } }[];
+  choices?: {
+    id: string;
+    label: string;
+    triggerRef?: { id: string; revision?: number };
+    actionRef?: { id: string; revision: number; digest: string };
+  }[];
 }
 export function cardChoiceBinding(
   card: InteractionCard,
@@ -52,7 +81,7 @@ export function cardChoiceBinding(
     : undefined;
 }
 export interface InteractionCard {
-  schemaVersion?: 1 | 2;
+  schemaVersion?: 1 | 2 | 3;
   id: string;
   lockerId: string;
   ownerSessionId: string;
@@ -61,17 +90,28 @@ export interface InteractionCard {
   createdAt: string;
   read: boolean;
   revision: number;
-  status: 'open' | 'responded' | 'rejected' | 'no_answer_needed';
+  status: 'open' | 'partial' | 'responded' | 'rejected' | 'no_answer_needed';
   definition: {
-    schemaVersion?: 1 | 2;
+    schemaVersion?: 1 | 2 | 3;
     questions?: CardQuestion[];
     title: string;
     body: string;
     summaryBody: string;
     attachments?: { id: string; name: string; mimeType?: string; size?: number }[];
     answerInput?: { label?: string; maxLength?: number };
-    choices?: { id: string; label: string; triggerRef?: { id: string; revision?: number } }[];
+    choices?: {
+      id: string;
+      label: string;
+      triggerRef?: { id: string; revision?: number };
+      actionRef?: { id: string; revision: number; digest: string };
+    }[];
   };
+  unitStatus?: 'pending' | 'partial' | 'processed';
+  units?: (CardQuestion & {
+    state: string;
+    answer?: QuestionAnswer;
+    executions?: { eventId?: string; state: string; receiptId?: string }[];
+  })[];
   response: null | {
     id?: string;
     requestId?: string;

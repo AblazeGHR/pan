@@ -154,8 +154,8 @@ def fixed_binding(service, db, execution):
     return matches[0]
 
 
-def instantiate_action(service, db, action, ref, actor, identity, *, source=None):
-    """Existing composition inside the caller's original operation/Attempt tx."""
+def resolve_action_template(service, db, action):
+    """Read the same fixed source/Template mapping without creating a graph."""
     from .legacy_families import template_view
     from packages.jobs.final_service import definition
     template_view(action, {'id': 'invocation', 'output_format': 'json'}, True)
@@ -170,6 +170,13 @@ def instantiate_action(service, db, action, ref, actor, identity, *, source=None
     template = binding['template'] if binding else current
     if template['revision'] != template_ref['revision'] or fc.digest(definition('template', template)) != template_ref['digest']:
         reject('Fixed TemplateRef changed; explicit remapping required')
+    return template_ref, template, binding
+
+
+def instantiate_action(service, db, action, ref, actor, identity, *, source=None):
+    """Existing composition inside the caller's original operation/Attempt tx."""
+    template_ref, template, binding = resolve_action_template(service, db, action)
+    execution = action['execution']['config']
     created = service.instantiate_template(template_ref['id'], {
         'expectedRevision': template_ref['revision'], 'requestKey': fc.digest(['legacy-template', identity]),
         'activate': binding['raw']['config']['enabled'] if binding else False}, actor=actor,

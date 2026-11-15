@@ -132,7 +132,14 @@ export function CardQuestions({
                                   {binding && (
                                     <>
                                       {' '}
-                                      · Targets: {binding.targetIds.join(', ')} · {binding.version === 2 ? `Job: ${binding.jobId} · configRevision ${binding.jobRevision}` : `Action: ${binding.actionId}`} · r{binding.triggerRevision}
+                                      · Targets: {binding.targetIds.join(', ')} ·{' '}
+                                      {binding.version === 2
+                                        ? `Job: ${binding.jobId} · configRevision ${binding.jobRevision}`
+                                        : `Action: ${binding.version === 3 ? binding.actionRef.id : binding.actionId}`}{' '}
+                                      · r
+                                      {binding.version === 3
+                                        ? binding.actionRef.revision
+                                        : binding.triggerRevision}
                                     </>
                                   )}
                                 </small>

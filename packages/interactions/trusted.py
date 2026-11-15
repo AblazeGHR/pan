@@ -26,14 +26,14 @@ def scope(producer_id, owner_id, ids):
 
 
 def all_choices(definition):
-    if definition.get('schemaVersion', 1) == 2:
-        for question in definition['questions']:
+    if definition.get('schemaVersion', 1) in (2, 3):
+        for question in definition.get('units', definition.get('questions', [])):
             for choice in question.get('choices', []):
-                if choice.get('triggerRef'):
+                if choice.get('triggerRef') or choice.get('actionRef'):
                     yield question['id'], choice
     else:
         for choice in definition.get('choices', []):
-            if choice.get('triggerRef'):
+            if choice.get('triggerRef') or choice.get('actionRef'):
                 yield None, choice
 
 
@@ -63,12 +63,18 @@ def resolve(service, request):
         with host.transaction(readonly=True):
             for question_id, choice in choices:
                 target = result.setdefault(question_id, {}) if question_id is not None else result
-                target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                if choice.get('actionRef'):
+                    from .action_binding import resolve as resolve_action
+                    target[choice['id']] = resolve_action(service, request, choice)
+                else:
+                    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
         return result
     with service.ledger.lock, actions_lock:
         triggers = service.ledger.read()['triggers']
         actions = service.engine.actions.read()['actions']
         for question_id, choice in choices:
+            if choice.get('actionRef'):
+                raise InteractionError('incomplete', 'Canonical Action host unavailable')
             ref = choice['triggerRef']
             trigger = triggers.get(ref['id'])
             if not trigger or not trigger['enabled'] or 'pan.interaction.responded' not in trigger['eventTypes']:
@@ -122,6 +128,9 @@ def verify(service, event):
         raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
     if service is None or not service.started or service.stopping:
         raise InteractionError('incomplete', 'Trigger host unavailable')
+    if binding.get('version') == 3:
+        from .action_binding import verify as verify_action
+        return verify_action(service, event)
     host = canonical_host(service)
     if host is not None:
         if binding.get('version') != 2:

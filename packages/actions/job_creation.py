@@ -35,15 +35,22 @@ def render(value, arguments):
     return copy.deepcopy(value)
 
 
-def create(service, db, action, ref, arguments, actor, identity, request_key, *, source=None):
-    from packages.jobs.final_service import object_ref
-    service._permit(actor, "job", "create", execution=True)
+def resolve_definition(service, db, action, arguments):
+    """Read-only preparation shared by canonical creation and fixed Card proof."""
     cfg = action["execution"]["config"]
     if set(cfg) - {"jobDefinition", "start"} or "jobDefinition" not in cfg or type(cfg.get("start", False)) is not bool:
         raise fc.ContractError("invalid_schema", "job.create requires jobDefinition and optional boolean start")
     args = argument_defaults(action["inputSchema"], arguments)
     value = fc.validate_definition("job", render(cfg["jobDefinition"], args))
     service._references(db, "job", value)
+    return value
+
+
+def create(service, db, action, ref, arguments, actor, identity, request_key, *, source=None):
+    from packages.jobs.final_service import object_ref
+    service._permit(actor, "job", "create", execution=True)
+    value = resolve_definition(service, db, action, arguments)
+    cfg = action["execution"]["config"]
     item = service._envelope("job", value, actor, state="disabled")
     provenance = {"actionRef": copy.deepcopy(ref), "operationId": identity, "requestKey": request_key,
         "argumentsDigest": fc.digest(arguments), "configDigest": fc.digest(value)}
@@ -84,7 +91,7 @@ def create(service, db, action, ref, arguments, actor, identity, request_key, *,
     return result
 
 
-def invoke(service, action_id, body, *, actor, source=None):
+def invoke(service, action_id, body, *, actor, source=None, effect_guard=None):
     from .invocation import guard
     service._permit(actor, "action", "read")
     payload = {"actionRef": body["actionRef"], "arguments": body["arguments"]}
@@ -100,6 +107,8 @@ def invoke(service, action_id, body, *, actor, source=None):
                 raise fc.ContractError("invalid_schema", "Action arguments rejected")
             if service.owner.token is None:
                 raise fc.ContractError("revision_conflict", "Invocation requires canonical owner")
+            if effect_guard is not None:
+                effect_guard()
             result = create(service, db, action, ref, body["arguments"], actor, identity, body["requestKey"], source=source)
             return result, [ref], False
         return service._operation(db, actor, "invoke", body["requestKey"], payload, "action", mutate)

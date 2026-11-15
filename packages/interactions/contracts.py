@@ -19,9 +19,9 @@ def validate(kind, value):
         def mapping(item):
             return item if isinstance(item, dict) else {}
         obj = mapping(value)
-        v2 = (obj.get('schemaVersion') == 2
-              or mapping(obj.get('card')).get('schemaVersion') == 2
-              or 'answers' in obj
+        v2 = (obj.get('schemaVersion') in (2, 3)
+              or mapping(obj.get('card')).get('schemaVersion') in (2, 3)
+              or 'unitAnswers' in obj or 'answers' in obj
               or 'answers' in mapping(mapping(obj.get('payload')).get('response')))
         if len(canonical(value).encode('utf-8')) > (2_000_000 if v2 else 65536):
             raise InteractionError('capacity', 'Interaction payload exceeds capacity')
@@ -35,7 +35,7 @@ def validate(kind, value):
         ids = [choice['id'] for choice in definition.get('choices', [])]
         if len(ids) != len(set(ids)):
             raise InteractionError('invalid', 'Choice IDs must be unique')
-        questions = definition.get('questions', [])
+        questions = definition.get('units', definition.get('questions', []))
         if len({q['id'] for q in questions}) != len(questions):
             raise InteractionError('invalid', 'Question IDs must be unique')
         for question in questions:
@@ -72,8 +72,8 @@ def validate_answers(definition, answers):
 
 def selected_choices(definition, data):
     """Yield (question ID, choice); v1 keeps its original unscoped key."""
-    if definition.get('schemaVersion', 1) == 2:
-        for q in definition['questions']:
+    if definition.get('schemaVersion', 1) in (2, 3):
+        for q in definition.get('units', definition.get('questions', [])):
             answer = data.get('answers', {}).get(q['id'], {})
             ids = answer.get('choiceIds', [answer.get('choiceId')])
             for choice in q.get('choices', []):

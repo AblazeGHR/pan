@@ -140,6 +140,10 @@ def register(app):
             if 'operation' in data:
                 raise InteractionError('invalid', 'operation belongs in the route')
             store = get_store()
+            if operation == 'capabilities':
+                from .action_binding import capabilities
+                import asyncio
+                return await asyncio.to_thread(capabilities, getattr(app.state, 'automation', None))
             if operation == 'list_pending':
                 return store.list_pending_for_producer(caller['id'], limit=data.get('limit', 100), after=data.get('after'))
             if operation == 'no_answer_needed':
@@ -195,6 +199,15 @@ def register(app):
         owner(ownerSessionId)
         try:
             return {'receipt':get_store().receipt_for_owner(ownerSessionId,card_id)}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
+    @app.get('/api/interaction-cards/{card_id}/submissions/{submission_id}')
+    async def submission(card_id: str, submission_id: str, ownerSessionId: str):
+        owner(ownerSessionId)
+        from .units import read_submission
+        try:
+            return {'submission': read_submission(get_store(), ownerSessionId, card_id, submission_id)}
         except InteractionError as exc:
             raise failure(exc) from exc
 
@@ -362,15 +375,26 @@ def register(app):
             current=store.get_for_user(principal,card_id)
             from .contracts import validate, selected_choices, choice_binding, validate_answers
             validate('Respond', data)
-            if current['schemaVersion'] == 2:
+            unified = 'unitAnswers' in data or current['schemaVersion'] == 3
+            if unified and 'unitAnswers' in data and 'answers' in data:
+                raise InteractionError('invalid', 'Only one answer map allowed')
+            if unified:
+                data = {**data, 'unitAnswers': data.get('unitAnswers', data.get('answers'))}
+                data.pop('answers', None)
+            if current['schemaVersion'] == 2 and not unified:
                 validate_answers(current['definition'], data.get('answers', {}))
-            for question_id, choice in selected_choices(current['definition'], data):
-                if current['status'] == 'open' and choice.get('triggerRef'):
+            from .units import questions
+            selection_definition = {'schemaVersion': 2, 'questions': questions(current['definition'])} if unified else current['definition']
+            if unified:
+                validate('UnitAnswers', data['unitAnswers'])
+            selection_data = {'answers': data['unitAnswers']} if unified else data
+            for question_id, choice in selected_choices(selection_definition, selection_data):
+                if not unified and current['status'] == 'open' and (choice.get('triggerRef') or choice.get('actionRef')):
                     from .trusted import verify
                     import asyncio
                     await asyncio.to_thread(verify, getattr(app.state, 'automation', None), {
                         'payload': {'ownerSessionId': current['ownerSessionId'],
-                                    'executionBinding': choice_binding(current.get('trustedChoices', {}), question_id, choice['id'])}})
+                                    'executionBinding': choice_binding(current.get('trustedChoices', {}), None if current['schemaVersion'] == 1 else question_id, choice['id'])}})
             card=store.respond(principal,card_id,data,allow_empty=request.url.path.endswith('/submit'))
         except InteractionError as exc:
             raise failure(exc) from exc

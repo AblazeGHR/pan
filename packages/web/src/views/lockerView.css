@@ -775,3 +775,23 @@
   color: var(--color-accent);
   font-size: 12px;
 }
+
+.locker-action-proof {
+  min-width: 0;
+  max-width: 100%;
+}
+.locker-action-proof pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.locker-unit-response .locker-question button {
+  margin-right: 1rem;
+}
+.locker-unit-response > button {
+  margin-top: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+}
