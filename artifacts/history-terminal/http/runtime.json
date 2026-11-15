@@ -1,24 +1,26 @@
 {
-  "port": 58223,
-  "ownedProfile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5514\\test_history_terminal_producti0\\owned-history-profile",
+  "port": 57651,
+  "ownedProfile": "<tmp>/owned-history-profile",
   "browserExit": 0,
   "providerTextOnly": true,
+  "cbcEchoColdReopen": true,
+  "cbcColdReopen": true,
   "coldReopen": true,
   "ownedProcesses": [
     [
-      17436,
-      1793091674.0798943,
-      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\history-terminal-events-20261027\\tests\\support\\automation_http_server.py --port 58223 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5514\\test_history_terminal_producti0\\owned-history-profile"
+      17416,
+      1794756382.507913,
+      "D:\\project\\Pan\\.venv\\Scripts\\python.exe D:\\project\\Pan\\data\\workdirs\\practical-only-requested-features-20261115\\tests\\support\\automation_http_server.py --port 57651 --data-root <tmp>"
     ],
     [
-      38148,
-      1793091674.0866868,
+      35104,
+      1794756382.515775,
       "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
     ],
     [
-      13656,
-      1793091674.1026156,
-      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\history-terminal-events-20261027\\tests\\support\\automation_http_server.py --port 58223 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5514\\test_history_terminal_producti0\\owned-history-profile"
+      36088,
+      1794756382.5342295,
+      "D:\\project\\Pan\\.venv\\Scripts\\python.exe D:\\project\\Pan\\data\\workdirs\\practical-only-requested-features-20261115\\tests\\support\\automation_http_server.py --port 57651 --data-root <tmp>"
     ]
   ],
   "portReleased": true

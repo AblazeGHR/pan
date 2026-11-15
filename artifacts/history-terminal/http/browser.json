@@ -14,6 +14,50 @@
       "taskSeq": 2
     }
   ],
+  "cbcNativeReason": {
+    "sessionId": "ses_821d73c94a6cde29",
+    "status": "error",
+    "code": 6004,
+    "source": "cli.error",
+    "messageHasReason": true,
+    "assistantProsePreserved": true,
+    "proseIsDiagnosis": false,
+    "duplicateAssistantErrorRows": 0,
+    "refresh": true,
+    "diagnosticsExpanded": true,
+    "terminalId": "terminal:seq:1"
+  },
+  "cbcEchoFold": {
+    "sessionId": "ses_5f92acc112a710ed",
+    "code": 6004,
+    "source": "cli.error",
+    "assistantBodyPreserved": true,
+    "cardCopies": 2,
+    "chatCopies": 2,
+    "outsideCardCopies": 0,
+    "foldedIntoCard": true,
+    "refresh": true,
+    "pagination": true,
+    "duplicateFrameDeduped": true,
+    "terminalId": "terminal:seq:1"
+  },
+  "cbcEchoNegatives": {
+    "sessionId": "ses_04230b84fe411d90",
+    "statuses": [
+      "done",
+      "error",
+      "error"
+    ],
+    "cardCopies": 2,
+    "chatCopies": 3,
+    "outsideCardCopies": 1,
+    "previousDoneSameTextVisible": true,
+    "samePrefixProseVisible": true,
+    "unknownProseVisible": true,
+    "unknownPlaceholder": true,
+    "errorCards": 2,
+    "refresh": true
+  },
   "delayedOldErrorAfterDone": true,
   "duplicateFrame": true,
   "refresh": true,
@@ -24,7 +68,7 @@
     "terminal:seq:2",
     "terminal:seq:3"
   ],
-  "sessionId": "ses_ed98ee525aeeff19",
+  "sessionId": "ses_7069337574af3cb4",
   "fixedAnchor": true,
   "order": [
     1,
