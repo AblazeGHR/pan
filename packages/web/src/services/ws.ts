@@ -139,8 +139,12 @@ class WsClient {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
       this.stopHeartbeat();
+      if (event?.code === 4401 || event?.code === 4403) {
+        void import('../stores/automationStore').then(({ useAutomationAuth }) => useAutomationAuth.getState().clear());
+        return;
+      }
       this.scheduleReconnect();
     };
 

@@ -173,7 +173,7 @@ function waitForForeground(signal?: AbortSignal): Promise<void> {
 }
 
 async function request<T>(url: string, options?: RequestInit, background = false, canonical = false): Promise<T> {
-  if (/^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$)|legacy\/jobs(?:\/|$))/.test(url)) {
+  if (url.startsWith('/api/')) {
     const authStore = (await import('@/stores/automationStore')).useAutomationAuth;
     const auth = authStore.getState();
     options = { ...options, credentials: 'same-origin', headers: {

@@ -341,7 +341,8 @@ class Service:
             raise DependencyUnavailable('Canonical Job owner required; legacy Automation host is retired')
         # The composition root supplies the owner. Automation owns the Event
         # inbox and ingress tasks only, never a Job/time/chain execution loop.
-        await self.engine.io(self.auth.key)
+        if self.auth.path.exists():
+            await self.engine.io(self.auth.key)
         await self.engine.io(self.events.initialize)
         self.loop = asyncio.get_running_loop()
         self.started = True

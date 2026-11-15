@@ -20,5 +20,12 @@ workspace._cache.clear()
 workspace._loaded = False
 from packages.core.adapters.cbc.adapter import CbcAdapter
 CbcAdapter.supported_models = property(lambda self: ['deepseek-v4-flash'])
+if os.environ.get('PAN_TEST_AUTH_CHANNEL_FIXTURE') == '1':
+    import json
+    from packages.web.channel_auth import child_environment
+    data.mkdir(parents=True, exist_ok=True)
+    (data / 'owned-channel-credentials.json').write_text(json.dumps({
+        name: child_environment(name)['PAN_CHANNEL_CREDENTIAL'] for name in ('qq', 'wechat')
+    }), encoding='utf-8')
 from tests.support.isolated_http_server import main
 main()

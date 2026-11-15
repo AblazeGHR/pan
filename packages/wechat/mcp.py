@@ -32,6 +32,7 @@ Environment variables:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 
 import httpx
@@ -41,6 +42,8 @@ _wechat_api_url = os.environ.get(
     "PAN_WECHAT_API_URL", "http://127.0.0.1:8081"
 ).rstrip("/")
 _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768").rstrip("/")
+
+_transport = 'stdio'
 
 mcp = FastMCP("WeChat")
 
@@ -53,6 +56,17 @@ async def _api(method: str, path: str, body: dict | None = None,
     （_pan_api_url）。错误约定与 packages/qq/mcp.py / packages/mcp/server.py
     一致：HTTP 非 2xx 尽力透传后端 JSON，连接失败归为 connection_error。
     """
+    if base_url == _pan_api_url:
+        if _transport != 'stdio':
+            return {'ok': False, 'error': {'code': 'bound_stdio_required'}}
+        try:
+            from packages.plugins.ipc import request
+            return await asyncio.to_thread(request, {'operation': 'core_http',
+                'session_id': os.environ.get('PAN_AGENT_SESSION_ID', ''),
+                'method': method, 'path': path, 'body': body})
+        except Exception:
+            return {'ok': False, 'status': 'unknown', 'retryable': False,
+                    'error': {'code': 'core_transport_unconfirmed'}}
     url = f"{(base_url or _wechat_api_url)}{path}"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -260,6 +274,8 @@ def main():
     parser.add_argument("--wechat-api-url", default=_wechat_api_url,
                         help=f"WeChat plugin HTTP API base URL (default: {_wechat_api_url})")
     args = parser.parse_args()
+    global _transport
+    _transport = args.transport
 
     _wechat_api_url = args.wechat_api_url.rstrip("/")
 

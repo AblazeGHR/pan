@@ -300,6 +300,7 @@ async def _owned_lifespan(app: FastAPI, owner):
     # Init CharacterManager with manifest
     global _character_manager
     config = load_config()
+    app.state.global_auth_origins = config.get('global_auth', {}).get('origins', [])
     plugin_paths = config.get("plugin_manifests", DEFAULT_PLUGIN_MANIFESTS)
     _character_manager = CharacterManager(str(DATA_DIR))
     try:
@@ -351,6 +352,8 @@ async def _owned_lifespan(app: FastAPI, owner):
                     final_jobs = None
                     from packages.automation.authorization import bind_objects
                     bind_objects(plugin_runtime, app)
+                    from packages.web.machine_ipc import bind as bind_core_ipc
+                    bind_core_ipc(plugin_runtime, app, sess.get)
                     try:
                         final_jobs = bind_final_jobs(app, automation, sess.SESSION_DIR.parent / 'job-final', owner=owner)
                         _bind_qq_channel_provider(final_jobs)
@@ -15660,3 +15663,7 @@ def api_put_login_startup(data: dict = Body(...)):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (OSError, UnicodeError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+from packages.web.global_auth import GlobalAuthMiddleware
+app.add_middleware(GlobalAuthMiddleware, server=app)

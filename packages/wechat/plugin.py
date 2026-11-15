@@ -207,15 +207,19 @@ class WeChatPlugin:
             "can_reply": self.channel.has_fresh_token(msg.scope_id),
         }
         try:
-            resp = await self._http.post(f"{self.core_url}/api/wechat/notify",
+            resp = await self._http.post(f"{self.core_url}/api/wechat/notify", headers=self._core_headers(),
                                          json=payload)
             resp.raise_for_status()
         except Exception as e:  # noqa: BLE001
             print(f"[WeChat] notify Pan Core 失败（非致命）: {type(e).__name__}: {e}")
 
+    def _core_headers(self):
+        token = os.environ.get('PAN_CHANNEL_CREDENTIAL', '')
+        return {'X-Pan-Channel-Credential': token} if token else {}
+
     async def _get(self, path: str) -> dict:
         try:
-            r = await self._http.get(f"{self.core_url}{path}")
+            r = await self._http.get(f"{self.core_url}{path}", headers=self._core_headers())
             r.raise_for_status()
             return r.json()
         except Exception as e:  # noqa: BLE001
@@ -224,7 +228,7 @@ class WeChatPlugin:
 
     async def _post(self, path: str, data: dict | None = None) -> dict:
         try:
-            r = await self._http.post(f"{self.core_url}{path}", json=data or {})
+            r = await self._http.post(f"{self.core_url}{path}", json=data or {}, headers=self._core_headers())
             r.raise_for_status()
             return r.json()
         except Exception as e:  # noqa: BLE001

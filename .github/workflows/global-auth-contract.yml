@@ -1,0 +1,32 @@
+name: Global authentication contract
+on:
+  pull_request:
+    paths:
+      - 'packages/automation/**'
+      - 'packages/web/global_auth.py'
+      - 'packages/web/machine_ipc.py'
+      - 'packages/core/platform/auth_lock.py'
+      - 'tests/test_global_auth*.py'
+      - '.github/workflows/global-auth-contract.yml'
+  workflow_dispatch:
+jobs:
+  contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r minimal-requirements.txt pytest pytest-timeout
+      - run: python -c "import packages.web.server"
+      - run: python scripts/run_tests_isolated.py -- python -m pytest tests/test_global_auth.py tests/test_global_auth_platform.py --collect-only -q -o addopts=
+      - run: python scripts/run_tests_isolated.py -- python -m pytest tests/test_global_auth.py tests/test_global_auth_platform.py -q -o addopts= --junitxml=auth-contract.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: auth-contract-${{ matrix.os }}
+          path: auth-contract.xml

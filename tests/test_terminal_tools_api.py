@@ -117,7 +117,7 @@ def test_cancelled_input_keeps_worker_and_real_token_until_release():
     asyncio.run(run())
 
 
-def test_real_stdio_mcp_reaches_local_bridge(monkeypatch):
+def test_real_stdio_mcp_reaches_local_bridge(monkeypatch, tmp_path):
     async def run():
         import uvicorn
         from mcp import ClientSession, StdioServerParameters
@@ -126,6 +126,8 @@ def test_real_stdio_mcp_reaches_local_bridge(monkeypatch):
         @app.get("/api/sessions/{sid}")
         def caller(sid: str):
             return {"id": sid} if sid == "caller" else {"error": "missing"}
+        from tests.support.core_ipc import core_bridge
+        bridge = core_bridge(app, tmp_path)
         sock = socket.socket()
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -134,7 +136,7 @@ def test_real_stdio_mcp_reaches_local_bridge(monkeypatch):
         try:
             assert await wait_until(lambda: server.started)
             params = StdioServerParameters(command=sys.executable, args=["-m", "packages.mcp.server", "--pan-url", f"http://127.0.0.1:{port}"],
-                                          env={**os.environ, "PAN_AGENT_SESSION_ID": "caller"})
+                                          env={**os.environ, "PAN_AGENT_SESSION_ID": "caller", "PAN_PLUGIN_IPC": bridge.address})
             async with stdio_client(params) as (reader, writer):
                 async with ClientSession(reader, writer) as client:
                     await client.initialize()
@@ -151,6 +153,7 @@ def test_real_stdio_mcp_reaches_local_bridge(monkeypatch):
             await serving
             sock.close()
             await host.close()
+            await bridge.close()
     asyncio.run(run())
 
 
@@ -185,6 +188,8 @@ def test_real_stdio_mcp_conpty_roundtrip(tmp_path):
         @app.get("/api/sessions/{sid}")
         def caller(sid: str):
             return {"id": sid} if sid == "caller" else {"error": "missing"}
+        from tests.support.core_ipc import core_bridge
+        bridge = core_bridge(app, tmp_path)
         sock = socket.socket()
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -194,7 +199,7 @@ def test_real_stdio_mcp_conpty_roundtrip(tmp_path):
         try:
             assert await wait_until(lambda: server.started)
             params = StdioServerParameters(command=sys.executable, args=["-m", "packages.mcp.server", "--pan-url", f"http://127.0.0.1:{port}"],
-                                          env={**os.environ, "PAN_AGENT_SESSION_ID": "caller"})
+                                          env={**os.environ, "PAN_AGENT_SESSION_ID": "caller", "PAN_PLUGIN_IPC": bridge.address})
             async with stdio_client(params) as (reader, writer):
                 async with ClientSession(reader, writer) as client:
                     await client.initialize()
@@ -234,6 +239,7 @@ def test_real_stdio_mcp_conpty_roundtrip(tmp_path):
             await serving
             sock.close()
             await host.close()
+            await bridge.close()
             if terminal_id:
                 await asyncio.to_thread(_cleanup_owned_terminal, service, terminal_id)
             await runtime.shutdown()

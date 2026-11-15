@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 import json
 
 import pytest
@@ -62,7 +63,7 @@ def test_permission_http_cas_and_denial(tmp_path):
         svc = Service(tmp_path, type('Worker', (), {'workers': {}})(), None)
         app = FastAPI(); app.state.automation = svc
         install(type('Server', (), {'app': app})())
-        token = svc.auth.login(svc.auth.key())
+        token = svc.auth.login(provision(svc.auth))
         headers = {'Authorization': 'Bearer ' + token}
         async with AsyncClient(transport=ASGITransport(app), base_url='http://test') as client:
             denied = await client.get('/api/automation', headers=headers)
@@ -106,7 +107,7 @@ def test_template_schema_has_no_lifecycle_or_execute_and_malformed_state_fails_c
 @pytest.mark.parametrize('value', [None, [], ['synthetic-private-marker'], 'synthetic-private-marker', 7, 1.5, True])
 def test_invalid_permission_document_root_is_normalized_without_rewrite(tmp_path, value):
     auth = UserAuth(tmp_path)
-    key = auth.key()
+    key = provision(auth)
     auth.permissions_path.write_text(json.dumps(value), encoding='utf-8')
     original = auth.permissions_path.read_bytes()
     for _ in range(2):
@@ -115,7 +116,7 @@ def test_invalid_permission_document_root_is_normalized_without_rewrite(tmp_path
         with pytest.raises(OSError, match='^Authorization state is invalid or unreadable$'):
             auth.change_permissions(full_permissions(), 0)
         assert auth.permissions_path.read_bytes() == original
-        assert auth.key() == key
+        assert auth._verify_password(key, auth.key())
         assert auth.login(key)
     assert not list(tmp_path.glob('authorization.json.tmp-*'))
 
@@ -126,7 +127,7 @@ def test_invalid_permission_root_http_error_is_bounded_and_file_retained(tmp_pat
         svc = Service(tmp_path, type('Worker', (), {'workers': {}})(), None)
         app = FastAPI(); app.state.automation = svc
         install(type('Server', (), {'app': app})())
-        key = svc.auth.key(); token = svc.auth.login(key)
+        key = provision(svc.auth); token = svc.auth.login(key)
         svc.auth.permissions_path.write_text(json.dumps(value), encoding='utf-8')
         before = svc.auth.permissions_path.read_bytes()
         async with AsyncClient(transport=ASGITransport(app), base_url='http://synthetic') as client:
@@ -138,7 +139,7 @@ def test_invalid_permission_root_http_error_is_bounded_and_file_retained(tmp_pat
             assert response.json() == {'detail':'Authorization state is invalid or unreadable'}
             assert key not in response.text and token not in response.text
         assert svc.auth.permissions_path.read_bytes() == before
-        assert svc.auth.key() == key
+        assert svc.auth._verify_password(key, svc.auth.key())
     asyncio.run(run())
 
 
@@ -147,7 +148,7 @@ def test_invalid_permission_root_private_ipc_rejects_without_raw_value(tmp_path,
     async def run():
         h=await canonical_harness(tmp_path)
         try:
-            key=h.svc.auth.key()
+            key=provision(h.svc.auth)
             h.svc.auth.permissions_path.write_text(json.dumps(value),encoding='utf-8')
             before=h.svc.auth.permissions_path.read_bytes()
             result=await asyncio.to_thread(request,{

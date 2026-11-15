@@ -29,6 +29,7 @@ Environment variables:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 
 import httpx
@@ -36,6 +37,8 @@ from mcp.server.fastmcp import FastMCP
 
 _qq_api_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
 _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768").rstrip("/")
+
+_transport = 'stdio'
 
 mcp = FastMCP("QQ")
 
@@ -49,6 +52,17 @@ async def _api(method: str, path: str, body: dict | None = None,
     连接失败返回 {ok: false, error: {code: connection_error, ...}}，与
     packages/mcp/server.py 的 _api 错误约定保持一致。
     """
+    if base_url == _pan_api_url:
+        if _transport != 'stdio':
+            return {'ok': False, 'error': {'code': 'bound_stdio_required'}}
+        try:
+            from packages.plugins.ipc import request
+            return await asyncio.to_thread(request, {'operation': 'core_http',
+                'session_id': os.environ.get('PAN_AGENT_SESSION_ID', ''),
+                'method': method, 'path': path, 'body': body})
+        except Exception:
+            return {'ok': False, 'status': 'unknown', 'retryable': False,
+                    'error': {'code': 'core_transport_unconfirmed'}}
     url = f"{(base_url or _qq_api_url)}{path}"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -355,6 +369,8 @@ def main():
     parser.add_argument("--qq-api-url", default=_qq_api_url,
                         help=f"QQ bot HTTP API base URL (default: {_qq_api_url})")
     args = parser.parse_args()
+    global _transport
+    _transport = args.transport
 
     _qq_api_url = args.qq_api_url.rstrip("/")
 

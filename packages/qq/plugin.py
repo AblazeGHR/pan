@@ -223,11 +223,16 @@ async def _get_client() -> httpx.AsyncClient:
     return _client
 
 
+def _core_headers():
+    token = os.environ.get('PAN_CHANNEL_CREDENTIAL', '')
+    return {'X-Pan-Channel-Credential': token} if token else {}
+
+
 async def _get(path: str) -> dict:
     url = f"{PAN_URL}{path}"
     try:
         client = await _get_client()
-        r = await client.get(url)
+        r = await client.get(url, headers=_core_headers())
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -239,7 +244,7 @@ async def _post(path: str, data: dict = None) -> dict:
     url = f"{PAN_URL}{path}"
     try:
         client = await _get_client()
-        r = await client.post(url, json=data or {})
+        r = await client.post(url, json=data or {}, headers=_core_headers())
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -251,7 +256,7 @@ async def _patch(path: str, data: dict = None) -> dict:
     url = f"{PAN_URL}{path}"
     try:
         client = await _get_client()
-        r = await client.patch(url, json=data or {})
+        r = await client.patch(url, json=data or {}, headers=_core_headers())
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -369,7 +374,7 @@ async def _agent_ws_loop() -> None:
     """
     while True:
         try:
-            async with websockets.connect(_WS_URL, close_timeout=2) as ws:
+            async with websockets.connect(_WS_URL, close_timeout=2, additional_headers=_core_headers()) as ws:
                 await ws.send(json.dumps({
                     "type": "subscribe",
                     "eventTypes": ["worker.result"],
@@ -894,7 +899,7 @@ async def _notify_pan_inbox(
         }
         if bot_uin:
             payload["bot_uin"] = str(bot_uin)
-        await client.post(url, json=payload)
+        await client.post(url, json=payload, headers=_core_headers())
     except Exception as e:
         print(f"[QQ Bridge] notify Pan inbox failed: {type(e).__name__}: {e}")
 

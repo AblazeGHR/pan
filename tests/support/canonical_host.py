@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Reusable canonical Job host for tests that need the real ``/api`` routes.
 
 Mirrors the proven fixture in ``tests/test_automation_canonical.py``: a real
@@ -55,6 +56,6 @@ def build(root, *, worker=None):
     service.owner.claim(0)
     service.owner.set_state('active')
     automation.events.initialize()
-    token = automation.auth.login(automation.auth.key())
+    token = automation.auth.login(provision(automation.auth))
     return SimpleNamespace(app=app, automation=automation, service=service, provider=provider,
                            token=token, root=root, action=object_ref('action', action))

@@ -247,6 +247,24 @@ class Runtime:
         if self.closing:
             return error("runtime_stopping", "Plugin runtime is stopping")
         sid, op = request["session_id"], request["operation"]
+        if op == 'cli_http':
+            callback = getattr(self, 'cli_http', None)
+            if callback is None:
+                return {'ok': False, 'error': {'code': 503, 'message': 'Lifecycle IPC unavailable'}}
+            return await callback(request.get('method'), request.get('path'),
+                                  request.get('body'), request.get('instance'))
+        if op == 'core_http':
+            # OS-local IPC is the provenance boundary; sid alone over HTTP is
+            # never accepted. Recheck live binding on every invocation.
+            if not sid:
+                return {'ok': False, 'error': {'code': 403, 'message': 'Bound Core Session required'}}
+            _, _, bindings = await io(self.context, sid)
+            if not any(b['enabled'] and b['plugin_id'] == 'pan' for b in bindings):
+                return {'ok': False, 'error': {'code': 403, 'message': 'Pan core disabled'}}
+            callback = getattr(self, 'core_http', None)
+            if callback is None:
+                return {'ok': False, 'error': {'code': 503, 'message': 'Core IPC unavailable'}}
+            return await callback(sid, request.get('method'), request.get('path'), request.get('body'))
         if op == "authorization_objects":
             # Same-user IPC is the provenance boundary, never a claimed HTTP
             # header. Bound Session callers also retain the existing core gate.

@@ -7,6 +7,7 @@ import os
 import threading
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from multiprocessing.connection import Client, Listener
 
 from .runtime import Runtime, error
@@ -122,6 +123,21 @@ async def plugin_lifespan(get_manifest, get_session, directory, on_native_change
     except BaseException:
         await runtime.close()
         raise
+    try:
+        # Locator only, not an HTTP credential. The existing OS-local pipe/socket
+        # remains the provenance boundary; CLI operations have their own scope.
+        locator = Path(directory) / 'core-ipc.json'
+        locator.parent.mkdir(parents=True, exist_ok=True)
+        temporary = locator.with_name(locator.name + '.' + uuid.uuid4().hex + '.tmp')
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            json.dump({'address': bridge.address, 'pid': os.getpid()}, stream)
+        os.replace(temporary, locator)
+    except BaseException:
+        if 'temporary' in locals():
+            temporary.unlink(missing_ok=True)
+        await bridge.close()
+        raise
     previous = os.environ.get(ENV)
     os.environ[ENV] = bridge.address
     try:
@@ -133,3 +149,8 @@ async def plugin_lifespan(get_manifest, get_session, directory, on_native_change
         else:
             os.environ[ENV] = previous
         await bridge.close()
+        try:
+            if json.loads(locator.read_text(encoding='utf-8')).get('address') == bridge.address:
+                locator.unlink()
+        except FileNotFoundError:
+            pass

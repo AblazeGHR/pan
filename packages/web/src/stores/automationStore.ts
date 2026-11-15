@@ -47,9 +47,9 @@ export async function automationRequest<T>(path: string, method = 'GET', body?: 
 export async function automationLogin(key: string) {
   // Login must not attach a previous Bearer or expose a server-echoed key.
   const response = await fetch('/api/automation/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
-  if (!response.ok) throw new Error('Login failed. Check your local automation/user.key.');
-  const { token, expiresIn } = await response.json() as { token: string; expiresIn: number };
-  useAutomationAuth.setState({ token, authenticated: true, expiresAt: Date.now() + expiresIn * 1000 });
+  if (!response.ok) throw new Error(response.status === 429 ? '登录尝试过多，请稍后重试。' : '登录失败，请检查管理员密码。管理员尚未设置时，请先在 Pan 所在电脑完成初始化。');
+  const { expiresIn } = await response.json() as { expiresIn: number };
+  useAutomationAuth.setState({ token: null, authenticated: true, expiresAt: Date.now() + expiresIn * 1000 });
 }
 export async function automationLogout() {
   try { await automationRequest('automation/logout', 'POST'); }

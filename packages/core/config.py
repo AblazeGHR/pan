@@ -175,6 +175,8 @@ DEFAULT_CONFIG: dict = {
     # Built-in project + first-party Pan MCP manifests. External/private
     # manifests can be appended in config.json.
     "plugin_manifests": DEFAULT_PLUGIN_MANIFESTS,
+    # Exact HTTPS origins for TLS-terminating proxies; never proxy credentials.
+    "global_auth": {"origins": []},
     # Remote 通道默认配置
     "remote": {
         "enabled": False,

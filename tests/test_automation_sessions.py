@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Persistent user sessions, transport cookies and CSRF contract; no listeners."""
 import asyncio
 import hashlib
@@ -20,7 +21,7 @@ from packages.automation.authorization import require
 def test_cookie_boundary_preserves_route_auth_and_method_contract(tmp_path, credential, method):
     async def run():
         auth = UserAuth(tmp_path)
-        token = auth.login(auth.key())
+        token = auth.login(provision(auth))
         async def io(fn, *args):
             return fn(*args)
         app = FastAPI()
@@ -56,7 +57,7 @@ def test_restart_expiry_hashes_and_bounded_renewal(tmp_path, monkeypatch):
     monkeypatch.setattr('packages.automation.auth.time.time', lambda: clock[0])
     auth = UserAuth(tmp_path)
     auth.change_session_days(7)
-    token = auth.login(auth.key())
+    token = auth.login(provision(auth))
     digest = hashlib.sha256(token.encode()).hexdigest()
     raw = auth.sessions_path.read_text()
     assert token not in raw and digest in raw
@@ -85,7 +86,7 @@ def test_global_setting_preserves_permissions_and_zero_has_fixed_ttl(tmp_path, m
     auth = UserAuth(tmp_path)
     auth.change_permissions(auth._default_permissions(), 0)
     auth.change_session_days(90)
-    token = auth.login(auth.key())
+    token = auth.login(provision(auth))
     auth.change_permissions(auth._default_permissions(), 1)
     assert UserAuth(tmp_path).session_days == 90
     auth.change_session_days(0)
@@ -101,7 +102,7 @@ def test_failed_session_replace_is_not_published(tmp_path, monkeypatch):
     monkeypatch.setattr('packages.automation.auth.time.time', lambda: clock[0])
     auth = UserAuth(tmp_path)
     auth.change_session_days(7)
-    token = auth.login(auth.key())
+    token = auth.login(provision(auth))
     before = auth.sessions_path.read_bytes()
     expires = auth.session(token)['expiresAt']
     clock[0] += 4 * 86400
@@ -128,8 +129,8 @@ def test_global_duration_reapplies_cookie_policy_to_other_browsers(tmp_path):
         app.state.automation = SimpleNamespace(auth=auth, engine=SimpleNamespace(io=io))
         install(SimpleNamespace(app=app))
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://example.test') as first, httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://example.test') as second:
-            await first.post('/api/automation/login', json={'key': auth.key()})
-            await second.post('/api/automation/login', json={'key': auth.key()})
+            await first.post('/api/automation/login', json={'key': provision(auth)})
+            await second.post('/api/automation/login', json={'key': provision(auth)})
             assert 'set-cookie' not in (await second.get('/api/automation/session')).headers
             changed = await first.put('/api/automation/settings', json={'sessionDays': 0}, headers={'Origin': 'http://example.test'})
             assert changed.status_code == 200
@@ -165,7 +166,7 @@ def test_cookie_api_lifecycle(tmp_path, monkeypatch, days, scheme):
             assert (await client.get('/api/automation/session')).json() == {
                 'authenticated': False, 'expiresAt': None, 'sessionDays': days}
             assert (await client.get('/api/automation/settings')).status_code == 401
-            login = await client.post('/api/automation/login', json={'key': auth.key()})
+            login = await client.post('/api/automation/login', json={'key': provision(auth)})
             token = login.json()['token']
             cookie = login.headers['set-cookie']
             assert 'HttpOnly' in cookie and 'SameSite=lax' in cookie and 'Path=/' in cookie
@@ -203,17 +204,17 @@ def test_cookie_api_lifecycle(tmp_path, monkeypatch, days, scheme):
             assert 'Max-Age=0' in logout.headers['set-cookie']
             assert not UserAuth(tmp_path).authorized('Bearer ' + token)
             assert not (await client.get('/api/automation/session')).json()['authenticated']
-            login = await client.post('/api/automation/login', json={'key': auth.key()})
+            login = await client.post('/api/automation/login', json={'key': provision(auth)})
             old_token = login.json()['token']
-            other_token = auth.login(auth.key())
+            other_token = auth.login(provision(auth))
             status = (await client.get('/api/automation/authorization')).json()
             changed = await client.put('/api/automation/authorization', headers=origin, json={
-                'currentPassword': auth.key(), 'newPassword': 'NewPassword!234567',
+                'currentPassword': provision(auth), 'newPassword': 'NewPassword!234567',
                 'confirmNewPassword': 'NewPassword!234567', 'expectedRevision': status['revision']})
             assert changed.status_code == 200 and 'Max-Age=0' in changed.headers['set-cookie']
             assert not UserAuth(tmp_path).authorized('Bearer ' + old_token)
             assert not UserAuth(tmp_path).authorized('Bearer ' + other_token)
-            await client.post('/api/automation/login', json={'key': auth.key()})
+            await client.post('/api/automation/login', json={'key': 'NewPassword!234567'})
             revoked = await client.post('/api/automation/revoke', headers=origin)
             assert revoked.status_code == 200 and 'Max-Age=0' in revoked.headers['set-cookie']
             assert json.loads(auth.sessions_path.read_text())['sessions'] == {}

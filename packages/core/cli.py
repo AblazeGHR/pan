@@ -11,25 +11,16 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from urllib.request import Request, ProxyHandler, build_opener
-from urllib.error import HTTPError
 
 from . import __version__, launcher
 
 
-def request(port, path, payload=None, instance=None):
-    headers = {"Content-Type": "application/json"}
-    if instance:
-        headers.update({"X-Pan-Expected-Pid": str(instance["pid"]),
-                        "X-Pan-Expected-Created-At": str(instance["createdAt"])})
-    req = Request(f"http://127.0.0.1:{port}{path}",
-                  data=None if payload is None else json.dumps(payload).encode(),
-                  headers=headers)
+def request(port, path, payload=None, instance=None, *, root=None):
+    from .local_transport import request as local_request
     try:
-        with build_opener(ProxyHandler({})).open(req, timeout=5) as response:
-            return json.load(response)
-    except HTTPError as exc:
-        raise launcher.LauncherError(f"HTTP {exc.code}: {exc.read().decode(errors='replace')}") from exc
+        return local_request(root, 'GET' if payload is None else 'POST', path, payload, instance)
+    except (OSError, ValueError) as exc:
+        raise launcher.LauncherError('Lifecycle IPC unavailable or invalid') from exc
 
 
 @contextlib.contextmanager
@@ -70,7 +61,7 @@ def verified(root):
         raise launcher.LauncherError("Recorded PID is stale or belongs to another instance")
     if launcher.listener_owner(port) != record["pid"]:
         raise launcher.LauncherError("Port listener does not match the recorded instance")
-    remote = request(port, "/api/main/identity")
+    remote = request(port, "/api/main/identity", root=root)
     if (remote.get("pid") != record["pid"] or
             launcher._normal_path(remote.get("root", "")) != launcher._normal_path(root) or
             remote.get("createdAt") != record["createdAt"]):
@@ -109,7 +100,7 @@ def lifecycle(root, operation, timeout, choice=None, *, fallback=False):
         port, record, _ = verified(root)
         payload = {"operation": operation,
                    "options": {"markRunningSessionsOffline": choice}} if choice is not None else {"operation": operation}
-        result = request(port, lifecycle_action.ACTION_ROUTE, payload, record)
+        result = request(port, lifecycle_action.ACTION_ROUTE, payload, record, root=root)
         effect_id = result.get("effectId") if isinstance(result, dict) else None
         if not result.get("accepted") or not isinstance(effect_id, str):
             raise launcher.LauncherError(f"{operation} canonical Action failed/not accepted: {result}")
@@ -288,7 +279,7 @@ def main(argv=None):
             from . import lifecycle_action
             result = request(port, lifecycle_action.ACTION_ROUTE,
                              {"operation": args.command, "pid": record["pid"],
-                              "createdAt": record["createdAt"]}, record)
+                              "createdAt": record["createdAt"]}, record, root=root)
             if not result.get("ok"):
                 raise launcher.LauncherError(str(result))
             print(json.dumps(result, ensure_ascii=False))

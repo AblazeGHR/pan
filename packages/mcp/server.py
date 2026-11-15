@@ -116,25 +116,7 @@ def _terminal_api(operation: str, arguments: dict) -> dict:
     data = {key: value for key, value in arguments.items() if value is not None}
     if operation == "create" and "session_id" not in data:
         data["session_id"] = sid
-    req = urllib.request.Request(f"{_pan_api_url.rstrip('/')}/api/terminal-tools/{operation}",
-        data=json.dumps(data).encode("utf-8"), method="POST",
-        headers={"Content-Type": "application/json", "X-Pan-Terminal-Caller": sid})
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-    try:
-        with urllib.request.build_opener(NoRedirect).open(req, timeout=35.0) as response:
-            raw = response.read(256 * 1024 + 1)
-            if len(raw) > 256 * 1024:
-                return failure("response-too-large")
-            return json.loads(raw)
-    except urllib.error.HTTPError as error:
-        # The dedicated endpoint returns only static categories; never relay
-        # arbitrary HTTP bodies/proxy text from a different local server.
-        return failure({403: "permission-denied", 422: "invalid-request", 429: "busy",
-                        503: "terminal-unavailable"}.get(error.code, "terminal-tool-failed"))
-    except Exception:
-        return failure("terminal-tool-unavailable")
+    return _api('POST', f'/api/terminal-tools/{operation}', data, timeout=35)
 
 
 from packages.mcp.terminal_tools import register_terminal_tools
@@ -149,21 +131,9 @@ def _self_queue_api(operation: str, item_id: str | None = None) -> dict:
             or url.hostname not in {"127.0.0.1", "::1"} or url.username or url.password
             or url.path not in {"", "/"} or url.query or url.fragment):
         return {"ok": False, "error": "caller_unavailable"}
-    req = urllib.request.Request(
-        f"{_pan_api_url.rstrip('/')}/api/self-queue/{operation}",
-        data=json.dumps({"itemId": item_id} if operation == "consume" or (
-            operation == "report-consume" and item_id is not None) else {}).encode("utf-8"),
-        method="POST", headers={"Content-Type": "application/json", "X-Pan-Queue-Caller": sid})
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-    try:
-        with urllib.request.build_opener(NoRedirect).open(req, timeout=15) as response:
-            return json.loads(response.read())
-    except Exception:
-        # A consume may have interrupted its own caller after real handoff.
-        # Inspect the original ID again; never recreate/repost its contents.
-        return {"ok": False, "status": "unconfirmed", "retryable": False}
+    return _api('POST', f'/api/self-queue/{operation}',
+                {'itemId': item_id} if operation == 'consume' or (
+                    operation == 'report-consume' and item_id is not None) else {})
 
 
 @mcp.tool()
@@ -236,23 +206,17 @@ def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0
                         'message': 'Outcome unconfirmed; query original requestKey; do not replay'}}
             return {'ok': False, 'error': {'code': 'object_transport_unavailable',
                     'message': 'Trusted MCP object transport unavailable; outcome unconfirmed, do not replay'}}
-    url = f"{_pan_api_url}{path}"
-    data = json.dumps(body).encode("utf-8") if body else None
-    req = urllib.request.Request(url, data=data, method=method)
-    req.add_header("Content-Type", "application/json")
+    if _terminal_transport != 'stdio':
+        return {'ok': False, 'error': {'code': 'bound_stdio_required'}}
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8", errors="replace")
-        try:
-            return json.loads(error_body)
-        except json.JSONDecodeError:
-            return {"ok": False, "error": {"code": e.code, "message": error_body}}
-    except urllib.error.URLError as e:
-        return {"ok": False, "error": {"code": "connection_error", "message": str(e.reason)}}
-    except TimeoutError:
-        return {"ok": False, "error": {"code": "timeout", "message": "request timed out"}}
+        from packages.plugins.ipc import request
+        return request({'operation': 'core_http',
+                        'session_id': os.environ.get('PAN_AGENT_SESSION_ID', ''),
+                        'method': method, 'path': path, 'body': body})
+    except Exception:
+        return {'ok': False, 'status': 'unknown', 'retryable': False,
+                'error': {'code': 'core_transport_unavailable',
+                          'message': 'Core IPC outcome unconfirmed; do not replay'}}
 
 
 from packages.mcp.final_tools import register_final_tools
@@ -2082,22 +2046,7 @@ def _local_producer_api(path, body):
     caller, error = _require_caller()
     if error or caller.get("id") != sid:
         return error or {"ok": False, "error": "caller_unavailable"}
-    req = urllib.request.Request(
-        f"{_pan_api_url.rstrip('/')}{path}",
-        data=json.dumps(body).encode("utf-8"), method="POST",
-        headers={"Content-Type": "application/json", "X-Pan-Queue-Caller": sid})
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-    try:
-        with urllib.request.build_opener(NoRedirect).open(req, timeout=15) as response:
-            return json.loads(response.read())
-    except urllib.error.HTTPError as exc:
-        if exc.code in {403, 404, 409, 422}:
-            return {"ok": False, "status": "rejected", "error": json.loads(exc.read()).get("detail")}
-        return {"ok": False, "status": "unknown", "retryable": False}
-    except Exception:
-        return {"ok": False, "status": "unknown", "retryable": False}
+    return _api('POST', path, body, timeout=15)
 
 
 @mcp.tool()

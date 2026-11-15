@@ -660,7 +660,7 @@ def _write_log(path: Path | None, message: str) -> None:
         handle.write(f"[{stamp}] {message}\n")
 
 
-def _http_ready(port: int, path: str = "/api/sessions?summary=1", timeout: float = 1.0) -> tuple[bool, str | None]:
+def _http_ready(port: int, path: str = "/api/health", timeout: float = 1.0) -> tuple[bool, str | None]:
     url = f"http://127.0.0.1:{int(port)}{path}"
     try:
         with urllib.request.urlopen(url, timeout=timeout) as response:
@@ -1020,15 +1020,11 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
     return state
 
 
-def _request_internal_shutdown(port: int, log_path: Path | None) -> tuple[bool, str | None]:
-    url = f"http://127.0.0.1:{int(port)}/api/internal/main/shutdown"
+def _request_internal_shutdown(port: int, log_path: Path | None, root=None) -> tuple[bool, str | None]:
     try:
-        request = urllib.request.Request(url, data=b"{}", method="POST", headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(request, timeout=3.0) as response:
-            body = json.loads(response.read().decode("utf-8") or "{}")
-            if response.status == 200 and body.get("ok"):
-                return True, None
-            return False, str(body.get("error") or f"HTTP {response.status}")
+        from .local_transport import request
+        body = request(root, 'POST', '/api/internal/main/shutdown', {})
+        return (True, None) if body.get('ok') else (False, 'Lifecycle IPC rejected')
     except Exception as exc:
         _write_log(log_path, f"internal graceful shutdown request failed: {exc}")
         return False, str(exc)
@@ -1078,7 +1074,7 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
     if owner is not None and owner != pid:
         raise LauncherError(f"Pan port {port} is owned by PID={owner}, not verified Pan PID={pid}")
     _write_log(log_path, f"stopping Pan pid={pid} port={port}")
-    coordinated, coordination_error = _request_internal_shutdown(port, log_path)
+    coordinated, coordination_error = _request_internal_shutdown(port, log_path, root_path)
     if coordinated:
         _write_log(log_path, "Pan accepted internal graceful shutdown")
     deadline = time.monotonic() + STOP_TIMEOUT_SEC

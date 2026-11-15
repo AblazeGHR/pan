@@ -513,25 +513,30 @@ def test_native_other_row_edit_lease_hides_actual_blocked_rows():
     asyncio.run(run())
 
 
-def test_http_bridge_reuses_local_identity_gate_and_rejects_session_arguments():
+def test_http_bridge_reuses_local_identity_gate_and_rejects_session_arguments(tmp_path):
     import httpx
     from packages.web.server import app
+    from tests.support.core_ipc import core_bridge
+    from packages.plugins.ipc import request
     async def run():
         s, item = setup()
-        transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 12345))
-        async with httpx.AsyncClient(transport=transport, base_url="http://local") as client:
-            bound = {"X-Pan-Queue-Caller": s.id}
-            assert (await client.post("/api/self-queue/read", headers=bound)).json()["ok"]
-            for headers in [{}, {**bound, "Origin": "https://browser"},
-                            {**bound, "Sec-Fetch-Site": "same-origin"}, {"X-Pan-Queue-Caller": "ses-missing"}]:
-                result = (await client.post("/api/self-queue/read", headers=headers)).json()
-                assert result == {"ok": False, "error": "caller_unavailable"}
-            result = (await client.post("/api/self-queue/consume", headers=bound,
-                      json={"itemId": item["id"], "sessionId": "ses-other"})).json()
-            assert result["error"] == "invalid_request"
-        foreign = httpx.ASGITransport(app=app, client=("192.0.2.1", 12345))
-        async with httpx.AsyncClient(transport=foreign, base_url="http://local") as client:
-            assert (await client.post("/api/self-queue/read", headers=bound)).json()["error"] == "caller_unavailable"
+        bound = {'X-Pan-Queue-Caller': s.id}
+        for peer in ('127.0.0.1', '192.0.2.1'):
+            transport = httpx.ASGITransport(app=app, client=(peer, 12345))
+            async with httpx.AsyncClient(transport=transport, base_url='http://local') as client:
+                for headers in ({}, bound, {**bound, 'Origin': 'http://local'}):
+                    assert (await client.post('/api/self-queue/read', headers=headers)).status_code == 401
+        bridge = core_bridge(app, tmp_path, caller=s)
+        try:
+            result = await asyncio.to_thread(request, {'operation': 'core_http', 'session_id': s.id,
+                'method': 'POST', 'path': '/api/self-queue/read', 'body': {}}, bridge.address)
+            assert result['ok']
+            result = await asyncio.to_thread(request, {'operation': 'core_http', 'session_id': s.id,
+                'method': 'POST', 'path': '/api/self-queue/consume',
+                'body': {'itemId': item['id'], 'sessionId': 'ses-other'}}, bridge.address)
+            assert result['error'] == 'invalid_request'
+        finally:
+            await bridge.close()
     asyncio.run(run())
 
 

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Real stdio -> private IPC -> canonical ASGI object routes, with no user credential in MCP.
 
 R5-P7a retires the legacy four-object write tool.  ``authorization_objects``

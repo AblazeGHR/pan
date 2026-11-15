@@ -83,12 +83,12 @@ def test_cli_all_commands_and_help(capsys):
 def test_status_never_calls_stale_pid_running(tmp_path, monkeypatch):
     monkeypatch.setattr(launcher, "load_state", lambda root: {"main": {"pid": 5, "createdAt": 1}, "port": 8765})
     monkeypatch.setattr(launcher, "configured_port", lambda *a, **kw: 8765)
-    monkeypatch.setattr(launcher, "service_process_identity", lambda *a: {"ok": False})
-    monkeypatch.setattr(launcher, "process_alive", lambda *a: False)
-    monkeypatch.setattr(launcher, "listener_owner", lambda *a: 5)
-    monkeypatch.setattr(cli, "request", lambda *a: pytest.fail("must not request an unverified listener"))
+    monkeypatch.setattr(launcher, "service_process_identity", lambda *a, **kw: {"ok": False})
+    monkeypatch.setattr(launcher, "process_alive", lambda *a, **kw: False)
+    monkeypatch.setattr(launcher, "listener_owner", lambda *a, **kw: 5)
+    monkeypatch.setattr(cli, "request", lambda *a, **kw: pytest.fail("must not request an unverified listener"))
     assert cli.status(tmp_path)["state"] == "unknown"
-    monkeypatch.setattr(launcher, "listener_owner", lambda *a: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda *a, **kw: None)
     result = cli.status(tmp_path)
     assert result["state"] == "stopped"
     assert result["runningVersion"] is None
@@ -97,9 +97,9 @@ def test_status_never_calls_stale_pid_running(tmp_path, monkeypatch):
 def test_http_wrong_instance_blocks_commands(tmp_path, monkeypatch):
     monkeypatch.setattr(launcher, "configured_port", lambda *a, **kw: 8765)
     monkeypatch.setattr(launcher, "load_state", lambda root: {"port": 8765, "main": {"pid": 5, "createdAt": 1}})
-    monkeypatch.setattr(launcher, "service_process_identity", lambda *a: {"ok": True})
-    monkeypatch.setattr(launcher, "listener_owner", lambda *a: 5)
-    monkeypatch.setattr(cli, "request", lambda *a: {"pid": 5, "createdAt": 1, "root": str(tmp_path / "other")})
+    monkeypatch.setattr(launcher, "service_process_identity", lambda *a, **kw: {"ok": True})
+    monkeypatch.setattr(launcher, "listener_owner", lambda *a, **kw: 5)
+    monkeypatch.setattr(cli, "request", lambda *a, **kw: {"pid": 5, "createdAt": 1, "root": str(tmp_path / "other")})
     with pytest.raises(launcher.LauncherError, match="identity mismatch"):
         cli.lifecycle(tmp_path, "exit", 1)
 
@@ -107,7 +107,7 @@ def test_http_wrong_instance_blocks_commands(tmp_path, monkeypatch):
 @pytest.mark.parametrize("phase,error", [("failed", None), ("offline", "worker failed")])
 def test_lifecycle_does_not_promote_failed_job(tmp_path, monkeypatch, phase, error):
     monkeypatch.setattr(cli, "verified", lambda root: (8765, {"pid": 5, "createdAt": 1}, {}))
-    monkeypatch.setattr(cli, "request", lambda *a: {"ok": True, "jobId": "job_test", "requestId": "request"})
+    monkeypatch.setattr(cli, "request", lambda *a, **kw: {"ok": True, "jobId": "job_test", "requestId": "request"})
     path = tmp_path / "data/background_jobs/jobs/job_test.json"
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps({"operation": "exit", "root": str(tmp_path), "port": 8765,
@@ -135,7 +135,7 @@ def test_logs_tail_and_read_only_doctor(tmp_path, monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "first" not in output and "中文\nlast\n" in output
     monkeypatch.setattr(cli.subprocess, "run", lambda *a, **kw: types.SimpleNamespace(returncode=0))
-    monkeypatch.setattr(launcher, "listener_owner", lambda *a: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda *a, **kw: None)
     assert cli.doctor(tmp_path)["ok"] is True
     assert before == {str(p): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
 

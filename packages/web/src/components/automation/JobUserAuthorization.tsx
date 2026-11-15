@@ -13,8 +13,8 @@ export function JobUserAuthorization({ purpose = 'jobs', compact = false }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const explanation = purpose === 'locker'
-    ? 'Locker uses automation/user.key and the shared login session. Login accesses this profile’s Locker messages and cards.'
-    : 'User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.';
+    ? 'Locker uses the shared administrator login. Login accesses this profile’s Locker messages and cards.'
+    : 'User confirmation uses the shared administrator login. Enabled Jobs keep their granted capability after logout.';
   const collapseExplanation = compact && Boolean(token);
   return (
     <section

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """R5-P3 shared canonical admission fixture; no legacy execution host.
 
 Only in-process HTTP and temporary stores are used. Dispatch is explicit so
@@ -64,7 +65,7 @@ def canonical(tmp_path):
     from packages.automation.api import install
     install(SimpleNamespace(app=app))
     client = TestClient(app)
-    token = automation.auth.login(automation.auth.key())
+    token = automation.auth.login(provision(automation.auth))
     client.headers['Authorization'] = 'Bearer ' + token
     result = SimpleNamespace(app=app, automation=automation, service=service, provider=provider,
         client=client, root=tmp_path / 'canonical', action=object_ref('action', action), token=token)

@@ -112,6 +112,10 @@ def _probe_file_manager_reveal(platform: str) -> bool:
 
 #: 能力矩阵（顺序即 API 输出顺序，便于前端与测试稳定比较）。
 CAPABILITIES: Mapping[str, Capability] = {
+    "auth.persistence": Capability(
+        "auth.persistence", frozenset({WINDOWS, DARWIN, LINUX}),
+        "Persistent authentication uses scrypt, atomic files and the native profile lock",
+    ),
     "time.hostZone": Capability(
         "time.hostZone", frozenset({WINDOWS, DARWIN, LINUX}),
         "tzlocal refreshes the current zoneinfo identity; resolution failures are explicit",

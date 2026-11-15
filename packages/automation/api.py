@@ -19,12 +19,12 @@ def install(server):
     cookie_name = 'pan_automation_session'
 
     def set_cookie(response, request, token, days):
-        response.set_cookie(cookie_name, f'{token}.{days}', httponly=True, samesite='lax', path='/',
-                            secure=request.url.scheme == 'https', max_age=days * 86400 if days else None)
+        from packages.web.global_auth import set_cookie as shared_set_cookie
+        shared_set_cookie(response, request, token, days)
 
     def clear_cookie(response, request):
         response.delete_cookie(cookie_name, path='/', httponly=True, samesite='lax',
-                               secure=request.url.scheme == 'https')
+                               secure=request.url.scheme == 'https' or request.scope.get('pan.auth.secure', False))
 
     def same_origin(request):
         try:
@@ -184,7 +184,7 @@ def install(server):
         except PermissionError as exc:
             raise HTTPException(401, str(exc)) from exc
         except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
+            raise HTTPException(429 if 'rate limit' in str(exc) else 400, str(exc)) from exc
         except OSError as exc:
             raise HTTPException(503, 'Session storage unavailable') from exc
 

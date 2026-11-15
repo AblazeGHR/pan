@@ -247,6 +247,7 @@ def _spawn_wechat_bot() -> None:
                          old_pid)
             return
 
+    from packages.web.channel_auth import child_environment
     python = _resolve_wechat_python()
     try:
         # 同 QQ：bot.py 顶层 `from packages.wechat import ...` 需要项目根在
@@ -254,7 +255,7 @@ def _spawn_wechat_bot() -> None:
         _wechat_proc = subprocess.Popen(
             [python, str(_WECHAT_BOT_PY)],
             cwd=str(_WECHAT_DIR),
-            env={**os.environ, "PYTHONPATH": str(_PROJECT_ROOT)},
+            env={**os.environ, **child_environment('wechat'), "PYTHONPATH": str(_PROJECT_ROOT)},
             stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
             **command_window_options(),
         )
@@ -325,6 +326,7 @@ def _spawn_qq_bot() -> None:
                 pass
         _QQ_PID_FILE.unlink(missing_ok=True)
 
+    from packages.web.channel_auth import child_environment
     python = _resolve_qq_python()
     try:
         # bot.py 顶层 `from packages.qq import ...` 需要项目根在 sys.path；
@@ -333,7 +335,7 @@ def _spawn_qq_bot() -> None:
         _qq_proc = subprocess.Popen(
             [python, str(_QQ_BOT_PY)],
             cwd=str(_QQ_DIR),
-            env={**os.environ, "PYTHONPATH": str(_PROJECT_ROOT)},
+            env={**os.environ, **child_environment('qq'), "PYTHONPATH": str(_PROJECT_ROOT)},
             stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
             **command_window_options(),
         )
@@ -397,7 +399,8 @@ if __name__ == "__main__":
     _spawn_wechat_bot()
     atexit.register(_stop_wechat_bot)
 
-    config = uvicorn.Config(app, host=host, port=port, log_level="info", access_log=False)
+    config = uvicorn.Config(app, host=host, port=port, log_level="info", access_log=False,
+                            proxy_headers=False)
     from packages.core.host_server import PanServer
     server = PanServer(config)
     # launcher.exit/restart requests this object through the loopback internal

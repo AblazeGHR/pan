@@ -27,6 +27,8 @@ class UnixEndpoint:
             try:
                 os.chmod(directory, 0o700)
                 info = directory.lstat()
+                if stat.S_IMODE(info.st_mode) != 0o700:
+                    raise OSError('Plugin IPC directory cannot enforce same-user access')
                 address = str(directory / 'bridge.sock')
                 if len(os.fsencode(address)) >= 104:
                     directory.rmdir()

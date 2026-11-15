@@ -9,17 +9,20 @@ import time
 import threading
 import json
 from functools import wraps
+from packages.core.platform.auth_lock import auth_lock, require_private_file
 
 
 def locked(fn):
     @wraps(fn)
     def call(self, *args, **kwargs):
         with self.lock:
-            return fn(self, *args, **kwargs)
+            with auth_lock(self.path.with_name('auth.lock')):
+                return fn(self, *args, **kwargs)
     return call
 
 
 class UserAuth:
+    PASSWORD_PREFIX = 'pan-auth:scrypt-v1\n'
     lifetime = 12 * 60 * 60
 
     def __init__(self, root):
@@ -28,30 +31,23 @@ class UserAuth:
         self.sessions_path = Path(root) / 'sessions.json'
         self.sessions = {}
         self.lock = threading.RLock()
+        self.login_failures = []
         if self.sessions_path.exists():
-            state = json.loads(self.sessions_path.read_text(encoding='utf-8'))
-            if state.get('keyRevision') == self._revision(self.key()):
-                sessions = state['sessions']
-                if not isinstance(sessions, dict) or any(
-                    not isinstance(k, str) or len(k) != 64 or any(c not in '0123456789abcdef' for c in k)
-                    or type(v) not in (int, float) or not math.isfinite(v)
-                    for k, v in sessions.items()
-                ):
-                    raise ValueError('Invalid persisted sessions')
-                self.sessions = sessions
-            self._prune()
+            self.session('', False)
 
     @staticmethod
-    def _atomic_json(path, state):
+    def _atomic_json(path, state, prefix=''):
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_name(path.name + '.tmp-' + secrets.token_hex(8))
         try:
             fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                stream.write(prefix)
                 json.dump(state, stream, ensure_ascii=False, allow_nan=False)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.chmod(temporary, 0o600)
+            require_private_file(temporary)
             os.replace(temporary, path)
         finally:
             temporary.unlink(missing_ok=True)
@@ -87,16 +83,32 @@ class UserAuth:
     def change_session_days(self, value):
         if type(value) is not int or value not in (0, 7, 30, 90):
             raise ValueError('sessionDays must be 0, 7, 30 or 90')
+        self.session('', False)
         state = self.permissions_status()
         state['sessionDays'] = value
         self._atomic_json(self.permissions_path, state)
         # Global setting applies to existing sessions as well as future logins.
         now = time.time()
-        self._save_sessions({k: now + self.session_lifetime for k, v in self.sessions.items() if v > now})
+        if self.path.exists():
+            self._save_sessions({k: now + self.session_lifetime for k, v in self.sessions.items() if v > now})
         return {'sessionDays': value}
 
     @locked
     def session(self, token, renew=True):
+        # Read the durable authority before accepting cached state. This also
+        # observes revocation/password changes by another owned process and
+        # fails closed when a previously working store becomes unreadable.
+        if self.sessions_path.exists():
+            stored = json.loads(self.sessions_path.read_text(encoding='utf-8'))
+            sessions = stored['sessions']
+            if (not isinstance(sessions, dict) or len(sessions) > 256 or any(
+                    not isinstance(k, str) or len(k) != 64 or any(c not in '0123456789abcdef' for c in k)
+                    or type(v) not in (int, float) or not math.isfinite(v)
+                    for k, v in sessions.items())):
+                raise ValueError('Invalid persisted sessions')
+            self.sessions = sessions if stored['keyRevision'] == self._revision(self.key()) else {}
+        else:
+            self.sessions = {}
         self._prune()
         digest = hashlib.sha256(token.encode()).hexdigest()
         expires = self.sessions.get(digest, 0)
@@ -175,6 +187,7 @@ class UserAuth:
                 json.dump(state, stream, ensure_ascii=False, separators=(',', ':'))
                 stream.flush(); os.fsync(stream.fileno())
             os.chmod(temporary, 0o600)
+            require_private_file(temporary)
             os.replace(temporary, self.permissions_path)
         except (OSError, UnicodeError) as exc:
             try: temporary.unlink(missing_ok=True)
@@ -189,19 +202,9 @@ class UserAuth:
 
     @locked
     def key(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        except FileExistsError:
-            pass
-        else:
-            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
-                stream.write(secrets.token_urlsafe(32))
-                stream.flush()
-                os.fsync(stream.fileno())
-        # The file stores the local password verbatim, so short and non-ASCII
-        # passwords must read back exactly as written. Only a blank file is
-        # rejected: an empty credential would let any client log in.
+        """Read a verifier/legacy record; never provision from an HTTP read."""
+        if not self.path.exists():
+            raise PermissionError('Administrator is not configured; initialize locally')
         key = self.path.read_text(encoding='utf-8').strip()
         if not key:
             raise ValueError('Invalid local user key')
@@ -209,7 +212,59 @@ class UserAuth:
 
     @staticmethod
     def _revision(key):
+        if key.startswith(UserAuth.PASSWORD_PREFIX):
+            return UserAuth._password_record(key)['revision']
         return hashlib.sha256(key.encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def _password_record(value):
+        record = json.loads(value.removeprefix(UserAuth.PASSWORD_PREFIX))
+        if (set(record) != {'algorithm', 'salt', 'digest', 'revision'}
+                or record['algorithm'] != 'scrypt-v1'
+                or any(not isinstance(record[k], str) for k in record)
+                or len(bytes.fromhex(record['salt'])) != 16
+                or len(bytes.fromhex(record['digest'])) != 32
+                or len(bytes.fromhex(record['revision'])) != 32):
+            raise ValueError('Invalid password verifier')
+        return record
+
+    @staticmethod
+    def _hash_password(password, revision=None):
+        salt = secrets.token_bytes(16)
+        digest = hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=5, dklen=32)
+        return {'algorithm': 'scrypt-v1', 'salt': salt.hex(), 'digest': digest.hex(),
+                'revision': revision or secrets.token_hex(32)}
+
+    @classmethod
+    def _verify_password(cls, password, stored):
+        if not isinstance(password, str):
+            return False
+        if stored.startswith(cls.PASSWORD_PREFIX):
+            record = cls._password_record(stored)
+            actual = hashlib.scrypt(password.encode(), salt=bytes.fromhex(record['salt']),
+                                    n=16384, r=8, p=5, dklen=32)
+            return hmac.compare_digest(actual.hex(), record['digest'])
+        return hmac.compare_digest(password.encode(), stored.encode())
+
+    @locked
+    def initialize(self, password):
+        """Explicit local-only provisioning; there is deliberately no HTTP route."""
+        self.validate_password(password)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        record = self._hash_password(password)
+        # Exclusive creation prevents two initializers from replacing an admin.
+        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            with os.fdopen(fd, 'w', encoding='ascii') as stream:
+                stream.write(self.PASSWORD_PREFIX)
+                json.dump(record, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            require_private_file(self.path)
+        except BaseException:
+            self.path.unlink(missing_ok=True)
+            raise
+        return {'configured': True, 'revision': record['revision']}
 
     @staticmethod
     def validate_password(password):
@@ -229,9 +284,9 @@ class UserAuth:
 
     @locked
     def authorization_status(self):
-        key = self.key()
+        key = self.key() if self.path.exists() else None
         permissions = self.permissions_status()
-        return {'configured': True, 'revision': self._revision(key),
+        return {'configured': key is not None, 'revision': self._revision(key) if key else None,
                 'authorizationRevision': permissions['revision'],
                 'permissions': permissions['permissions'], 'sessionDays': self.session_days}
 
@@ -244,20 +299,22 @@ class UserAuth:
         revision = self._revision(current)
         if expected_revision is not None and expected_revision != revision:
             raise RuntimeError('Authorization revision conflict')
-        if not isinstance(current_password, str) or not hmac.compare_digest(current_password.encode(), current.encode()):
+        if not self._verify_password(current_password, current):
             raise PermissionError('Current password is incorrect')
-        if hmac.compare_digest(current.encode(), new_password.encode()):
+        if self._verify_password(new_password, current):
             raise ValueError('New password must differ from current password')
         parent = self.path.parent
         parent.mkdir(parents=True, exist_ok=True)
         temporary = parent / (self.path.name + '.tmp-' + secrets.token_hex(8))
         try:
             fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
-                stream.write(new_password)
+            with os.fdopen(fd, 'w', encoding='ascii') as stream:
+                stream.write(self.PASSWORD_PREFIX)
+                json.dump(self._hash_password(new_password), stream)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.chmod(temporary, 0o600)
+            require_private_file(temporary)
             os.replace(temporary, self.path)
             self.sessions.clear()
             self.revoke()
@@ -267,13 +324,24 @@ class UserAuth:
             except OSError:
                 pass
             raise OSError('Authorization password storage failed') from exc
-        return {'configured': True, 'revision': self._revision(new_password), 'revoked': True}
+        return {'configured': True, 'revision': self._revision(self.key()), 'revoked': True}
 
     @locked
     def login(self, key):
-        self._prune()
-        if not isinstance(key, str) or not hmac.compare_digest(key.encode(), self.key().encode()):
+        now = time.monotonic()
+        self.login_failures = [v for v in self.login_failures if now - v < 60]
+        if len(self.login_failures) >= 10:
+            raise ValueError('Login rate limit; retry later')
+        self.session('', False)
+        stored = self.key() if self.path.exists() else None
+        if stored is None or not self._verify_password(key, stored):
+            self.login_failures.append(now)
             raise PermissionError('Invalid user key')
+        if not stored.startswith(self.PASSWORD_PREFIX):
+            # Preserve live token identities below, but replace the old fast
+            # password-derived revision with random material as well as hashing
+            # the password. Otherwise the revision would defeat scrypt offline.
+            self._atomic_json(self.path, self._hash_password(key), prefix=self.PASSWORD_PREFIX)
         if len(self.sessions) >= 256:
             raise ValueError('Too many user sessions')
         token = secrets.token_urlsafe(32)
@@ -287,6 +355,7 @@ class UserAuth:
 
     @locked
     def logout(self, header):
+        self.session('', False)
         digest = hashlib.sha256(header.partition(' ')[2].encode()).hexdigest()
         if digest in self.sessions:
             self._save_sessions({k: v for k, v in self.sessions.items() if k != digest})

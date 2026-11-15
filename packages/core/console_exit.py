@@ -5,8 +5,6 @@ import json
 import sys
 import threading
 import time
-from urllib.request import Request, urlopen
-from urllib.error import HTTPError
 
 
 def _console_output(value):
@@ -83,14 +81,8 @@ def start_console_exit(port, strategy, *, stream=None):
         return None
     def submit(payload):
         from .lifecycle_action import ACTION_ROUTE
-        request = Request(f"http://127.0.0.1:{port}{ACTION_ROUTE}",
-                          data=json.dumps({"operation": "exit", **payload}).encode(),
-                          headers={"Content-Type": "application/json"}, method="POST")
-        try:
-            with urlopen(request, timeout=10) as response:
-                return json.load(response)
-        except HTTPError as exc:
-            return {"ok": False, "error": exc.read().decode(errors="replace")}
+        from .local_transport import request
+        return request(None, 'POST', ACTION_ROUTE, {'operation': 'exit', **payload})
     console = ConsoleExit(submit, strategy)
     _console_output("Pan: 输入 q 后回车按配置退出；2 秒内三次 q（或 qqq 回车）保留 running 为 Illegal。Ctrl+C 为非法退出。")
     stop = threading.Event()
