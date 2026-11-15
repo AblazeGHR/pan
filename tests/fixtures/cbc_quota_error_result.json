@@ -1,0 +1,30 @@
+{
+  "evidence": {
+    "path": "D:\\project\\Pan\\data\\logs\\session-errors.jsonl",
+    "line": 486,
+    "timestamp": "2026-11-12T16:20:41.824234+00:00",
+    "sourceLineSha256": "b97ceb2d5f47f97e10d2922fcd4e23d6fdeaaa7c8bc13bdae6154524ae91f866",
+    "adapter": "cbc",
+    "installedCliVersion": "2.174.0",
+    "installedCliNote": "Global @tencent-ai/codebuddy-code 2.174.0 (package.json + dist mtime 2026-10-24) predates this record; the event itself carries no version field.",
+    "taskSeq": 11,
+    "executionSeq": null,
+    "redaction": "Native terminal fields only (type/subtype/is_error/errors/errors_info). uuid, session_id, _requestId, _meta baggage/traceparent, usage and modelUsage withheld; the provider text keeps its wording but the two request/conversation identifiers are replaced with placeholders of the same shape. No history, credentials or other raw fields copied."
+  },
+  "event": {
+    "type": "result",
+    "subtype": "error_during_execution",
+    "is_error": true,
+    "errors": [
+      "429 您的使用量已超出频率限制，将在 2026-11-13 10:43:39 UTC+8 重置，您也可以切换其他模型继续使用。 (<requestId>/<conversationId>)"
+    ],
+    "errors_info": [
+      {
+        "status": 429,
+        "code": 6004,
+        "category": "quota",
+        "details": "429 您的使用量已超出频率限制，将在 2026-11-13 10:43:39 UTC+8 重置，您也可以切换其他模型继续使用。 (<requestId>/<conversationId>)"
+      }
+    ]
+  }
+}

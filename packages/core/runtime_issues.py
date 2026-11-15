@@ -141,6 +141,23 @@ def _metadata(raw: dict, supplied: dict | None) -> dict:
                     and (not isinstance(value, str) or len(value) <= 256)))}
 
 
+def _native_result_error_info(raw: dict) -> dict | None:
+    """First structured error fact of a failed CLI ``result`` event.
+
+    Claude-Code-lineage CLIs (cbc) report a failed turn as
+    ``{"type":"result","is_error":true,"errors_info":[{"status":429,
+    "code":6004,"category":"quota","details":"..."}]}`` instead of a generic
+    ``error`` object.  A non-failed result (or any other event type) that
+    happens to carry such a list is not an error and yields nothing.
+    """
+    if raw.get("type") != "result" or not raw.get("is_error"):
+        return None
+    infos = raw.get("errors_info")
+    if not isinstance(infos, list):
+        return None
+    return next((item for item in infos if isinstance(item, dict)), None)
+
+
 def _structured(adapter: str, raw: dict) -> tuple[str | None, str | None]:
     native = _get(raw, ("error", "codexErrorInfo"), ("params", "error", "codexErrorInfo"))
     if adapter == "codex" and native == "usageLimitExceeded":
@@ -152,6 +169,15 @@ def _structured(adapter: str, raw: dict) -> tuple[str | None, str | None]:
     status = _get(raw, ("status",), ("error", "status"), ("error", "statusCode"),
                   ("codexErrorInfo", "responseStreamDisconnected", "httpStatusCode"),
                   ("error", "codexErrorInfo", "responseStreamDisconnected", "httpStatusCode"))
+    if adapter == "cbc" and raw.get("error") is None and raw.get("error_text") is None:
+        # The failed-result envelope is the only native signal for these runs;
+        # an explicit provider error object/normalized text stays authoritative.
+        info = _native_result_error_info(raw)
+        if info is not None:
+            if code is None:
+                code = info.get("code")
+            if status is None:
+                status = info.get("status")
     code_norm = str(code).strip().lower() if code is not None else None
     if adapter == "codex":
         if code_norm in _CODEX_QUOTA_CODES:
@@ -204,6 +230,15 @@ def map_runtime_issue(raw: dict, *, adapter: str | None = None, metadata: dict |
     observation = {"rawType": _safe(raw.get("type")), "code": _safe(_get(raw, ("code",), ("error", "code"))),
                    "status": _safe(_get(raw, ("status",), ("error", "status"))), "text": text,
                    "raw": _safe(raw)}
+    if adapter == "cbc" and raw.get("error") is None and raw.get("error_text") is None:
+        info = _native_result_error_info(raw)
+        if info is not None:
+            # Keep the provider's own facts verbatim (no category rewriting);
+            # this is an allowlist, never a copy of the opaque envelope.
+            observation["nativeError"] = {
+                key: _safe(info.get(key)) for key in ("status", "code", "category")
+                if info.get(key) is not None
+            }
     result = RuntimeIssue(SCHEMA_VERSION, issue_id, adapter, classification, confidence,
                           observation, correlation, dict(delivery or {"observed": True, "classified": True,
                           "persisted": False, "delivered": False, "deduped": False}))

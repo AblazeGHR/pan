@@ -98,6 +98,17 @@ are **not** synthesized. `cli.error` is the raw error object/string, and
 `cli.errorEvents` lists every structured `{"type":"error"}` event for one-shot
 runs. `cli.errorEventCount` is a count, not a category.
 
+A Claude-Code-lineage CLI (`cbc`) reports a failed run as
+`{"type":"result","is_error":true,"errors":["<provider text>"],
+"errors_info":[{"status":429,"code":6004,"category":"quota","details":"..."}]}`
+with an **empty** `result`. Those native fields are the only reason the provider
+gave, so `cli_error_fields` projects `errors[0]` (else `errors_info[0].details`)
+into `errorText` and `errors_info[0].code` (else its `status`) into `errorCode`
+with source `cli.error`. The same projection fills the terminal history row the
+UI renders, so a failed run shows its reason without reading assistant prose;
+nothing is inferred from `429` wording and a result without those fields stays
+undiagnosed.
+
 ## Previous message semantics
 
 `previousMessage` is snapshotted **synchronously at the moment the error is

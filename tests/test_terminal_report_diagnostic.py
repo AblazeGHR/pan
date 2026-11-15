@@ -15,6 +15,9 @@ from tests.test_report_error_context import (
 )
 
 FIXTURE=json.loads((Path(__file__).parent/'fixtures/terminal_capacity_report.json').read_text(encoding='utf-8'))
+CBC=json.loads((Path(__file__).parent/'fixtures/cbc_quota_error_result.json').read_text(encoding='utf-8'))
+CBC_EVENT=CBC['event']
+CBC_TEXT=CBC_EVENT['errors'][0]
 
 
 @pytest.fixture(autouse=True)
@@ -63,6 +66,37 @@ def test_native_error_plus_assistant_result_persists_and_renders(monkeypatch,ada
     ({'result':'Selected model is at capacity. Please try a different model.'},(None,None,None)),
     ({'error':{}},(None,None,None)),
     ({},(None,None,None)),
+    # CBC/Claude-lineage failed terminals carry the provider text in ``errors``
+    # and the structured facts in ``errors_info`` instead of ``error``.
+    ({'type':'result','is_error':True,'errors':['native result error'],
+      'errors_info':[{'status':429,'code':6004,'category':'quota',
+                      'details':'native result error'}]},('native result error',6004,'cli.error')),
+    ({'type':'result','is_error':True,'errors_info':[{'details':'details only'}]},
+     ('details only',None,'cli.error')),
+    ({'type':'result','is_error':True,'errors':['text only']},('text only',None,'cli.error')),
+    ({'type':'result','is_error':True,'errors':['first','second'],
+      'errors_info':[{'code':6004,'details':'first'}]},('first',6004,'cli.error')),
+    ({'type':'result','is_error':True,'errors':['  '],
+      'errors_info':[{'code':6004,'details':''}]},(None,6004,'cli.error')),
+    ({'type':'result','is_error':True,
+      'errors_info':[{'details':'native','opaque':{'password':'DO-NOT-COPY'}}]},
+     ('native',None,'cli.error')),
+    ({'type':'result','is_error':True,'errors_info':[{'status':429,'code':6004}]},
+     (None,6004,'cli.error')),
+    ({'type':'result','is_error':True,'errors_info':[{'category':'quota'}]},(None,None,None)),
+    ({'type':'result','is_error':True,'errors':None,'errors_info':'not-a-list'},(None,None,None)),
+    ({'type':'result','is_error':True,'errors':[],'errors_info':[]},(None,None,None)),
+    # An explicit provider error object stays authoritative.
+    ({'type':'result','is_error':True,'error':{'message':'explicit','code':7},
+      'errors':['native result error'],'errors_info':[{'code':6004}]},('explicit',7,'cli.error')),
+    # Only a failed result may use that envelope; a successful result or an
+    # assistant entry that happens to carry ``errors`` is not a diagnosis.
+    ({'type':'result','is_error':False,'errors':['not an error'],
+      'errors_info':[{'status':429,'code':6004}]},(None,None,None)),
+    ({'type':'assistant','message':{'role':'assistant','content':[]},
+      'errors':['not an error'],'errors_info':[{'status':429,'code':6004}]},(None,None,None)),
+    ({'is_error':True,'errors':['no event type'],
+      'errors_info':[{'status':429,'code':6004}]},(None,None,None)),
 ])
 def test_only_native_fields_no_classification_or_opaque_dump(event,expected):
     fields=errors.terminal_report_fields(event)
@@ -190,4 +224,121 @@ def test_real_report_rendering_entrypoints(monkeypatch,mode):
         assert 'status: error' in text and 'errorCode: serverOverloaded' in text
         assert FIXTURE['event']['error']['message'] in text
     try:asyncio.run(run())
+    finally:_cleanup()
+
+
+def test_cbc_result_errors_reach_terminal_and_report():
+    """The provider's own failed-terminal diagnosis is visible without reading prose."""
+    child,manager,_=_setup_managed_pair()
+    try:
+        _run_stream_worker(child,[
+            _event_line(_assistant_event('失败前真实回答')),
+            _event_line(_assistant_event(CBC_TEXT)),
+            _event_line(CBC_EVENT),
+        ],seq=11)
+        terminal=next(row for row in child.history if row.get('kind')=='terminal')
+        assert terminal['terminal']['status']=='error'
+        assert terminal['terminal']['error']=={
+            'source':'cli.error','code':6004,'message':CBC_TEXT,'truncated':False,
+        }
+        # The provider's assistant prose is preserved verbatim: nothing is
+        # deleted and no second copy is synthesised for the failed terminal.
+        assert [row['content'] for row in child.history if row.get('role')=='assistant']==[
+            '失败前真实回答',CBC_TEXT]
+        # ``result`` stayed empty: the diagnosis comes from ``errors``, not the
+        # compatibility result field.
+        assert child.last_result['result']==''
+        assert child.last_result['historyTerminalId']==terminal['messageId']
+        report=manager.queue_pending[0]
+        assert report['status']=='error'
+        assert report['errorText']==CBC_TEXT
+        assert report['errorCode']==6004
+        assert report['errorSource']=='cli.error'
+        # Refresh reads the durable history row, so it renders the same reason.
+        session._cache.pop(child.id,None)
+        reloaded=session.get(child.id)
+        row=next(item for item in reloaded.history if item.get('kind')=='terminal')
+        assert row['terminal']['error']==terminal['terminal']['error']
+    finally:_cleanup()
+
+
+def test_cbc_terminal_diagnosis_is_native_never_last_assistant_prose():
+    child,manager,_=_setup_managed_pair()
+    try:
+        _run_stream_worker(child,[
+            _event_line(_assistant_event('失败前真实回答，正文里提到 429 但这不是诊断')),
+            _event_line(CBC_EVENT),
+        ],seq=11)
+        terminal=next(row for row in child.history if row.get('kind')=='terminal')
+        assert terminal['terminal']['error']['message']==CBC_TEXT
+        assert terminal['terminal']['error']['message']!='失败前真实回答，正文里提到 429 但这不是诊断'
+        assert [row['content'] for row in child.history if row.get('role')=='assistant']==[
+            '失败前真实回答，正文里提到 429 但这不是诊断']
+        assert manager.queue_pending[0]['errorText']==CBC_TEXT
+    finally:_cleanup()
+
+
+def test_cbc_failed_terminal_without_native_error_stays_undiagnosed():
+    """No native reason means no prose guess and no invented code."""
+    child,manager,_=_setup_managed_pair()
+    try:
+        _run_stream_worker(child,[
+            _event_line(_assistant_event('429 您的使用量已超出频率限制，将在 2026-11-13 10:43:39 UTC+8 重置。')),
+            _event_line({'type':'result','subtype':'error_during_execution','is_error':True}),
+        ],seq=11)
+        terminal=next(row for row in child.history if row.get('kind')=='terminal')
+        assert terminal['terminal']['status']=='error'
+        assert terminal['terminal']['error']=={
+            'source':'worker.stream.result','code':None,'message':'','truncated':False,
+        }
+        report=manager.queue_pending[0]
+        assert report['status']=='error'
+        assert report['errorText'] is None and report['errorCode'] is None
+        assert 'no native diagnostics available' in worker._format_report_batch([report])
+    finally:_cleanup()
+
+
+def test_cbc_native_result_error_feeds_terminal_and_runtime_issue(monkeypatch):
+    """One native raw input drives both the visible reason and the issue type."""
+    calls=[]
+    async def capture(**kwargs):
+        calls.append(kwargs)
+    monkeypatch.setattr(errors,'record_session_error_async',capture)
+    child,manager,_=_setup_managed_pair()
+    try:
+        _run_stream_worker(child,[
+            _event_line(_assistant_event(CBC_TEXT)),
+            _event_line(CBC_EVENT),
+        ],seq=11)
+        samples=[item for item in calls if item.get('cli_origin')=='worker.stream.result']
+        assert len(samples)==1,calls
+        sample=samples[0]
+        assert sample['error_text']==CBC_TEXT
+        assert sample['error_text_source']=='cli.error'
+        issue=sample['runtime_issue']['issue']
+        assert issue['classification']=='cbc_rate_limited'
+        assert issue['confidence']=='structured'
+        assert issue['adapter']=='cbc'
+        assert issue['observation']['nativeError']=={
+            'status':429,'code':6004,'category':'quota'}
+        terminal=next(row for row in child.history if row.get('kind')=='terminal')
+        assert terminal['terminal']['error']['message']==CBC_TEXT
+        assert terminal['terminal']['error']['code']==6004
+        assert terminal['terminal']['error']['source']=='cli.error'
+        assert manager.queue_pending[0]['status']=='error'
+    finally:_cleanup()
+
+
+def test_done_result_mentioning_429_is_not_a_failure():
+    child,manager,_=_setup_managed_pair()
+    try:
+        _run_stream_worker(child,[
+            _event_line(_assistant_event('上一轮触发过 429，已经恢复')),
+            _event_line({'type':'result','subtype':'success','is_error':False,'result':'已完成'}),
+        ],seq=8)
+        report=manager.queue_pending[0]
+        assert report['status']=='done' and 'errorText' not in report
+        assert 'reportDiagnostic' not in child.last_result
+        assert all(row.get('terminal',{}).get('status')=='done'
+                   for row in child.history if row.get('kind')=='terminal')
     finally:_cleanup()

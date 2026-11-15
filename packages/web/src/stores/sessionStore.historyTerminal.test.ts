@@ -75,3 +75,42 @@ it('error terminal never replaces its live assistant body with diagnosis text', 
   store().applyHistoryPage('A', page([old, error], 0, 2, 2));
   expect(store().currentMessages).toEqual([old, error]);
 });
+
+const nativeErrorCard = (order: number, anchor: string | null, message: string,
+  source = 'cli.error', status: 'done' | 'error' = 'error'): Message => ({
+  role: 'terminal', content: '', kind: 'terminal', messageId: `terminal:${order}`,
+  terminal: { eventId: `terminal:${order}`, terminalKey: String(order), status,
+    occurredAt: `2026-10-27T00:00:0${9 - order}Z`, order, anchorMessageId: anchor,
+    taskSeq: order, executionSeq: order, taskId: null, workerId: 'w', generation: 1,
+    ...(status === 'error' ? { error: { source, code: 6004, message } } : {}) },
+});
+
+it('folds only the same failed run’s exact native-error echo into its red card', () => {
+  const text = '429 您的使用量已超出频率限制，将在 2026-11-13 10:43:39 UTC+8 重置。';
+  const echo: Message = { role: 'assistant', content: text, messageId: 'echo' };
+  // The durable body stays in the rows; only its normal bubble is folded.
+  expect(anchorHistoryTerminals([echo, nativeErrorCard(1, 'echo', text)])).toEqual([
+    nativeErrorCard(1, 'echo', text)]);
+  // Same prefix but a different full text is an ordinary answer.
+  const prefix: Message = { role: 'assistant', content: `${text}（普通说明）`, messageId: 'prefix' };
+  expect(anchorHistoryTerminals([prefix, nativeErrorCard(2, 'prefix', text)])).toEqual([
+    prefix, nativeErrorCard(2, 'prefix', text)]);
+  // A previous turn with the identical text keeps its own message.
+  const earlier: Message = { role: 'assistant', content: text, messageId: 'earlier' };
+  expect(anchorHistoryTerminals([earlier, echo, nativeErrorCard(3, 'echo', text)])).toEqual([
+    earlier, nativeErrorCard(3, 'echo', text)]);
+  // No fold without an identical native detail on the same anchor.
+  expect(anchorHistoryTerminals([echo, nativeErrorCard(4, 'echo', text, 'cli.error', 'done')]))
+    .toEqual([echo, nativeErrorCard(4, 'echo', text, 'cli.error', 'done')]);
+  expect(anchorHistoryTerminals([echo, nativeErrorCard(5, 'echo', '')]))
+    .toEqual([echo, nativeErrorCard(5, 'echo', '')]);
+  for (const source of ['pan.terminal_result', 'pan.runtime', 'worker.stream.result', '']) {
+    const card = nativeErrorCard(6, 'echo', text, source);
+    expect(anchorHistoryTerminals([echo, card]), source).toEqual([echo, card]);
+  }
+  // A paged-out anchor never folds an unrelated row.
+  expect(anchorHistoryTerminals([echo])).toEqual([echo]);
+  const other: Message = { role: 'assistant', content: text, messageId: 'other' };
+  expect(anchorHistoryTerminals([other, nativeErrorCard(7, 'echo', text)])).toEqual([
+    other, nativeErrorCard(7, 'echo', text)]);
+});

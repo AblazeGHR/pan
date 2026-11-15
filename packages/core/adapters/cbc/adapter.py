@@ -616,6 +616,13 @@ class CbcAdapter:
         return event.get("is_error", False)
 
     def extract_result_text(self, event: dict) -> str | None:
+        """The compatible ``result`` field only.
+
+        A failed cbc run leaves ``result`` empty and reports its native reason
+        in ``errors``/``errors_info`` (status/code/category/details).  The
+        terminal error ledger maps those native fields, so this accessor stays
+        a pure result-text reader and never turns into the error diagnosis.
+        """
         return event.get("result")
 
     # ── takeover ──
