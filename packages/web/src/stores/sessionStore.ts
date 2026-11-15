@@ -1546,6 +1546,23 @@ function projectTranscript(
   return anchorHistoryTerminals(display);
 }
 
+/** A failed run's own native error text also arrives as assistant prose.
+ * Only the exact same execution's anchor row may fold into its red card: the
+ * terminal's own anchor identity plus a byte-identical native detail. */
+function isNativeTerminalErrorEcho(row: Message, attached: Message[]): boolean {
+  if (row.kind === 'terminal' || row.role !== 'assistant') return false;
+  if (typeof row.content !== 'string' || !row.content) return false;
+  return attached.some(candidate => {
+    const terminal = candidate.terminal;
+    if (!terminal || terminal.status !== 'error') return false;
+    const detail = terminal.error;
+    if (!detail || typeof detail.message !== 'string' || detail.message !== row.content) return false;
+    const source = typeof detail.source === 'string' ? detail.source : '';
+    if (!source.startsWith('cli.') && !source.startsWith('codex_')) return false;
+    return terminal.anchorMessageId === row.messageId;
+  });
+}
+
 /** Fixed server anchors beat frame arrival order, including late old results.
  * Missing/paged-out anchors keep an independent row at its canonical offset.
  * Never infer an anchor from whichever message happens to be last. */
@@ -1572,8 +1589,9 @@ export function anchorHistoryTerminals(rows: Message[]): Message[] {
       seen.add(row.terminal.eventId);
       if (row.terminal.anchorMessageId && anchors.has(row.terminal.anchorMessageId)) continue;
     }
-    result.push(row);
-    if (row.messageId) result.push(...(events.get(row.messageId) ?? []).sort(
+    const attached = row.messageId ? (events.get(row.messageId) ?? []) : [];
+    if (!isNativeTerminalErrorEcho(row, attached)) result.push(row);
+    if (row.messageId) result.push(...attached.sort(
       (a, b) => a.terminal!.order - b.terminal!.order));
   }
   return result;

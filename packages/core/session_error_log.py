@@ -272,6 +272,52 @@ def sanitize(value: Any, *, key: str | None = None) -> Any:
     return value
 
 
+def _result_errors(event: dict) -> tuple[dict | None, str | None]:
+    """Native facts of a failed CLI ``result`` event.
+
+    Claude-Code-lineage CLIs (cbc) report a failed run with ``is_error`` plus
+    ``errors`` (the provider's rendered error text) and ``errors_info`` (its
+    structured ``status``/``code``/``category``/``details``).  ``result`` stays
+    empty on that path, so these fields are the only native reason.  The
+    projection is an allowlist: no opaque provider payload is copied.
+
+    Only a ``result`` event whose own ``is_error`` flag is set qualifies.  A
+    successful ``result`` or an assistant entry that happens to carry an
+    ``errors`` list is not a failed terminal and yields nothing.
+    """
+    if event.get("type") != "result" or not event.get("is_error"):
+        return None, None
+    infos = event.get("errors_info")
+    info = next((item for item in infos if isinstance(item, dict)), None) \
+        if isinstance(infos, list) else None
+    raw_errors = event.get("errors")
+    texts = [item for item in raw_errors
+             if isinstance(item, str) and item.strip()] \
+        if isinstance(raw_errors, list) else []
+    text = texts[0] if texts else None
+    if text is None and info is not None:
+        details = info.get("details")
+        text = details if isinstance(details, str) and details.strip() else None
+    if info is None and text is None:
+        return None, None
+    native: dict = {}
+    if info is not None:
+        for key in ("status", "code", "category"):
+            value = info.get(key)
+            if type(value) in (int, str):
+                native[key] = value
+        # ``code`` is the visible terminal code; the native HTTP status is the
+        # same class of fact and is used only when no provider code exists.
+        if "code" not in native and "status" in native:
+            native["code"] = native["status"]
+    if text is not None:
+        native["message"] = text
+    if "message" not in native and "code" not in native:
+        # A category alone is not a diagnosis.
+        return None, None
+    return native, text
+
+
 def cli_error_fields(event: Any, *, text_only: bool = False) -> tuple[Any, str | None, str | None]:
     """Extract the provider's own error object/text from one raw CLI event.
 
@@ -301,6 +347,9 @@ def cli_error_fields(event: Any, *, text_only: bool = False) -> tuple[Any, str |
     text = event.get("error_text")
     if isinstance(text, str) and text.strip():
         return error, text, "cli.error_text"
+    native, native_text = _result_errors(event)
+    if native is not None:
+        return native, native_text, "cli.error"
     return error, None, None
 
 

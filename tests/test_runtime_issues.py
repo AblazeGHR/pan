@@ -1,5 +1,7 @@
 import json
 
+from pathlib import Path
+
 from packages.core.runtime_issues import map_runtime_issue, runtime_issue_schema
 
 
@@ -90,3 +92,66 @@ def test_session_error_record_carries_projection_without_changing_kind():
         runtime_issue=map_runtime_issue(CODEX_QUOTA_SAMPLE, adapter="codex"))
     assert prepared[0]["kind"] == "native_operation_error"
     assert prepared[0]["runtimeIssue"]["issue"]["classification"] == "codex_quota_exhausted"
+
+
+CBC_FAILED_RESULT = json.loads(
+    (Path(__file__).parent / "fixtures/cbc_quota_error_result.json").read_text(encoding="utf-8")
+)["event"]
+
+
+def test_cbc_failed_result_errors_info_uses_existing_rate_limit_type():
+    # Real desensitized cbc result: result is empty, the reason and the
+    # structured facts live in errors/errors_info only.
+    issue = map_runtime_issue(CBC_FAILED_RESULT, adapter="cbc")["issue"]
+    assert issue["classification"] == "cbc_rate_limited"
+    assert issue["confidence"] == "structured"
+    assert issue["classification"] != "codex_quota_exhausted"
+    assert issue["observation"]["nativeError"] == {
+        "status": 429, "code": 6004, "category": "quota"}
+    # Native facts stay verbatim; no category rewriting in the raw view.
+    raw_info = issue["observation"]["raw"]["errors_info"][0]
+    assert (raw_info["status"], raw_info["code"], raw_info["category"]) == (429, 6004, "quota")
+
+
+def test_cbc_failed_result_code_only_and_category_only():
+    rate = map_runtime_issue(
+        {"type": "result", "is_error": True, "errors_info": [{"code": "rate_limited"}]},
+        adapter="cbc")["issue"]
+    assert rate["classification"] == "cbc_rate_limited"
+    category_only = map_runtime_issue(
+        {"type": "result", "is_error": True, "errors_info": [{"category": "quota",
+                                                              "details": "429 prose"}]},
+        adapter="cbc")["issue"]
+    assert category_only["classification"] == "unknown"
+    assert category_only["confidence"] == "unknown"
+
+
+def test_cbc_done_or_non_result_errors_info_is_not_attributed():
+    for raw in (
+        {"type": "result", "is_error": False,
+         "errors_info": [{"status": 429, "code": 6004}]},
+        {"type": "assistant",
+         "errors_info": [{"status": 429, "code": 6004}]},
+        {"errors_info": [{"status": 429, "code": 6004}]},
+    ):
+        issue = map_runtime_issue(raw, adapter="cbc")["issue"]
+        assert issue["classification"] == "unknown", raw
+        assert "nativeError" not in issue["observation"]
+
+
+def test_non_cbc_errors_info_keeps_unknown():
+    for adapter in ("claude", "codex", "kimi", "unknown"):
+        issue = map_runtime_issue(
+            {"type": "result", "is_error": True,
+             "errors_info": [{"status": 429, "code": 6004}]},
+            adapter=adapter)["issue"]
+        assert issue["classification"] == "unknown", adapter
+
+
+def test_explicit_provider_error_beats_errors_info():
+    issue = map_runtime_issue(
+        {"type": "result", "is_error": True, "error": {"code": "server_overloaded"},
+         "errors_info": [{"status": 429, "code": 6004, "category": "quota"}]},
+        adapter="cbc")["issue"]
+    assert issue["classification"] == "unknown"
+    assert "nativeError" not in issue["observation"]
