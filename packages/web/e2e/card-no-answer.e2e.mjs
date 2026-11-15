@@ -34,15 +34,19 @@ try {
   expect(done.status).toBe('no_answer_needed'); expect(done.response).toBeNull();
   expect((await mcp({ operation: 'no_answer_needed', card_id: card.id, expected_revision: 0 })).card).toEqual(done);
   expect((await mcp({ operation: 'list_pending' })).cards).toEqual([]);
-  // Deliberately submit the stale production GUI. Backend refuses it and the GUI refreshes terminal state.
+  // Deliberately submit the stale production GUI. V1/V2 cards render through the
+  // unified unit UI, so the stale draft leaves through the batch unit submit
+  // control. Backend refuses it and the GUI refreshes terminal state.
   const denied = page.waitForResponse(r => r.url().endsWith(`/api/user-inbox/${card.id}/submit`));
-  await row.getByRole('button', { name: 'Submit', exact: true }).click();
+  await row.getByRole('button', { name: '提交全部未处理问题', exact: true }).click();
   expect((await denied).status()).toBe(409);
   await expect(row.locator('.locker-status')).toHaveText('无需回答 · No answer needed');
   await expect(row.getByText('Keep this original question visible', { exact: true })).toBeVisible();
   await expect(row.getByRole('textbox')).toHaveCount(0);
   await expect(row.getByRole('radio')).toHaveCount(0);
   await expect(row.getByRole('button', { name: 'Submit', exact: true })).toHaveCount(0);
+  await expect(row.getByRole('button', { name: '提交全部未处理问题', exact: true })).toHaveCount(0);
+  await expect(row.getByRole('button', { name: '提交此问题', exact: true })).toHaveCount(0);
   await expect(row.getByRole('button', { name: 'Reject', exact: true })).toHaveCount(0);
   await expect(row.getByRole('button', { name: /Mark card/ })).toHaveCount(0);
   const headers = { Authorization: `Bearer ${token}` };
