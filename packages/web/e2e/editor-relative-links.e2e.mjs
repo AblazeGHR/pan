@@ -50,11 +50,56 @@ async function edit() {
   }
   await page.locator('.monaco-editor').waitFor();
 }
+async function chatStream() {
+  if (page.url().endsWith('/editor')) {
+    await page.getByRole('link', { name: 'Chat', exact: true }).click();
+  }
+  await page.locator('[data-session-card-id]').filter({ hasText: 'Chat Stream' }).first().click();
+}
+async function position() {
+  return page.evaluate(() => {
+    const editor = window.monaco.editor.getEditors()[0];
+    return { line: editor.getPosition()?.lineNumber, selection: editor.getSelection() };
+  });
+}
 try {
   await page.goto(`${process.env.PAN_E2E_BASE_URL}/react/`);
-  await page.locator('[data-session-card-id]').filter({ hasText: 'Chat Stream' }).first().click();
-  await page.getByRole('link', { name: 'relative file', exact: true }).click();
-  await edit();
+  await chatStream();
+  const lineLink = page.getByRole('link', { name: 'relative file', exact: true });
+  const lineHref = await lineLink.getAttribute('href');
+  assert.match(
+    lineHref ?? '',
+    /^\/api\/attachments\/editor\/att_[A-Za-z0-9]{32}\?session_id=[^#]+#L42$/,
+    'Chat line link must resolve through the opaque editor attachment',
+  );
+  await lineLink.click();
+  // No Edit click: a line link must reveal source even though .md defaults to preview.
+  await page.locator('.monaco-editor').waitFor();
+  await page.waitForFunction(
+    () => window.monaco?.editor?.getEditors()?.[0]?.getPosition()?.lineNumber === 42,
+  );
+  const cold = await position();
+  assert.equal(cold.selection?.startLineNumber, 42);
+  assert.equal(cold.selection?.endLineNumber, 42);
+  await page.screenshot({ path: path.join(runtime, 'chat-line-cold.png') });
+
+  // Split is an existing source-capable preference; a second range link keeps it.
+  await page.locator('button[title="Split"]:visible').click();
+  await page.locator('.prose-kimi').waitFor();
+  await chatStream();
+  await page.getByRole('link', { name: 'relative range', exact: true }).click();
+  await page.locator('.monaco-editor').waitFor();
+  await page.waitForFunction(() => {
+    const selection = window.monaco?.editor?.getEditors()?.[0]?.getSelection();
+    return selection?.startLineNumber === 42 && selection.endLineNumber === 48;
+  });
+  await page.locator('.prose-kimi').waitFor();
+  const split = await position();
+  assert.equal(split.selection?.startLineNumber, 42);
+  assert.equal(split.selection?.endLineNumber, 48);
+  await page.screenshot({ path: path.join(runtime, 'chat-line-split-range.png') });
+  await page.locator('button[title="Edit"]:visible').click();
+  await page.locator('.monaco-editor').waitFor();
   await page.evaluate(() =>
     window.monaco.editor.getEditors()[0].setValue('[index](docs/index.md)'),
   );
@@ -94,7 +139,8 @@ try {
       target,
     );
     if (line === 6) {
-      await edit();
+      // `CHECKLIST.md:2` must reveal source and land on line 2 without Edit.
+      await page.locator('.monaco-editor').waitFor();
       await page.waitForFunction(
         () => window.monaco?.editor?.getEditors()?.[0]?.getPosition()?.lineNumber === 2,
       );
@@ -116,10 +162,10 @@ try {
     document.body.textContent.replaceAll('\u00a0', ' ').includes('TARGET docs/CHECKLIST.md'),
   );
   await page.screenshot({ path: path.join(runtime, 'preview-relative.png') });
-  console.log(JSON.stringify({ passed: 9, source, reads }));
+  console.log(JSON.stringify({ passed: 11, source, reads }));
   await fs.writeFile(
     path.join(runtime, 'relative-links-result.json'),
-    JSON.stringify({ passed: 9, reads }, null, 2),
+    JSON.stringify({ passed: 11, reads }, null, 2),
   );
 } finally {
   await fs.writeFile(path.join(runtime, 'read-paths.json'), JSON.stringify(reads));

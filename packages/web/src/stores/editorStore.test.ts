@@ -21,6 +21,55 @@ vi.mock('@/services/api', () => ({
 
 type EditorState = ReturnType<typeof useEditorStore.getState>;
 
+describe('Markdown line navigation view', () => {
+  it.each([false, true])('reveals source lines when the Markdown tab is already open: %s', async (alreadyOpen) => {
+    seedEditor(WORKDIR, {
+      openPaths: alreadyOpen ? ['guide.md'] : [],
+      contents: alreadyOpen ? { 'guide.md': '# Guide' } : {},
+      mdViewMode: { 'guide.md': 'preview' },
+    });
+    const location = { path: 'guide.md', line: 42 };
+    expect(await useEditorStore.getState().openFile('guide.md', location)).toBe(true);
+    expect(useEditorStore.getState().mdViewMode['guide.md']).toBe('edit');
+    expect(useEditorStore.getState().pendingLocation).toEqual(location);
+  });
+
+  it('keeps split mode and does not change plain-link preview preferences', async () => {
+    seedEditor(WORKDIR, {
+      openPaths: ['guide.md', 'plain.md'],
+      mdViewMode: { 'guide.md': 'split', 'plain.md': 'preview' },
+    });
+    await useEditorStore.getState().openFile('guide.md', { path: 'guide.md', line: 42 });
+    expect(useEditorStore.getState().mdViewMode['guide.md']).toBe('split');
+    await useEditorStore.getState().openFile('plain.md');
+    expect(useEditorStore.getState().mdViewMode['plain.md']).toBe('preview');
+  });
+
+  it('retargets an already-open Markdown tab when a second line link is clicked', async () => {
+    seedEditor(WORKDIR, {
+      openPaths: ['guide.md'],
+      contents: { 'guide.md': '# Guide' },
+      mdViewMode: { 'guide.md': 'edit' },
+    });
+    await useEditorStore.getState().openFile('guide.md', { path: 'guide.md', line: 42 });
+    useEditorStore.getState().consumePendingLocation({ path: 'guide.md', line: 42 });
+
+    await useEditorStore.getState().openFile('guide.md', { path: 'guide.md', line: 50 });
+
+    expect(useEditorStore.getState().mdViewMode['guide.md']).toBe('edit');
+    expect(useEditorStore.getState().pendingLocation).toEqual({ path: 'guide.md', line: 50 });
+  });
+
+  it('keeps the preview default when a plain link first opens a Markdown file', async () => {
+    seedEditor(WORKDIR);
+
+    await useEditorStore.getState().openFile('fresh.md');
+
+    expect(useEditorStore.getState().mdViewMode['fresh.md']).toBeUndefined();
+    expect(useEditorStore.getState().pendingLocation).toBeNull();
+  });
+});
+
 const WORKDIR = 'D:\\project';
 const WORKDIR_NORM = normalizeEditorPath(WORKDIR);
 const CWD_ID = `cwd:${WORKDIR_NORM}`;

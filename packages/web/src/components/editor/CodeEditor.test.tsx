@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { CodeEditor } from './CodeEditor';
 import { EditorConfirmationModal } from './EditorConfirmationModal';
 import { useEditorStore, resetEditorStoreOperationState } from '@/stores/editorStore';
@@ -97,6 +97,20 @@ describe('CodeEditor save shortcut', () => {
       endLineNumber: 48,
       endColumn: 12,
     });
+    expect(useEditorStore.getState().pendingLocation).toBeNull();
+  });
+
+  it('applies another line request while Monaco is already mounted', () => {
+    monacoHarness.model = { getLineCount: () => 100, getLineMaxColumn: () => 4 };
+    render(<CodeEditor path="src/shortcut.ts" content="content" />);
+    expect(monacoHarness.editor.setPosition).not.toHaveBeenCalled();
+
+    act(() => {
+      useEditorStore.setState({ pendingLocation: { path: 'src/shortcut.ts', line: 61 } });
+    });
+
+    expect(monacoHarness.editor.setPosition).toHaveBeenCalledWith({ lineNumber: 61, column: 1 });
+    expect(monacoHarness.editor.revealLineInCenter).toHaveBeenCalledWith(61);
     expect(useEditorStore.getState().pendingLocation).toBeNull();
   });
 });

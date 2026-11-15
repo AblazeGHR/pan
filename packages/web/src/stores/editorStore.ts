@@ -374,6 +374,22 @@ function languageFromPath(path: string): string {
   return map[ext] || 'plaintext';
 }
 
+/**
+ * A line link must land in source view: Markdown defaults to preview, which
+ * does not mount the code editor and therefore never applies pendingLocation.
+ * Existing edit/split preferences already mount it and stay untouched.
+ */
+function markdownSourceModeForLocation(
+  modes: Record<string, 'edit' | 'preview' | 'split'>,
+  path: string,
+  location?: EditorLocation,
+): Record<string, 'edit' | 'preview' | 'split'> | null {
+  if (!location || languageFromPath(path) !== 'markdown') return null;
+  const mode = modes[path];
+  if (mode === 'edit' || mode === 'split') return null;
+  return { ...modes, [path]: 'edit' };
+}
+
 // Recursively build tree nodes from flat entries.
 async function fetchTree(
   sessionId: string,
@@ -711,7 +727,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
     // Already open — just switch active
     if (get().openPaths.includes(path)) {
-      set({ activePath: path, pendingLocation: location ?? null });
+      set((s) => {
+        const mdViewMode = markdownSourceModeForLocation(s.mdViewMode, path, location);
+        return {
+          activePath: path,
+          pendingLocation: location ?? null,
+          ...(mdViewMode ? { mdViewMode } : {}),
+        };
+      });
       return true;
     }
 
@@ -722,11 +745,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       clearFilePathInvalidation(snapshot.sessionId, path);
       set((s) => {
         if (!isCurrent() || !isCurrentOpenRequest(s, snapshot)) return {};
+        const mdViewMode = markdownSourceModeForLocation(s.mdViewMode, path, location);
         return {
           openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
           activePath: path,
           contents: { ...s.contents, [path]: content },
           pendingLocation: location ?? null,
+          ...(mdViewMode ? { mdViewMode } : {}),
         };
       });
       return true;
