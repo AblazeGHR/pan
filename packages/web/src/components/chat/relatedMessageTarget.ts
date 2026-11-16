@@ -6,7 +6,7 @@ export class RelatedMessageHiddenError extends Error {}
 
 /** Same compact canonical pages/classifier as the rail. No text search or
  * legacy identity preparation. Bound work and fail explicitly on gaps/change. */
-export async function resolveRelatedMessageTarget(sessionId: string, messageId: string, signal?: AbortSignal) {
+export async function resolveRelatedMessageTarget(sessionId: string, messageId: string, signal?: AbortSignal, userOnly = true) {
   let before = 0;
   let epoch: string | undefined;
   let total: number | undefined;
@@ -21,7 +21,7 @@ export async function resolveRelatedMessageTarget(sessionId: string, messageId: 
     const index = page.history.findIndex((row) => row.messageId === messageId);
     if (index >= 0) {
       const row = page.history[index]!;
-      if (getNavigationKind(row) !== 'user') throw new Error('相关消息不再是导航中的 user 目标。');
+      if (userOnly && getNavigationKind(row) !== 'user') throw new Error('相关消息不再是导航中的 user 目标。');
       if (!filterVisibleMessages([row], useAppSettingsStore.getState()).length)
         throw new RelatedMessageHiddenError('相关消息被聊天显示设置隐藏，请先启用对应消息类型。');
       return { offset: page.start + index, total: page.total, messageId };

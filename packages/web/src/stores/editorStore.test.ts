@@ -128,6 +128,21 @@ beforeEach(() => {
   useUIStore.setState({ toastQueue: [] });
 });
 
+describe('editor reference binding', () => {
+  it('binds the successful file tab to the clicked message identity', async () => {
+    await useEditorStore.getState().openFile('guide.md', undefined, undefined, { sessionId: 's1', messageId: 'm1' });
+    expect(useEditorStore.getState().references['guide.md']).toEqual({ sessionId: 's1', messageId: 'm1' });
+    await useEditorStore.getState().openFile('guide.md', undefined, undefined, { sessionId: 's1', messageId: 'm2' });
+    expect(useEditorStore.getState().references['guide.md']).toEqual({ sessionId: 's1', messageId: 'm2' });
+  });
+
+  it('does not bind a failed open', async () => {
+    vi.mocked(readFile).mockRejectedValueOnce(new Error('not found'));
+    expect(await useEditorStore.getState().openFile('missing.md', undefined, undefined, { sessionId: 's1', messageId: 'm1' })).toBe(false);
+    expect(useEditorStore.getState().references['missing.md']).toBeUndefined();
+  });
+});
+
 describe('editorStore.openPath', () => {
   it('reuses an existing directory root without creating a duplicate', async () => {
     vi.mocked(fetchDirectories).mockResolvedValue({ current: WORKDIR, parent: null, entries: [] });

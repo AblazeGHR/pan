@@ -210,6 +210,8 @@ function parentDirWithinRoot(root: EditorRoot, path: string): string {
   return `${root.path.replace(/\/+$/, '')}/${parentRelative}`;
 }
 
+export interface EditorReference { sessionId: string; messageId: string }
+
 interface EditorStore {
   // state
   sessionId: string | null;
@@ -233,6 +235,7 @@ interface EditorStore {
   workspaceDirs: string[];
   selectedPath: string | null;
   openPaths: string[];
+  references: Record<string, EditorReference | undefined>;
   activePath: string | null;
   dirty: Set<string>;
   contents: Record<string, string>;
@@ -253,11 +256,11 @@ interface EditorStore {
   refreshRoot: (rootId: string, dirPath?: string) => Promise<void>;
   loadRootTree: (rootId: string) => Promise<void>;
   toggleDir: (rootId: string, path: string) => Promise<void>;
-  openFile: (path: string, location?: EditorLocation, isCurrent?: () => boolean) => Promise<boolean>;
+  openFile: (path: string, location?: EditorLocation, isCurrent?: () => boolean, reference?: EditorReference) => Promise<boolean>;
   /** Open a resolved absolute path; directories reuse temporary Editor roots.
    * isCurrent also fences callers whose Chat selection can change before Editor mounts. */
-  openPath: (path: string, location?: EditorLocation, isCurrent?: () => boolean) => Promise<boolean>;
-  openImage: (path: string, preview: EditorImagePreviewSource) => boolean;
+  openPath: (path: string, location?: EditorLocation, isCurrent?: () => boolean, reference?: EditorReference) => Promise<boolean>;
+  openImage: (path: string, preview: EditorImagePreviewSource, reference?: EditorReference) => boolean;
   consumePendingLocation: (location: EditorLocation) => void;
   closeFile: (path: string) => void;
   setActive: (path: string) => void;
@@ -428,6 +431,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   workspaceDirs: [],
   selectedPath: null,
   openPaths: [],
+  references: {},
   activePath: null,
   dirty: new Set(),
   contents: {},
@@ -469,6 +473,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             expanded: new Set<string>(),
             selectedPath: null,
             openPaths: [],
+  references: {},
             activePath: null,
             dirty: new Set<string>(),
             contents: {},
@@ -674,7 +679,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
 
-  openPath: async (path, location, isCurrent = () => true) => {
+  openPath: async (path, location, isCurrent = () => true, reference) => {
     const state = get();
     const root = captureSession(state);
     if (!root || !isCurrent()) return false;
@@ -697,10 +702,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       set({ selectedPath: normalizeEditorPath(directory), pendingLocation: null });
       return true;
     }
-    return get().openFile(path, location, isCurrent);
+    return get().openFile(path, location, isCurrent, reference);
   },
 
-  openFile: async (path: string, location?: EditorLocation, isCurrent = () => true) => {
+  openFile: async (path: string, location?: EditorLocation, isCurrent = () => true, reference?: EditorReference) => {
     const state = get();
     const root = captureSession(state);
     if (!root || !isCurrent()) return false;
@@ -722,7 +727,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return get().openImage(path, {
         src: imageUrl,
         displayName: path.split(/[\\/]/).pop() || path,
-      });
+      }, reference);
     }
 
     // Already open — just switch active
@@ -731,6 +736,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         const mdViewMode = markdownSourceModeForLocation(s.mdViewMode, path, location);
         return {
           activePath: path,
+          references: { ...s.references, [path]: reference },
           pendingLocation: location ?? null,
           ...(mdViewMode ? { mdViewMode } : {}),
         };
@@ -749,6 +755,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         return {
           openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
           activePath: path,
+          references: { ...s.references, [path]: reference },
           contents: { ...s.contents, [path]: content },
           pendingLocation: location ?? null,
           ...(mdViewMode ? { mdViewMode } : {}),
@@ -762,6 +769,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         set((s) => ({
           openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
           activePath: path,
+          references: { ...s.references, [path]: reference },
           previewErrors: { ...s.previewErrors, [path]: reason },
           pendingLocation: null,
         }));
@@ -775,7 +783,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
-  openImage: (path, preview) => {
+  openImage: (path, preview, reference) => {
     const state = get();
     const root = captureSession(state);
     if (!root || !preview.src) return false;
@@ -783,6 +791,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       selectedPath: path,
       openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
       activePath: path,
+      references: { ...s.references, [path]: reference },
       imagePreviews: { ...s.imagePreviews, [path]: preview },
       pendingLocation: null,
     }));
@@ -806,6 +815,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const root = captureSession(get());
     if (root) invalidateOpen(root.sessionId, path);
     set((s) => {
+      const references = { ...s.references };
+      delete references[path];
       const newOpen = s.openPaths.filter((p) => p !== path);
       const newDirty = new Set(s.dirty);
       newDirty.delete(path);
@@ -829,6 +840,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       disposeMonacoModels([path]);
       return {
         openPaths: newOpen,
+        references,
         dirty: newDirty,
         contents: newContents,
         previewErrors,
@@ -1003,6 +1015,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             previewErrors[to] = previewErrors[from]!;
             delete previewErrors[from];
           }
+          const references = { ...s.references };
+          if (from in references) { references[to] = references[from]; delete references[from]; }
           const mdViewMode = { ...s.mdViewMode };
           if (Object.prototype.hasOwnProperty.call(mdViewMode, from)) {
             mdViewMode[to] = mdViewMode[from]!;
@@ -1011,6 +1025,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
           return {
             openPaths,
+            references,
             activePath: s.activePath === from ? to : s.activePath,
             selectedPath: s.selectedPath === from ? to : s.selectedPath,
             dirty,

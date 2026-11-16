@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { useEditorStore, languageFromPath } from '@/stores/editorStore';
 import { useCurrentSession } from '@/stores/sessionStore';
+import { EditorReturnReference } from './EditorReturnReference';
 import { EditorTabs } from './EditorTabs';
 import { EditorFileTopBar } from './EditorFileTopBar';
 import { EditorImagePreview } from './EditorImagePreview';
@@ -19,6 +20,7 @@ export function EditorPane() {
   // gates exposure; a workdir-less session may still have browsable roots.
   const editorRootMatchesSession = editorSessionId === currentSession?.id;
   const activePath = editorRootMatchesSession ? storedActivePath : null;
+  const reference = useEditorStore((s) => activePath ? s.references[activePath] : undefined);
   const previewErrors = useEditorStore((s) => s.previewErrors);
   const previewError = activePath ? previewErrors[activePath] : undefined;
   const contents = useEditorStore((s) => s.contents);
@@ -70,6 +72,7 @@ export function EditorPane() {
             ))}
           </div>
         )}
+        {reference && <EditorReturnReference reference={reference} />}
       </div>
       {activePath && <EditorFileTopBar
         operationPath={activePath}

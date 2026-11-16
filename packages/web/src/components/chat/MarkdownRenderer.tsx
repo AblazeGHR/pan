@@ -33,6 +33,8 @@ function transformMarkdownUrl(value: string): string {
   return parseMarkdownFileLink(value) ? value : defaultUrlTransform(value);
 }
 
+const SourceMessageContext = createContext<string | undefined>(undefined);
+
 const SourceSessionContext = createContext<string | undefined>(undefined);
 
 const RASTER_IMAGE_MIMES = new Set([
@@ -50,6 +52,8 @@ const AttachmentDownloadContext = createContext<((href: string) => Promise<void>
 function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, ...props }: LinkProps & { attachmentId?: string; sourcePath?: string }) {
   const navigate = useNavigate();
   const sourceSessionId = useContext(SourceSessionContext);
+  const sourceMessageId = useContext(SourceMessageContext);
+  const reference = sourceSessionId && sourceMessageId ? { sessionId: sourceSessionId, messageId: sourceMessageId } : undefined;
   const downloadAttachment = useContext(AttachmentDownloadContext);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const sessionId = sourceSessionId ?? currentSessionId;
@@ -118,13 +122,14 @@ function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, .
           window.location.assign(href);
           return;
         }
+        if (useSessionStore.getState().currentSessionId !== currentSessionId) return;
         prepareEditorRoot(sessionId, workdir);
         const displayName = typeof metadata.displayName === 'string' ? metadata.displayName : 'attachment';
         const downloadHref = `/api/attachments/ref/${encodeURIComponent(attachmentId)}`
           + `?session_id=${encodeURIComponent(sourceSessionId)}`;
         const opened = useEditorStore.getState().openImage(
           `attachment:${sourceSessionId}:${attachmentId}`,
-          { src: downloadHref, downloadHref, displayName },
+          { src: downloadHref, downloadHref, displayName }, reference,
         );
         if (opened) navigate('/editor');
       } catch (error) {
@@ -149,7 +154,7 @@ function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, .
     let stale = false;
     const isCurrent = () => {
       const state = useSessionStore.getState();
-      return !stale && (sourceSessionId !== undefined || state.currentSessionId === sessionId)
+      return !stale && ((sourceSessionId !== undefined && !sourceMessageId) || state.currentSessionId === sessionId)
         && state.sessions.find((item) => item.id === sessionId)?.workdir === workdir;
     };
 
@@ -189,8 +194,8 @@ function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, .
         : fileLink.location;
       const editor = useEditorStore.getState();
       const opened = fileLink.serverAttachmentId
-        ? await editor.openFile(editorPath, location, isCurrent)
-        : await editor.openPath(editorPath, location, isCurrent);
+        ? await editor.openFile(editorPath, location, isCurrent, reference)
+        : await editor.openPath(editorPath, location, isCurrent, reference);
       if (opened && isCurrent()) navigate('/editor');
     } finally {
       unsubscribe();
@@ -281,6 +286,7 @@ const PreContext = createContext(false);
 interface MarkdownRendererProps {
   /** Explicit container origin; never borrow the currently selected Chat. */
   sourceSessionId?: string;
+  sourceMessageId?: string;
   content: string;
   className?: string;
   attachmentIds?: string[];
@@ -395,7 +401,7 @@ function PreBlock({ children }: PreProps) {
   return <PreContext.Provider value={true}>{children}</PreContext.Provider>;
 }
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [], sourcePath, sourceSessionId, onAttachmentDownload }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [], sourcePath, sourceSessionId, sourceMessageId, onAttachmentDownload }: MarkdownRendererProps) {
   // Historical Markdown does not depend on the live session object. Subscribing
   // to it reparsed every visible history row on every streamed token.
   const sessionId = useSessionStore((s) => s.currentSessionId);
@@ -407,6 +413,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
 
   return (
     <SourceSessionContext.Provider value={sourceSessionId}>
+    <SourceMessageContext.Provider value={sourceMessageId}>
       <AttachmentDownloadContext.Provider value={onAttachmentDownload}>
         <div className={`prose-kimi max-w-none break-words ${className}`}>
           <ReactMarkdown
@@ -428,6 +435,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
           </ReactMarkdown>
         </div>
       </AttachmentDownloadContext.Provider>
+    </SourceMessageContext.Provider>
     </SourceSessionContext.Provider>
   );
 });

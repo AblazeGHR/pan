@@ -356,6 +356,8 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
           ) : (
             <MarkdownRenderer
               content={message.content}
+              sourceSessionId={sessionId ?? undefined}
+              sourceMessageId={message.messageId}
               attachmentIds={attachmentIds}
               className="text-sm"
             />
@@ -385,6 +387,8 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
         ) : (
           <MarkdownRenderer
             content={message.content}
+              sourceSessionId={sessionId ?? undefined}
+              sourceMessageId={message.messageId}
             attachmentIds={attachmentIds}
           />
         )}
