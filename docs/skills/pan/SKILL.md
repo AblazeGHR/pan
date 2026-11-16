@@ -332,6 +332,8 @@ query 是去首尾空白后的大小写不敏感字面子串（非正则/FTS 查
 
 **先确认新建 B 还是已有 B，再确认来源 A / 目标 B 的精确 ID 与覆盖意图。** `session_id` 永远是归档来源 A；省略 `target_session_id` 才新建，提供则必须命中已有 B。不存在不自动新建，不反向交接。
 
+**来源默认语义**：用户未指定其他来源时，“进行替身交接”默认指当前调用方自己的 Session 作为 A，无论调用方身份；不会默认替换某个其他 Session。工具调用仍必须把这个当前 Session 解析成精确的 `session_id` 传入。只有用户明确点名其他 Session 时，才允许改用该明确 ID，并核对 A/B 与归档意图。
+
 **以下旧流程只适用于新建 B。** 已有模式默认保留 B 设置、名字、CLI 身份/history 与实际 system_prompt；`copy_settings=true` 和 adapter 覆写明确拒绝。B.original_prompt 元数据按来源 A / 本次显式 original 选择覆盖，但实际 system_prompt 独立冻结，当前和后续 restart/resume/newspawn 都不从元数据合成。必填简报既存 metadata，又作为唯一一条普通输入持久入队，遵守 Pause/Illegal/owner/锁；以返回的 `briefDelivery.queueItemId` 核对，queued 不代表 CLI 已读。A 运行/自调用与原队列不被终止或清空。
 
 逐项设置来源（A / 保留 B / 本次显式值）、模式限制、关系合并冲突、回执与未知不重投规则必须先读 [交接字段决策表与操作手册](references/handoff.md)。用户边界不清楚就问具体缺口，不把 original 元数据、有效系统提示词和实际简报消息当同一层。
