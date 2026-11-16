@@ -1077,7 +1077,12 @@ def session_handoff(
     original_prompt: StrictStr | None = None,
     target_session_id: StrictStr | None = None,
 ) -> dict:
-    """替身交接（精简上下文 / 切换 adapter）。先确认用户要新建 B 还是已有 B，明确 A/B ID，不能反向。
+    """替身交接（精简上下文 / 切换 adapter）。
+
+    用户未指定其他来源时，默认把当前调用方自己的 Session 作为来源 A，
+    无论调用方身份；不会默认替换某个其他 Session。调用方仍必须把解析出的
+    当前 Session 精确 ID 传入 session_id。只有用户明确点名其他来源时才使用该 ID。
+    先确认用户要新建 B 还是已有 B，明确 A/B ID，不能反向。
 
     分层：session_id 是将归档的来源 A；target_session_id 省略=新建 B，
     提供=只使用该既有 B，不存在报错，绝不悄悄新建。不要把所有字段当设置覆盖。
