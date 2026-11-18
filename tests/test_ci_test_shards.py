@@ -12,11 +12,11 @@ from scripts.ci_test_shards import shard_of, verify
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "ci_test_shards.py"
 
 
-def _run(root, index, count, manifest):
+def _run(root, index, count, manifest, extra=()):
     return subprocess.run([sys.executable, str(SCRIPT), "run", "--index", str(index),
                            "--count", str(count), "--manifest", str(manifest), "--",
                            str(root), "-q", "-o", "addopts=",
-                           f"--junitxml={manifest.with_suffix('.xml')}"],
+                           f"--junitxml={manifest.with_suffix('.xml')}", *extra],
                           cwd=root, text=True, capture_output=True)
 
 
@@ -59,6 +59,17 @@ def test_complete_shards_execute_every_original_identity(tmp_path):
     tree.write(failed, encoding='utf-8', xml_declaration=True)
     with pytest.raises(ValueError):
         verify(paths, 2, [paths[0].with_suffix('.xml'), failed], merged)
+    wrong_tree = ET.parse(paths[1].with_suffix('.xml'))
+    for case in wrong_tree.getroot().findall('.//testcase'):
+        case.set('classname', 'unrelated.test_wrong')
+        case.set('name', 'test_not_executed')
+    wrong = tmp_path / 'wrong-identities.xml'
+    wrong_tree.write(wrong, encoding='utf-8', xml_declaration=True)
+    with pytest.raises(ValueError, match='JUnit'):
+        verify(paths, 2, [paths[0].with_suffix('.xml'), wrong], merged)
+    # The partitions have equal case counts; swapping their XML must still fail.
+    with pytest.raises(ValueError, match='JUnit'):
+        verify(paths, 2, [p.with_suffix('.xml') for p in reversed(paths)], merged)
     a, b = (json.loads(p.read_text(encoding="utf-8")) for p in paths)
     assert len(a["collected"]) == len(b["collected"]) == 6
     assert len(a["finished"]) + len(b["finished"]) == 6
@@ -72,13 +83,20 @@ def test_missing_failed_unfinished_duplicate_and_collection_mismatch_are_rejecte
     original = [json.loads(p.read_text(encoding="utf-8")) for p in paths]
     with pytest.raises(ValueError):
         verify(paths[:1], 2)
-    for mutation in ("exitcode", "unfinished", "duplicate", "collection", "unknown"):
+    for mutation in ("exitcode", "unfinished", "duplicate", "collection", "unknown", "mapping", "ambiguous", "cross-shard"):
         changed = dict(original[1])
         if mutation == "exitcode": changed["exitcode"] = 1
         elif mutation == "unfinished": changed["finished"] = changed["finished"][:-1]
         elif mutation == "duplicate": changed["index"] = 0
         elif mutation == "collection": changed["collected"] = changed["collected"][:-1]
-        else: changed["exitcode"] = None
+        elif mutation == "unknown": changed["exitcode"] = None
+        elif mutation == "mapping": changed["junit_finished"] = changed["junit_finished"][:-1]
+        elif mutation == "ambiguous":
+            changed["junit_finished"] = [row[:] for row in changed["junit_finished"]]
+            changed["junit_finished"][1][1:] = changed["junit_finished"][0][1:]
+        else:
+            changed["junit_finished"] = [row[:] for row in changed["junit_finished"]]
+            changed["junit_finished"][0][1:] = original[0]["junit_finished"][0][1:]
         paths[1].write_text(json.dumps(changed), encoding="utf-8")
         with pytest.raises(ValueError):
             verify(paths, 2)
@@ -101,17 +119,23 @@ def test_real_test_and_collection_errors_remain_failures(tmp_path):
 
 def test_collection_skip_is_preserved_once_in_merged_junit(tmp_path):
     import xml.etree.ElementTree as ET
-    _write_files(tmp_path)
+    names = _write_files(tmp_path)
+    with (tmp_path / names[0]).open('a', encoding='utf-8') as stream:
+        stream.write("\nclass TestClass:\n"
+                     "    @pytest.mark.parametrize('x', [1, 2], ids=['a/b', 'space & <'])\n"
+                     "    def test_param(self, x): assert x > 0\n")
     (tmp_path / 'test_module_skip.py').write_text(
         "import pytest\npytest.skip('existing module skip', allow_module_level=True)\n",
         encoding='utf-8')
     paths = [tmp_path / f'{i}.json' for i in range(2)]
     for i, path in enumerate(paths):
-        result = _run(tmp_path, i, 2, path)
+        result = _run(tmp_path, i, 2, path, ['--junit-prefix=owned.prefix'])
         assert result.returncode == 0, result.stdout + result.stderr
     merged = tmp_path / 'merged.xml'
     verify(paths, 2, [p.with_suffix('.xml') for p in paths], merged)
     cases = ET.parse(merged).getroot().findall('.//testcase')
-    assert len(cases) == 7
+    assert len(cases) == 9
+    assert all(c.get('classname', '').startswith('owned.prefix') for c in cases)
+    assert sum(c.get('classname', '').endswith('.TestClass') for c in cases) == 2
     assert sum(c.find('skipped') is not None and
                c.find('skipped').get('message') == 'collection skipped' for c in cases) == 1

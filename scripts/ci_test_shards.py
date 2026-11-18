@@ -17,6 +17,17 @@ def shard_of(nodeid: str, count: int) -> int:
     return int.from_bytes(hashlib.sha256(filename.encode("utf-8")).digest()[:8], "big") % count
 
 
+def pytest_junit_address(nodeid: str, prefix: str | None = None) -> list[str]:
+    """Use the executing pytest's own JUnit address and XML-name encoding."""
+    from _pytest.junitxml import bin_xml_escape, mangle_test_address
+
+    parts = mangle_test_address(nodeid)
+    classes = parts[:-1]
+    if prefix:
+        classes.insert(0, prefix)
+    return [nodeid, ".".join(classes), bin_xml_escape(parts[-1])]
+
+
 class Recorder:
     def __init__(self, index: int, count: int):
         self.index, self.count = index, count
@@ -25,6 +36,12 @@ class Recorder:
         self.finished: list[str] = []
         self.collection_errors: list[str] = []
         self.collection_skips: list[str] = []
+        self.junit_finished: list[list[str]] = []
+        self.junit_collection_skips: list[list[str]] = []
+        self.junit_prefix: str | None = None
+
+    def pytest_configure(self, config):
+        self.junit_prefix = config.getoption("junitprefix", default=None)
 
     def pytest_collection_modifyitems(self, session, config, items):
         self.collected = [item.nodeid for item in items]
@@ -40,9 +57,11 @@ class Recorder:
             self.collection_errors.append(report.nodeid)
         elif report.skipped:
             self.collection_skips.append(report.nodeid)
+            self.junit_collection_skips.append(pytest_junit_address(report.nodeid, self.junit_prefix))
 
     def pytest_runtest_logfinish(self, nodeid, location):
         self.finished.append(nodeid)
+        self.junit_finished.append(pytest_junit_address(nodeid, self.junit_prefix))
 
 
 def run(index: int, count: int, out: Path, pytest_args: list[str]) -> int:
@@ -51,10 +70,12 @@ def run(index: int, count: int, out: Path, pytest_args: list[str]) -> int:
         raise ValueError("invalid shard configuration or empty pytest arguments")
     recorder = Recorder(index, count)
     exitcode = int(pytest.main(pytest_args, plugins=[recorder]))
-    payload = {"version": 1, "index": index, "count": count, "exitcode": exitcode,
+    payload = {"version": 2, "index": index, "count": count, "exitcode": exitcode,
                "collected": recorder.collected, "selected": recorder.selected,
                "finished": recorder.finished, "collection_errors": recorder.collection_errors,
-               "collection_skips": recorder.collection_skips}
+               "collection_skips": recorder.collection_skips,
+               "junit_finished": recorder.junit_finished,
+               "junit_collection_skips": recorder.junit_collection_skips}
     out.parent.mkdir(parents=True, exist_ok=True)
     temp = out.with_suffix(out.suffix + ".tmp")
     temp.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
@@ -70,10 +91,12 @@ def verify(paths: list[Path], count: int, junit_paths: list[Path] | None = None,
     reference: Counter[str] | None = None
     reference_skips: Counter[str] | None = None
     union: Counter[str] = Counter()
+    address_owners: dict[tuple[str, str], str] = {}
+    node_addresses: dict[str, tuple[str, str]] = {}
     for path in paths:
         data = json.loads(path.read_text(encoding="utf-8"))
         index = data.get("index")
-        if (data.get("version") != 1 or type(index) is not int or not 0 <= index < count
+        if (data.get("version") != 2 or type(index) is not int or not 0 <= index < count
                 or index in seen_indexes or data.get("count") != count
                 or type(data.get("exitcode")) is not int or data["exitcode"] != 0
                 or data.get("collection_errors") != []):
@@ -84,6 +107,20 @@ def verify(paths: list[Path], count: int, junit_paths: list[Path] | None = None,
                 raise ValueError(f"missing {key}: {path}")
         collected, selected, finished = (Counter(data[k]) for k in ("collected", "selected", "finished"))
         skips = Counter(data["collection_skips"])
+        for mapping_key, identities in (("junit_finished", finished), ("junit_collection_skips", skips)):
+            rows = data.get(mapping_key)
+            if (not isinstance(rows, list) or any(not isinstance(row, list) or len(row) != 3
+                    or not all(isinstance(value, str) for value in row) for row in rows)
+                    or Counter(row[0] for row in rows) != identities):
+                raise ValueError(f"missing or mismatched pytest JUnit mapping: {path}")
+        for nodeid, classname, name in data["junit_finished"] + data["junit_collection_skips"]:
+            address = (classname, name)
+            if address in address_owners and address_owners[address] != nodeid:
+                raise ValueError(f"ambiguous pytest JUnit address: {path}")
+            if nodeid in node_addresses and node_addresses[nodeid] != address:
+                raise ValueError(f"inconsistent pytest JUnit mapping: {path}")
+            address_owners[address] = nodeid
+            node_addresses[nodeid] = address
         if not collected or not selected or selected != finished:
             raise ValueError(f"empty, unfinished or mismatched execution: {path}")
         expected = Counter(x for x in data["collected"] if shard_of(x, count) == index)
@@ -108,8 +145,13 @@ def verify(paths: list[Path], count: int, junit_paths: list[Path] | None = None,
             collection_cases = [case for case in cases if case.find("skipped") is not None
                                 and case.find("skipped").get("message") == "collection skipped"]
             identities = Counter((case.get("classname"), case.get("name")) for case in collection_cases)
+            ordinary = Counter((case.get("classname"), case.get("name")) for case in cases
+                               if case not in collection_cases)
+            expected_cases = Counter((row[1], row[2]) for row in data["junit_finished"])
+            expected_skips = Counter((row[1], row[2]) for row in data["junit_collection_skips"])
             if (not suites or len(cases) != len(data["finished"]) + len(data["collection_skips"])
                     or len(collection_cases) != len(data["collection_skips"])
+                    or ordinary != expected_cases or identities != expected_skips
                     or (skip_identities is not None and identities != skip_identities)
                     or any(case.find("failure") is not None or case.find("error") is not None
                            for case in cases)):
