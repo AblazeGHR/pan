@@ -9,13 +9,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  pytest:
-    # Keep both existing Windows full-suite gates alongside the three-OS fast layer.
+  pytest_shards_312:
+    name: pytest shard (3.12, ${{ matrix.shard }})
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.14"]
-    runs-on: windows-latest
+        shard: [0, 1]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
       - uses: actions/setup-node@v4
         with:
@@ -63,17 +63,162 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
         run: python -m playwright install --only-shell chromium
 
-      - name: Run tests
+      - name: Run full-collection shard
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
-        run: python scripts/run_tests_isolated.py -- python -m pytest tests/ packages/qq -q -ra --junitxml=pytest-results.xml
+        run: >-
+          python scripts/run_tests_isolated.py -- python scripts/ci_test_shards.py run
+          --index ${{ matrix.shard }} --count 2 --manifest shard-${{ matrix.shard }}/manifest.json --
+          tests/ packages/qq -q -ra --junitxml=shard-${{ matrix.shard }}/pytest-results.xml
 
-      - name: Upload test results
+      - name: Upload shard evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-results-${{ matrix.python-version }}
-          path: pytest-results.xml
+          name: pytest-shard-3.12-${{ matrix.shard }}
+          path: shard-${{ matrix.shard }}/
+          if-no-files-found: error
+
+  pytest_gate_312:
+    # Preserve the original required check context for this Python version.
+    name: pytest (3.12)
+    needs: [pytest_shards_312]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pytest-shard-3.12-0
+          path: shards/0
+      - uses: actions/download-artifact@v4
+        with:
+          name: pytest-shard-3.12-1
+          path: shards/1
+      - name: Verify both full collections, executions and JUnit
+        run: >-
+          python scripts/ci_test_shards.py verify --count 2
+          --junit shards/0/pytest-results.xml --junit shards/1/pytest-results.xml
+          --merged-junit pytest-results.xml shards/0/manifest.json shards/1/manifest.json
+      - name: Require all shard jobs to succeed
+        if: ${{ always() }}
+        env:
+          SHARD_RESULT: ${{ needs.pytest_shards_312.result }}
+        run: test "$SHARD_RESULT" = success
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-3.12
+          path: |
+            pytest-results.xml
+            shards/
+          if-no-files-found: warn
+
+  pytest_shards_314:
+    name: pytest shard (3.14, ${{ matrix.shard }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Original baseline characterization must remain executable in CI.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.7.0"
+
+      - name: Build React for browser regressions
+        working-directory: packages/web
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm build
+
+      - name: Install terminal emulator dependencies
+        run: npm ci --prefix packages/core/terminal/emulator_sidecar
+
+      - name: Install Codex native test dependency
+        shell: pwsh
+        run: |
+          npm install --global --prefix "$env:RUNNER_TEMP/pan-codex" --no-audit --no-fund @openai/codex@0.162.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:RUNNER_TEMP/pan-codex" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r minimal-requirements.txt
+          pip install -r packages/qq/requirements.txt
+          pip install pytest-timeout playwright==1.63.0
+
+      - name: Install browser regression dependency
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+        run: python -m playwright install --only-shell chromium
+
+      - name: Run full-collection shard
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+        run: >-
+          python scripts/run_tests_isolated.py -- python scripts/ci_test_shards.py run
+          --index ${{ matrix.shard }} --count 2 --manifest shard-${{ matrix.shard }}/manifest.json --
+          tests/ packages/qq -q -ra --junitxml=shard-${{ matrix.shard }}/pytest-results.xml
+
+      - name: Upload shard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-shard-3.14-${{ matrix.shard }}
+          path: shard-${{ matrix.shard }}/
+          if-no-files-found: error
+
+  pytest_gate_314:
+    # Preserve the original required check context for this Python version.
+    name: pytest (3.14)
+    needs: [pytest_shards_314]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pytest-shard-3.14-0
+          path: shards/0
+      - uses: actions/download-artifact@v4
+        with:
+          name: pytest-shard-3.14-1
+          path: shards/1
+      - name: Verify both full collections, executions and JUnit
+        run: >-
+          python scripts/ci_test_shards.py verify --count 2
+          --junit shards/0/pytest-results.xml --junit shards/1/pytest-results.xml
+          --merged-junit pytest-results.xml shards/0/manifest.json shards/1/manifest.json
+      - name: Require all shard jobs to succeed
+        if: ${{ always() }}
+        env:
+          SHARD_RESULT: ${{ needs.pytest_shards_314.result }}
+        run: test "$SHARD_RESULT" = success
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-3.14
+          path: |
+            pytest-results.xml
+            shards/
           if-no-files-found: warn
 
   ubuntu-browser:
