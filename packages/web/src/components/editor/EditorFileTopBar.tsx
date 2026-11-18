@@ -3,15 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Copy, Download, ExternalLink, FolderOpen, MessageSquare, Save as SaveIcon } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useCurrentSession } from '@/stores/sessionStore';
+import type { EditorReference } from '@/stores/editorStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useCapability, usePlatformStore } from '@/stores/platformStore';
 import { useUIStore } from '@/stores/uiStore';
 import { copyText } from '@/utils/clipboard';
 import { openFileExternally, revealFileExternally } from '@/services/api';
+import { EditorReturnReference } from './EditorReturnReference';
 
 interface EditorFileTopBarProps {
   /** Session-relative path used by backend operations and attachment queue. */
   operationPath: string;
+  /** Chat message this tab was opened from; absent for other origins. */
+  reference?: EditorReference;
   imagePreview?: boolean;
   previewFailed?: boolean;
   imageDisplayName?: string;
@@ -83,6 +87,7 @@ function revealUnavailableReason(platform: string | null): string {
 
 export function EditorFileTopBar({
   operationPath,
+  reference,
   imagePreview = false,
   previewFailed = false,
   imageDisplayName,
@@ -308,6 +313,7 @@ export function EditorFileTopBar({
           </button>}
         </>
       )}
+      {reference && <EditorReturnReference reference={reference} />}
     </div>
   );
 }

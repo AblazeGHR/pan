@@ -7,6 +7,9 @@ import { useNativeControlStore } from '@/stores/nativeControlStore';
 import { useUIStore } from '@/stores/uiStore';
 import { resolveRelatedMessageTarget } from '@/components/chat/relatedMessageTarget';
 
+/** Return-to-source action for a tab opened from a Chat message. It renders in
+ * the Editor file operation row, beside save/copy/open/reveal, so the file
+ * actions stay together on both narrow and desktop layouts. */
 export function EditorReturnReference({ reference }: { reference: EditorReference }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -39,6 +42,6 @@ export function EditorReturnReference({ reference }: { reference: EditorReferenc
     }
   };
   return <button type="button" disabled={busy} onClick={() => void open()}
-    className="shrink-0 px-2 text-xs text-text-secondary hover:text-text-primary bg-bg-secondary border-b border-border-default"
+    className="flex h-7 shrink-0 items-center rounded px-1.5 text-[11px] text-text-secondary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
   >返回引用位置</button>;
 }

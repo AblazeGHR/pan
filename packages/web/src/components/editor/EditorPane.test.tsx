@@ -219,3 +219,38 @@ describe('EditorPane editor action wiring', () => {
    fireEvent.click(reveal);
    await waitFor(() => expect(revealFileExternally).toHaveBeenCalledWith('s1', 'binary.bin'));
  });
+
+describe('EditorPane return-to-source placement', () => {
+  it('places the return action in the file operation bar beside the file actions', () => {
+    useEditorStore.setState({
+      openPaths: ['docs/guide.md'], activePath: 'docs/guide.md',
+      contents: { 'docs/guide.md': '# guide' },
+      references: { 'docs/guide.md': { sessionId: 's1', messageId: 'msg_1' } },
+    });
+    const { container } = render(<MemoryRouter initialEntries={['/editor']}><EditorPane /></MemoryRouter>);
+
+    const topbar = screen.getByTestId('editor-file-topbar');
+    const returnButton = screen.getByRole('button', { name: '返回引用位置' });
+    // Same row as save/copy/open/reveal: the file operation bar itself.
+    expect(topbar.contains(returnButton)).toBe(true);
+    expect(returnButton.parentElement).toBe(topbar);
+    const operations = within(topbar).getAllByRole('button');
+    for (const name of ['保存文件', '复制完整路径', '用系统默认方式打开', '在系统资源管理器中定位'])
+      expect(operations.indexOf(within(topbar).getByRole('button', { name }))).toBeLessThan(operations.indexOf(returnButton));
+
+    // The tab strip is a different row and must not carry the action.
+    const tabStrip = container.querySelector('[data-testid="editor-tab"]')?.parentElement;
+    expect(tabStrip).toBeTruthy();
+    expect(tabStrip?.contains(returnButton)).toBe(false);
+  });
+
+  it('keeps the return action hidden for a tab without a real source message', () => {
+    useEditorStore.setState({
+      openPaths: ['docs/guide.md'], activePath: 'docs/guide.md',
+      contents: { 'docs/guide.md': '# guide' }, references: {},
+    });
+    render(<MemoryRouter initialEntries={['/editor']}><EditorPane /></MemoryRouter>);
+    expect(screen.getByTestId('editor-file-topbar')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '返回引用位置' })).toBeNull();
+  });
+});

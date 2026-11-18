@@ -1,7 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { useEditorStore, languageFromPath } from '@/stores/editorStore';
 import { useCurrentSession } from '@/stores/sessionStore';
-import { EditorReturnReference } from './EditorReturnReference';
 import { EditorTabs } from './EditorTabs';
 import { EditorFileTopBar } from './EditorFileTopBar';
 import { EditorImagePreview } from './EditorImagePreview';
@@ -72,10 +71,10 @@ export function EditorPane() {
             ))}
           </div>
         )}
-        {reference && <EditorReturnReference reference={reference} />}
       </div>
       {activePath && <EditorFileTopBar
         operationPath={activePath}
+        reference={reference}
         previewFailed={!!previewError}
         imagePreview={!!imagePreview}
         imageDisplayName={imagePreview?.displayName}

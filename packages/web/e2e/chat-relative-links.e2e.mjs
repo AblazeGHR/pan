@@ -97,6 +97,69 @@ async function delayedSwitch(kind) {
   results.push(`switch during ${kind}`);
 }
 
+const returnAction = () => page.getByRole('button', { name: '返回引用位置', exact: true });
+
+/** The return action belongs to the file operation row next to the file
+ * buttons; the tab strip is a different row and must never carry it. */
+async function assertReturnPlacement(stage) {
+  const bar = page.getByTestId('editor-file-topbar');
+  await bar.waitFor();
+  assert.equal(
+    await bar.getByRole('button', { name: '返回引用位置', exact: true }).count(),
+    1,
+    `${stage}: the return action must render inside the file operation bar`,
+  );
+  const box = await returnAction().boundingBox();
+  const barBox = await bar.boundingBox();
+  assert.ok(box && barBox, `${stage}: the return action and the bar must be laid out`);
+  assert.ok(
+    box.x >= barBox.x - 0.5 &&
+      box.x + box.width <= barBox.x + barBox.width + 0.5 &&
+      box.y >= barBox.y - 0.5 &&
+      box.y + box.height <= barBox.y + barBox.height + 0.5,
+    `${stage}: the return action must sit inside the file operation bar: ${JSON.stringify({ box, barBox })}`,
+  );
+  const centerY = (rect) => rect.y + rect.height / 2;
+  const save = await bar.getByRole('button', { name: '保存文件' }).boundingBox();
+  assert.ok(save, `${stage}: the save button must be laid out`);
+  assert.ok(
+    Math.abs(centerY(box) - centerY(save)) <= 2,
+    `${stage}: the return action must share the file operation row`,
+  );
+  const previous = await returnAction().evaluate((element) => {
+    let sibling = element.previousElementSibling;
+    while (sibling && sibling.tagName !== 'BUTTON') sibling = sibling.previousElementSibling;
+    if (!sibling) return null;
+    return { right: sibling.getBoundingClientRect().right, label: sibling.getAttribute('aria-label') };
+  });
+  assert.ok(previous, `${stage}: the return action must sit inside the button group`);
+  const operations = ['保存文件', '复制完整路径', '用系统默认方式打开', '在系统资源管理器中定位', '下载当前文件', '加入聊天'];
+  assert.ok(
+    operations.includes(previous.label),
+    `${stage}: the return action must follow a file operation button, got ${previous.label}`,
+  );
+  assert.ok(
+    box.x - previous.right >= -1 && box.x - previous.right <= 20,
+    `${stage}: the return action must be adjacent to ${previous.label}, gap ${box.x - previous.right}`,
+  );
+  const tabStrip = page.locator('[data-testid="editor-tab"]').first().locator('xpath=..');
+  assert.equal(
+    await tabStrip.getByRole('button', { name: '返回引用位置' }).count(),
+    0,
+    `${stage}: the tab strip must not carry the return action`,
+  );
+  const stripBox = await tabStrip.boundingBox();
+  assert.ok(stripBox, `${stage}: the tab strip must be laid out`);
+  assert.ok(stripBox.y + stripBox.height <= box.y + 1, `${stage}: the action must be below the tab strip`);
+  return box;
+}
+
+const saveAction = () => page.getByTestId('editor-file-topbar').getByRole('button', { name: '保存文件' });
+const dirtySaveVisible = () => page.waitForFunction(() => {
+  const button = document.querySelector('[data-testid="editor-file-topbar"] button[aria-label="保存文件"]');
+  return button instanceof HTMLButtonElement && !button.disabled;
+});
+
 try {
   await page.goto(`${base}/react/`);
   for (const suffix of ['A', 'B']) {
@@ -152,6 +215,54 @@ try {
       .count(),
     0,
   );
+  // Return-to-source placement (desktop + narrow), dirty retention across the
+  // async return boundary, and hiding for a file that has no source message.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await chat('A');
+  await page.getByRole('link', { name: 'same file', exact: true }).click();
+  await page.waitForURL(/\/react\/editor$/);
+  await assertReturnPlacement('desktop');
+  await page.screenshot({ path: path.join(runtime, 'return-placement-desktop.png') });
+  await page.setViewportSize({ width: 420, height: 820 });
+  await assertReturnPlacement('narrow');
+  await page.screenshot({ path: path.join(runtime, 'return-placement-narrow.png') });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  results.push('return placement desktop+narrow');
+
+  await page.locator('button[title="Edit"]:visible').click();
+  await page.locator('.monaco-editor').waitFor();
+  const edited = `RETURN DIRTY ${Date.now()}`;
+  await page.evaluate((value) => window.monaco.editor.getEditors()[0].setValue(value), edited);
+  await dirtySaveVisible();
+  assert.equal(await saveAction().isEnabled(), true, 'editing must mark the tab dirty');
+  await assertReturnPlacement('dirty');
+  await returnAction().click();
+  await page.waitForURL(/\/react\/?$/, { waitUntil: 'commit' });
+  await page.waitForFunction(() =>
+    document.querySelector('.chat-message-jump-highlight')?.textContent?.includes('Chat cwd A'),
+  );
+  await page.screenshot({ path: path.join(runtime, 'return-source-highlight.png') });
+  results.push('return lands on the source message');
+
+  await page.getByRole('link', { name: 'Editor', exact: true }).click();
+  await page.locator('.monaco-editor').waitFor();
+  await dirtySaveVisible();
+  assert.equal(
+    await page.evaluate(() => window.monaco.editor.getEditors()[0].getValue()),
+    edited,
+    'the return trip must keep the dirty buffer',
+  );
+  await page.screenshot({ path: path.join(runtime, 'return-dirty-retained.png') });
+  results.push('dirty buffer kept');
+
+  await page.getByTestId('editor-root-cwd').getByText('slow.md', { exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-testid="editor-file-topbar"]')?.textContent?.includes('slow.md'),
+  );
+  assert.equal(await returnAction().count(), 0, 'a tree-opened file has no source message to return to');
+  await page.screenshot({ path: path.join(runtime, 'return-absent-tree.png') });
+  results.push('no source hidden');
+
   await chat('B');
   await Promise.all([
     page.waitForURL('https://example.com/chat-relative', { waitUntil: 'commit' }),
