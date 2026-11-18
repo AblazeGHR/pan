@@ -1355,7 +1355,7 @@ def test_real_service_create_cwd_chinese_input_read_snapshot_and_close(tmp_path)
 
         # 显式 close：三项证明齐备才 exited
         record = service.get(terminal_id)
-        _wait_until(lambda: _converged_if_launcher_done(service, terminal_id), 60.0)
+        # The launcher can finish only after close requests the running terminal to stop.
         result = _wait_until(
             lambda: _try_close(service, terminal_id) or None, 60.0
         )
@@ -1365,11 +1365,6 @@ def test_real_service_create_cwd_chinese_input_read_snapshot_and_close(tmp_path)
     finally:
         if terminal_id:
             _cleanup_terminal(service, terminal_id)
-
-
-def _converged_if_launcher_done(service: TerminalService, terminal_id: str) -> bool:
-    path = service.root / "launcher-status" / f"{terminal_id}.json"
-    return path.is_file()
 
 
 def _try_close(service: TerminalService, terminal_id: str) -> str | None:

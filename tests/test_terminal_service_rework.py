@@ -99,6 +99,33 @@ def _record_identity(service: TerminalService, terminal_id: str) -> tuple[int, i
     return int(view["pid"]), int(view["process_created_at_filetime"])
 
 
+def _admission_service_with_converging_fake(tmp_path: Path) -> TerminalService:
+    """Keep each fake alive until stop, then supply the normal cleanup proofs."""
+    root = tmp_path / "terminals"
+    processes: dict[str, _FakeProcess] = {}
+
+    def spawn(terminal_id, **_kwargs):
+        process = _FakeProcess()
+        processes[terminal_id] = process
+        return process
+
+    class ConvergingClient(_FakeClient):
+        def close(self, *, reason: str = "explicit-close") -> dict[str, Any]:
+            response = super().close(reason=reason)
+            _converged_launcher_status(root, self.terminal_id,
+                                       *_record_identity(service, self.terminal_id))
+            processes[self.terminal_id].exit(0)
+            return response
+
+    def factory(terminal_id, **kwargs):
+        return ConvergingClient(terminal_id, client_id=str(kwargs.get("client_id") or "c"))
+
+    service = TerminalService(root, registry=TerminalRegistry(root),
+                              secret_store=_FakeStore(root), spawn_launcher=spawn,
+                              client_factory=factory, heartbeat_interval=5.0)
+    return service
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # F1：活状态 reconcile 必须以 runner 身份三态为门
 # ══════════════════════════════════════════════════════════════════════════
@@ -816,8 +843,9 @@ def test_f8_memory_record_synced_after_close(tmp_path):
 
 def test_f9_create_rejected_after_shutdown(tmp_path):
     """F9：shutdown 后 create 被拒绝（无准入 -> 记录不得增长）。"""
-    service = _service(tmp_path, heartbeat_interval=5.0)
-    service.create()
+    service = _admission_service_with_converging_fake(tmp_path)
+    terminal_id = service.create()["terminal_id"]
+    assert service._states[terminal_id].process.poll() is None
     before = len(service.list())
     service.shutdown()
     with pytest.raises(TerminalServiceError_types()):
@@ -833,8 +861,9 @@ def TerminalServiceError_types():
 
 def test_f9_create_and_shutdown_linearized(tmp_path):
     """F9：并发 create 与 shutdown 线性化（准入门先关）。"""
-    service = _service(tmp_path, heartbeat_interval=5.0)
-    service.create()
+    service = _admission_service_with_converging_fake(tmp_path)
+    terminal_id = service.create()["terminal_id"]
+    assert service._states[terminal_id].process.poll() is None
     results: list[str] = []
     barrier = threading.Barrier(2)
 
@@ -856,6 +885,7 @@ def test_f9_create_and_shutdown_linearized(tmp_path):
         t.start()
     for t in threads:
         t.join(timeout=15)
+    assert all(not t.is_alive() for t in threads), "并发 create 和 shutdown 必须结束"
     # shutdown 完成后不得再有 create 成功（线性化）
     service.shutdown()
     try:
@@ -1310,9 +1340,9 @@ def test_r3_shutdown_budget_zero_is_not_inflated(tmp_path):
 
 def test_r3_create_after_shutdown_always_rejected_even_racing(tmp_path):
     """门 3c：create / shutdown 正反顺序 → shutdown 后create 必被拒（准入不丢）。"""
-    process = _FakeProcess()
-    service = _service(tmp_path, process=process, heartbeat_interval=5.0)
-    service.create()
+    service = _admission_service_with_converging_fake(tmp_path)
+    terminal_id = service.create()["terminal_id"]
+    assert service._states[terminal_id].process.poll() is None
     service.shutdown()
     # shutdown 之后（哪怕准入锁曾被超时跳过）也必须拒绝 create
     with pytest.raises(Exception):
