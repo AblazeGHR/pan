@@ -6,6 +6,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { chromium, expect } from '@playwright/test';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+const automationOnly = process.argv.includes('--automation-only');
 const root = path.resolve(import.meta.dirname, '../../..');
 const runtime = path.join(root, 'packages/web/test-results', `p6-ui-${Date.now()}`);
 await fs.mkdir(runtime, { recursive: true });
@@ -85,7 +86,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   page.on('pageerror', (error) => evidence.errors.push(error.message));
   page.on('request', (request) => {
-    if (request.method() !== 'GET' && request.url().includes('/api/')) {
+    if (request.method() !== 'GET' && request.url().includes('/api/') && !request.url().endsWith('/automation/login')) {
       requests.push({
         method: request.method(),
         url: request.url(),
@@ -107,6 +108,7 @@ try {
     await page.getByLabel('Local user key').fill(key);
     await page.getByRole('button', { name: 'Log in', exact: true }).click();
   }
+  if (!automationOnly) {
   const mappedTab = page.getByRole('button', { name: '旧定义与 Session 绑定' });
   if (await mappedTab.count()) await mappedTab.click();
   else await page.getByRole('button', { name: 'Inspect Owned old series', exact: true }).click();
@@ -192,6 +194,8 @@ try {
   assert.equal(await fs.access(path.join(runtime, 'effects')).then(() => true, () => false), false);
   evidence.checks.push('old source bytes, Group release and effect side effects remain unchanged');
 
+  }
+
   // Jobs now has one product entry. Detail and editors take over the main
   // content panel while the application navigation shell stays mounted.
   await page.goto(base + '/react/jobs');
@@ -239,6 +243,7 @@ try {
   await jobDetail.getByRole('button', { name: 'Close' }).click();
   evidence.checks.push('Action Job creation, reload, exact Action definition and panel edit round-trip');
 
+  if (!automationOnly) {
   await page.screenshot({ path: path.join(runtime, 'jobs-list.png'), fullPage: true });
 
   await page.goto(base + '/react/jobs');
@@ -367,6 +372,8 @@ try {
     evidence.checks.push(`production viewport ${width}: Action and Template flows fit without horizontal overflow`);
   }
 
+  }
+
   const protection = await page.evaluate(async () => {
     const url = '/api/jobs/actions/p6_system';
     const observed = await (await fetch(url)).json();
@@ -419,10 +426,40 @@ try {
     const jobs = page.getByRole('region', { name: 'Jobs management' });
     await expect(jobs.getByRole('link', { name: 'Jobs', exact: true })).toHaveAttribute('aria-current', 'page');
     await capture('automation-jobs', jobs, width);
+    if (automationOnly) {
+      const tools = jobs.getByRole('group', { name: 'Jobs tools' });
+      const bounds = await tools.getByRole('button').evaluateAll((buttons) =>
+        buttons.map((button) => ({ top: button.offsetTop, height: button.offsetHeight })));
+      if (width === 390) {
+        assert.equal(new Set(bounds.map(({ top }) => top)).size, 1);
+        assert(bounds.every(({ height }) => height >= 44));
+      }
+      await jobs.getByText('Sort and refresh', { exact: true }).click();
+      await expect(jobs.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
+      await jobs.getByRole('combobox', { name: 'Sort jobs' }).selectOption('updated');
+      await jobs.getByText('Sort and refresh', { exact: true }).click();
+    }
     const nav = () => page.getByRole('navigation', { name: 'Automation pages' });
-    await nav().getByRole('link', { name: 'Trigger', exact: true }).click();
+    const triggerLink = nav().getByRole('link', { name: 'Trigger', exact: true });
+    await triggerLink.focus();
+    await triggerLink.press('Enter');
+    const authorization = page.getByRole('region', { name: 'Job user authorization' });
+    if (automationOnly) {
+      const disclosure = authorization.getByText('Authorized', { exact: true });
+      await expect(authorization.locator('details')).not.toHaveAttribute('open');
+      await disclosure.click();
+      await expect(authorization.getByText(/Enabled Jobs keep/)).toBeVisible();
+      await disclosure.click();
+      if (width === 390) {
+        await authorization.getByRole('button', { name: 'Log out' }).click();
+        await authorization.getByLabel('Local user key').fill(key);
+        await authorization.getByRole('button', { name: 'Log in', exact: true }).click();
+        await expect(disclosure).toBeVisible();
+      }
+    }
     await page.getByRole('button', { name: 'Create Triggers', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Create Triggers' })).toBeVisible();
+    await expect(page.getByText(/definition revision observed.*0/)).toHaveCount(0);
     await capture('trigger-editor', page.getByRole('region', { name: 'Automation management' }), width);
     await nav().getByRole('link', { name: 'Event Register', exact: true }).click();
     await page.getByRole('button', { name: 'New Scheduler' }).click();
@@ -435,6 +472,7 @@ try {
     const timerId = await timer.getAttribute('id');
     await page.goto(base + `/react/automation?tab=events&focus=${encodeURIComponent(timerId)}`);
     await expect(timer).toHaveClass(/ring-accent/);
+    await expect(timer.getByText('0 referencing subscribers')).toHaveCount(0);
     await capture('event-register', page.getByRole('region', { name: 'Automation management' }), width);
     await nav().getByRole('link', { name: 'Actions & Groups' }).click();
     await page.getByRole('button', { name: 'Inspect Owned system Action' }).click();
@@ -453,7 +491,8 @@ try {
     await page.getByRole('button', { name: 'Inspect Owned Group' }).click();
     await expect(page.getByRole('article', { name: 'Group Owned Group' })).toBeVisible();
     await capture('group-detail', actions, width);
-    await page.getByRole('button', { name: 'Inspect Action', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Inspect reference in catalog' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Inspect Action for old_alias', exact: true }).click();
     await expect(page.getByRole('region', { name: 'Canonical Action detail' })).toBeVisible();
 
     const jobId = await page.evaluate(async () => {
@@ -464,6 +503,7 @@ try {
     await page.goto(base + `/react/automation?tab=job&focus=${encodeURIComponent(jobId)}`);
     await expect(page).toHaveURL(/\/react\/jobs\?focus=/);
     const detail = page.getByRole('region', { name: 'Job detail' });
+    await expect(detail.getByRole('heading', { name: /^(Schedule|Last result)$/ })).toHaveCount(0);
     const runHistory = (url) => url.pathname === `/api/jobs/${encodeURIComponent(jobId)}/runs`;
     if (width === 1280) {
       await page.route(runHistory, (route) => route.fulfill({ status: 503, json: { detail: 'Owned test failure' } }), { times: 1 });

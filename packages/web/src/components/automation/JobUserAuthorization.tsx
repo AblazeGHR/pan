@@ -4,34 +4,49 @@ import { Button } from '@/components/ui/Button';
 import { Field, inputClass } from '@/components/jobs/ScheduleListEditor';
 
 /** Reuses the shared automation Cookie or Bearer session. */
-export function JobUserAuthorization({ purpose = 'jobs' }: { purpose?: 'jobs' | 'locker' }) {
+export function JobUserAuthorization({ purpose = 'jobs', compact = false }: {
+  purpose?: 'jobs' | 'locker';
+  compact?: boolean;
+}) {
   const token = useAutomationAuth((s) => s.token || s.authenticated);
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const explanation = purpose === 'locker'
+    ? 'Locker uses automation/user.key and the shared login session. Login accesses this profile’s Locker messages and cards.'
+    : 'User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.';
+  const collapseExplanation = compact && Boolean(token);
   return (
     <section
       aria-label={purpose === 'locker' ? 'Locker user authorization' : 'Job user authorization'}
-      className="flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+      className={collapseExplanation
+        ? 'flex flex-wrap items-start justify-between gap-x-3 rounded-lg border border-border-default px-3 text-sm'
+        : 'flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between'}
     >
-      <div className="min-w-0">
-        <p className="flex items-center gap-2 font-medium">
-          <span
-            aria-hidden
-            className={`size-1.5 rounded-full ${token ? 'bg-success' : 'bg-warning'}`}
-          />
-          {token ? 'Authorized' : 'Sign in required'}
-        </p>
-        <p className="mt-1 max-w-3xl text-xs leading-5 text-text-secondary">
-          {purpose === 'locker'
-            ? 'Locker uses automation/user.key and the shared login session. Login accesses this profile’s Locker messages and cards.'
-            : 'User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.'}
-        </p>
+      <div className={collapseExplanation ? 'min-w-0 flex-1' : 'min-w-0'}>
+        {collapseExplanation ? (
+          <details>
+            <summary className="min-h-11 cursor-pointer py-3 font-medium text-text-primary">Authorized</summary>
+            <p className="pb-2 text-sm text-text-secondary">{explanation}</p>
+          </details>
+        ) : (
+          <>
+            <p className="flex items-center gap-2 font-medium">
+              <span
+                aria-hidden
+                className={`size-1.5 rounded-full ${token ? 'bg-success' : 'bg-warning'}`}
+              />
+              {token ? 'Authorized' : 'Sign in required'}
+            </p>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-text-secondary">{explanation}</p>
+          </>
+        )}
       </div>
       <div className="shrink-0">
         {token ? (
           <Button
             size="sm"
+            variant={collapseExplanation ? 'ghost' : 'secondary'}
             disabled={busy}
             onClick={() => {
               setBusy(true);

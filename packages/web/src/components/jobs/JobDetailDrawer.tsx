@@ -520,133 +520,131 @@ export function JobDetailDrawer({
             )}
 
             {/* 2. Schedule entries */}
-            <Section title="Schedule">
-              {schedule.length === 0 ? (
-                legacyScheduleText ? (
-                  <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-border-default bg-bg-primary p-2.5 text-[11px] text-text-secondary">
-                    {legacyScheduleText}
-                  </pre>
+            {(schedule.length > 0 || legacyScheduleText) && (
+              <Section title="Schedule">
+                {schedule.length === 0 ? (
+                    <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-border-default bg-bg-primary p-2.5 text-[11px] text-text-secondary">
+                      {legacyScheduleText}
+                    </pre>
                 ) : (
-                  <div className="text-xs text-text-tertiary">—</div>
-                )
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {schedule.map((e, index) => (
-                    <div
-                      key={e.id ?? index}
-                      className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary p-2.5 text-[11px]"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="font-mono text-text-secondary">
-                            {scheduleKindLabel(e.kind)}
-                          </span>
-                          <span className="font-mono text-text-tertiary">{e.id}</span>
+                  <div className="flex flex-col gap-1.5">
+                    {schedule.map((e, index) => (
+                      <div
+                        key={e.id ?? index}
+                        className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary p-2.5 text-[11px]"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="font-mono text-text-secondary">
+                              {scheduleKindLabel(e.kind)}
+                            </span>
+                            <span className="font-mono text-text-tertiary">{e.id}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs font-medium ${
+                                e.enabled ? 'text-success' : 'text-text-tertiary'
+                              }`}
+                            >
+                              {e.enabled ? 'enabled' : 'disabled'}
+                            </span>
+                            {isScheduledTask && e.id && (
+                              <MiniSwitch
+                                label={`Schedule entry ${e.id} enabled`}
+                                checked={e.enabled}
+                                onChange={() => onToggleEntryEnabled(e.id)}
+                              />
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-xs font-medium ${
-                              e.enabled ? 'text-success' : 'text-text-tertiary'
-                            }`}
-                          >
-                            {e.enabled ? 'enabled' : 'disabled'}
-                          </span>
-                          {isScheduledTask && e.id && (
-                            <MiniSwitch
-                              label={`Schedule entry ${e.id} enabled`}
-                              checked={e.enabled}
-                              onChange={() => onToggleEntryEnabled(e.id)}
-                            />
+                        <div className="flex flex-col gap-0.5 text-text-secondary">
+                          {e.kind === 'cron' && <span className="font-mono">{e.cron ?? '—'}</span>}
+                          {e.kind === 'interval' && (
+                            <span>every {formatDuration(e.intervalSec ?? e.interval_sec ?? 0)}</span>
                           )}
+                          {e.kind === 'once' && <span>{formatDateTime(e.at ?? null)}</span>}
+                          {e.timezone && <span className="text-text-tertiary">tz {e.timezone}</span>}
+                          <span className="text-text-tertiary">misfire {e.misfirePolicy}</span>
+                          {e.graceSec != null && (
+                            <span className="text-text-tertiary">grace {e.graceSec}s</span>
+                          )}
+                          <span className="text-text-tertiary">
+                            next {formatDateTime(e.nextFireAt ?? null)}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-0.5 text-text-secondary">
-                        {e.kind === 'cron' && <span className="font-mono">{e.cron ?? '—'}</span>}
-                        {e.kind === 'interval' && (
-                          <span>every {formatDuration(e.intervalSec ?? e.interval_sec ?? 0)}</span>
-                        )}
-                        {e.kind === 'once' && <span>{formatDateTime(e.at ?? null)}</span>}
-                        {e.timezone && <span className="text-text-tertiary">tz {e.timezone}</span>}
-                        <span className="text-text-tertiary">misfire {e.misfirePolicy}</span>
-                        {e.graceSec != null && (
-                          <span className="text-text-tertiary">grace {e.graceSec}s</span>
-                        )}
-                        <span className="text-text-tertiary">
-                          next {formatDateTime(e.nextFireAt ?? null)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            )}
 
             {/* 3. Last result */}
-            <Section title="Last result">
-              {delivery ? (
-                <div className="flex flex-col gap-1.5 rounded border border-border-default bg-bg-primary p-2.5">
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={delivery.status} />
-                    {delivery.status === 'partial' && (
-                      <button
-                        type="button"
-                        onClick={() => setDeliveryExpanded((v) => !v)}
-                        className="text-[11px] text-accent hover:underline"
-                      >
-                        {deliveryExpanded ? 'Hide details' : 'Show results/errors'}
-                      </button>
+            {(delivery || job.lastError || job.lastStatus) && (
+              <Section title="Last result">
+                {delivery ? (
+                  <div className="flex flex-col gap-1.5 rounded border border-border-default bg-bg-primary p-2.5">
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={delivery.status} />
+                      {delivery.status === 'partial' && (
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryExpanded((v) => !v)}
+                          className="text-[11px] text-accent hover:underline"
+                        >
+                          {deliveryExpanded ? 'Hide details' : 'Show results/errors'}
+                        </button>
+                      )}
+                    </div>
+                    {deliveryExpanded && (
+                      <div className="flex flex-col gap-1 text-[11px]">
+                        {(delivery.results ?? []).map((r, i) => (
+                          <pre
+                            key={`r${i}`}
+                            className="overflow-x-auto whitespace-pre-wrap rounded bg-bg-tertiary px-2 py-1 font-mono text-text-secondary"
+                          >
+                            {JSON.stringify(r)}
+                          </pre>
+                        ))}
+                        {(delivery.errors ?? []).map((r, i) => (
+                          <pre
+                            key={`e${i}`}
+                            className="overflow-x-auto whitespace-pre-wrap rounded bg-bg-tertiary px-2 py-1 font-mono text-danger"
+                          >
+                            {JSON.stringify(r)}
+                          </pre>
+                        ))}
+                      </div>
+                    )}
+                    {delivery.processJobId && (
+                      <KV label="Process Job">{delivery.processJobId}</KV>
+                    )}
+                    {delivery.exitCode != null && <KV label="Exit code">{delivery.exitCode}</KV>}
+                    {delivery.error && (
+                      <div className="rounded bg-danger/10 px-2 py-1 text-[11px] text-danger">
+                        {delivery.error}
+                      </div>
+                    )}
+                    {delivery.output && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-text-tertiary">Output (tail)</span>
+                        <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 font-mono text-[11px] text-text-secondary">
+                          {delivery.output}
+                        </pre>
+                      </div>
                     )}
                   </div>
-                  {deliveryExpanded && (
-                    <div className="flex flex-col gap-1 text-[11px]">
-                      {(delivery.results ?? []).map((r, i) => (
-                        <pre
-                          key={`r${i}`}
-                          className="overflow-x-auto whitespace-pre-wrap rounded bg-bg-tertiary px-2 py-1 font-mono text-text-secondary"
-                        >
-                          {JSON.stringify(r)}
-                        </pre>
-                      ))}
-                      {(delivery.errors ?? []).map((r, i) => (
-                        <pre
-                          key={`e${i}`}
-                          className="overflow-x-auto whitespace-pre-wrap rounded bg-bg-tertiary px-2 py-1 font-mono text-danger"
-                        >
-                          {JSON.stringify(r)}
-                        </pre>
-                      ))}
-                    </div>
-                  )}
-                  {delivery.processJobId && (
-                    <KV label="Process Job">{delivery.processJobId}</KV>
-                  )}
-                  {delivery.exitCode != null && <KV label="Exit code">{delivery.exitCode}</KV>}
-                  {delivery.error && (
-                    <div className="rounded bg-danger/10 px-2 py-1 text-[11px] text-danger">
-                      {delivery.error}
-                    </div>
-                  )}
-                  {delivery.output && (
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[11px] text-text-tertiary">Output (tail)</span>
-                      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 font-mono text-[11px] text-text-secondary">
-                        {delivery.output}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ) : job.lastError ? (
-                <div className="rounded border border-danger/50 bg-danger/10 px-2.5 py-2 text-xs text-danger">
-                  {job.lastError}
-                </div>
-              ) : job.lastStatus ? (
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={job.lastStatus} />
-                </div>
-              ) : (
-                <div className="text-xs text-text-tertiary">—</div>
-              )}
-            </Section>
+                ) : job.lastError ? (
+                  <div className="rounded border border-danger/50 bg-danger/10 px-2.5 py-2 text-xs text-danger">
+                    {job.lastError}
+                  </div>
+                ) : job.lastStatus ? (
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={job.lastStatus} />
+                  </div>
+                ) : null}
+              </Section>
+            )}
 
             {/* 4. Runs history */}
             <Section title={legacyReadOnly ? 'Legacy execution history' : 'Runs'}>

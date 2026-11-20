@@ -34,14 +34,14 @@ function AutomationContent() {
   }, [focusId, showEvents, workspace.loading]);
   return (
     <PageShell label="Automation management">
-      <div className="space-y-5">
+      <div className="space-y-3 sm:space-y-5">
         <PageHeader
           eyebrow="Pan / Automation"
           title={showEvents ? 'Event Register' : 'Automation'}
           description={showEvents ? "Manage reusable Scheduler sources and inspect available events." : "Start Jobs when matching events arrive."}
           actions={<AutomationNavigation current={showEvents ? 'events' : 'trigger'} />}
         />
-        <JobUserAuthorization />
+        <JobUserAuthorization compact />
         {(showEvents || workspace.error || workspace.loading) && (
           <div className="flex flex-wrap items-center justify-end gap-3">
             {workspace.loading && (
@@ -71,26 +71,6 @@ function AutomationContent() {
             </p>
           </Notice>
         )}
-        <details hidden={showEvents} className="rounded-xl border border-border-default bg-bg-secondary px-4 py-3">
-          <summary className="cursor-pointer text-sm font-medium">Bulk actions</summary>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="mt-0.5 text-sm text-text-secondary">
-                Create a reusable Action template for pausing Sessions.
-              </p>
-            </div>
-            <Button
-              type="button"
-              onClick={() => {
-                void useActionRegistryStore.getState().ensureRegistry();
-                setTemplate(true);
-              }}
-            >
-              Pause Everything template
-            </Button>
-          </div>
-          {template && <PauseTemplate onClose={() => setTemplate(false)} />}
-        </details>
         {authorization && (
           <div key={String(authorization)} className="space-y-5">
             <section hidden={showEvents}>
@@ -120,6 +100,26 @@ function AutomationContent() {
             </div>
           </div>
         )}
+        <details hidden={showEvents} className="rounded-xl border border-border-default bg-bg-secondary px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium">Bulk actions</summary>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="mt-0.5 text-sm text-text-secondary">
+                Create a reusable Action template for pausing Sessions.
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={() => {
+                void useActionRegistryStore.getState().ensureRegistry();
+                setTemplate(true);
+              }}
+            >
+              Pause Everything template
+            </Button>
+          </div>
+          {template && <PauseTemplate onClose={() => setTemplate(false)} />}
+        </details>
       </div>
     </PageShell>
   );

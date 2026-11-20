@@ -84,7 +84,7 @@ export function PageHeader({
         <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
       </div>
       {actions && (
-        <div className="min-w-0">
+        <div className="w-full min-w-0 md:w-auto">
           {actions}
         </div>
       )}
@@ -115,7 +115,7 @@ export function AutomationNavigation({ current, onLeave }: {
   onLeave?: () => boolean;
 }) {
   return (
-    <div className="flex flex-wrap gap-1" aria-label="Automation pages" role="navigation">
+    <nav className="grid w-full grid-cols-2 gap-1 md:flex md:w-auto md:flex-wrap" aria-label="Automation pages">
       {automationPages.map(({ id, to, label }) => (
         <Link
           key={id}
@@ -124,12 +124,12 @@ export function AutomationNavigation({ current, onLeave }: {
             if (id === current || onLeave?.() === false) event.preventDefault();
           }}
           aria-current={current === id ? 'page' : undefined}
-          className={`inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:min-h-9 ${current === id ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'}`}
+          className={`inline-flex min-h-11 items-center justify-center rounded-md px-2 text-center text-sm font-medium md:px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 md:min-h-9 ${current === id ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'}`}
         >
           {label}
         </Link>
       ))}
-    </div>
+    </nav>
   );
 }
 

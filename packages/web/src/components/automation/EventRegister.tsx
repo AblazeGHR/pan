@@ -28,23 +28,19 @@ export function EventRegister({ sources, providers, references, definitions = []
   const timeProvider = providers.find((p) => p.providerRef.type === 'time' && p.providerRef.id === 'scheduler');
   return <div className="min-w-0 space-y-5">
     <header className="flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <h2 className="text-lg font-semibold">Schedulers</h2>
-        <p className="mt-0.5 max-w-2xl text-sm text-text-secondary">Create shared time sources for Trigger subscriptions.</p>
-      </div>
+      <label className="block w-full max-w-[28rem] text-sm font-medium">Search event sources<input className={fieldClass} type="search" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
       <Button size="sm" variant="primary" className="self-start sm:self-auto" disabled={!!editor || !timeProvider} onClick={() => setEditor({ key: newId('creator'), source: null })}>New Scheduler</Button>
     </header>
     {editor && <SourceEditor key={editor.key} initial={editor.source} latest={sources.find((s) => s.id === editor.source?.id)} provider={timeProvider} refs={editor.source ? references[editor.source.id] ?? emptyRefs : emptyRefs} refresh={refresh} close={() => setEditor(null)} />}
-    <label className="block max-w-[28rem] text-sm font-medium">Search event sources<input className={fieldClass} type="search" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
     {!timeProvider && <Notice>The Scheduler provider is unavailable. Refresh to check again.</Notice>}
     {!visibleSources.length && <EmptyState title={sources.length ? 'No matching Schedulers' : 'No Scheduler sources yet'} hint={sources.length ? 'Try a different search.' : 'Create a Scheduler to publish time events.'} />}
     <div className="grid min-w-0 gap-3 lg:grid-cols-2">{visibleSources.map((source) => <article id={source.id} key={source.id} aria-label={`Scheduler ${source.name}`} className={`${cardClass} flex flex-col gap-3 ${focusId === source.id ? 'ring-2 ring-accent' : ''}`}>
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 break-words text-base font-semibold">{source.name}</h3><StateBadge state={source.state} /></div>
       {typeof source.description === 'string' && source.description && <p className="break-words text-sm text-text-secondary">{String(source.description)}</p>}
-      <JsonDetail label={`Time rules and identifiers for ${source.name}`} value={{
+      <JsonDetail label={"Time rules and identifiers"} value={{
         id: source.id, revision: source.revision, stateRevision: source.stateRevision, rules: source.config,
       }} />
-      <section className="rounded-lg border border-border-muted bg-bg-primary/40 px-3 py-2">
+      {!!references[source.id]?.references.length && <section className="rounded-lg border border-border-muted bg-bg-primary/40 px-3 py-2">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">{references[source.id]?.references.length ?? 0} referencing subscribers</h4>
         {references[source.id]?.references.map((ref) => <div key={ref.triggerId} className="mt-2 flex flex-wrap items-center gap-2 text-sm">
           <button className="text-left font-medium text-accent hover:text-accent-hover" onClick={() => jump('Trigger', ref.triggerId)}>{ref.name}</button>
@@ -52,7 +48,7 @@ export function EventRegister({ sources, providers, references, definitions = []
           <button className="text-left text-text-secondary hover:text-text-primary" onClick={() => jump('Job', ref.jobId)}>{ref.jobName}</button>
           <span className={`ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium ${ref.enabled ? 'border-success/40 bg-success/10 text-success' : 'border-border-default bg-bg-tertiary text-text-secondary'}`}>{ref.enabled ? 'Enabled' : 'Disabled'}</span>
         </div>)}
-      </section>
+      </section>}
       <div className="mt-auto border-t border-border-muted pt-3"><Button size="sm" disabled={!!editor} onClick={() => setEditor({ key: newId('edit'), source })}>Edit {source.name}</Button></div>
     </article>)}</div>
     <section className="space-y-3 rounded-xl border border-border-default bg-bg-secondary p-4">

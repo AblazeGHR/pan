@@ -415,9 +415,12 @@ export function CanonicalCollection({
             <h3 className="text-base font-semibold">
               {editor.item ? `Edit ${labels[kind]}` : `Create ${labels[kind]}`}
             </h3>
-            <p className="mt-0.5 text-xs text-text-secondary">
-              Save uses the definition revision observed when opened {editor.item ? revisionOf(editor.item) : 0}.
-            </p>
+            {editor.item && (
+              <details className="mt-1 text-sm text-text-secondary">
+                <summary className="cursor-pointer">Revision details</summary>
+                Save checks revision {revisionOf(editor.item)}.
+              </details>
+            )}
           </div>
           <label className="block text-sm">
             Name
