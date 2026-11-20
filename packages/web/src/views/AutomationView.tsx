@@ -1,5 +1,5 @@
-import { Link, useSearchParams } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useAutomationAuth } from '@/stores/automationStore';
 import { useAutomationWorkspace } from '@/stores/automationWorkspace';
 import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
@@ -10,81 +10,40 @@ import { PauseTemplate } from '@/components/automation/PauseTemplate';
 import { useActionRegistryStore } from '@/stores/actionRegistryStore';
 import { Button } from '@/components/ui/Button';
 import { JsonDetail } from '@/components/automation/fields';
-import { HeaderLink, Notice, PageHeader, PageShell } from '@/components/automation/display';
+import { AutomationNavigation, Notice, PageHeader, PageShell } from '@/components/automation/display';
 
-const sections = ['Job', 'Trigger', 'Event Register'] as const;
-const keys = ['job', 'trigger', 'events'];
+const tabs = { Trigger: 'trigger', 'Event Register': 'events' } as const;
 
 function AutomationContent() {
   const authorization = useAutomationAuth((s) => s.token || s.authenticated);
   const workspace = useAutomationWorkspace();
   const [params, setParams] = useSearchParams();
-  const index = Math.max(0, keys.indexOf(params.get('tab') ?? 'job'));
+  const navigate = useNavigate();
+  const showEvents = params.get('tab') === 'events';
   const focusId = params.get('focus') ?? undefined;
-  const tabs = useRef<HTMLDivElement>(null);
   const [template, setTemplate] = useState(false);
-  const jump = (section: (typeof sections)[number], id = '') =>
-    setParams({ tab: keys[sections.indexOf(section)]!, ...(id ? { focus: id } : {}) });
+  function jump(section: keyof typeof tabs | 'Job', id: string) {
+    if (section === 'Job') {
+      navigate({ pathname: '/jobs', search: new URLSearchParams({ focus: id }).toString() });
+      return;
+    }
+    setParams({ tab: tabs[section], focus: id });
+  }
   useEffect(() => {
     if (focusId) document.getElementById(focusId)?.scrollIntoView?.({ block: 'center' });
-  }, [focusId, index, workspace.loading]);
+  }, [focusId, showEvents, workspace.loading]);
   return (
     <PageShell label="Automation management">
       <div className="space-y-5">
         <PageHeader
           eyebrow="Pan / Automation"
-          title="Automation"
-          description="Jobs, event subscriptions and reusable time sources"
-          actions={
-            <>
-              <HeaderLink to="/jobs">Jobs</HeaderLink>
-              <HeaderLink to="/actions">Manage Actions</HeaderLink>
-            </>
-          }
+          title={showEvents ? 'Event Register' : 'Automation'}
+          description={showEvents ? "Manage reusable Scheduler sources and inspect available events." : "Start Jobs when matching events arrive."}
+          actions={<AutomationNavigation current={showEvents ? 'events' : 'trigger'} />}
         />
         <JobUserAuthorization />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div
-            ref={tabs}
-            role="tablist"
-            aria-label="Automation subpages"
-            className="grid w-full grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1 sm:max-w-[28rem]"
-          >
-            {sections.map((name, i) => (
-              <button
-                key={name}
-                role="tab"
-                aria-selected={index === i}
-                tabIndex={index === i ? 0 : -1}
-                className={`whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:text-sm ${
-                  index === i
-                    ? 'bg-bg-tertiary text-text-primary shadow-card'
-                    : 'text-text-secondary hover:bg-bg-tertiary/60 hover:text-text-primary'
-                }`}
-                onClick={() => jump(name)}
-                onKeyDown={(e) => {
-                  const next =
-                    e.key === 'ArrowRight'
-                      ? (i + 1) % 3
-                      : e.key === 'ArrowLeft'
-                        ? (i + 2) % 3
-                        : e.key === 'Home'
-                          ? 0
-                          : e.key === 'End'
-                            ? 2
-                            : -1;
-                  if (next >= 0) {
-                    e.preventDefault();
-                    jump(sections[next]!);
-                    (tabs.current?.children[next] as HTMLButtonElement)?.focus();
-                  }
-                }}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3 sm:ml-auto">
+        {(showEvents || workspace.error || workspace.loading) && (
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {workspace.loading && (
               <span role="status" className="text-xs text-text-secondary">
                 Loading workspace...
@@ -99,7 +58,7 @@ function AutomationContent() {
               Refresh
             </Button>
           </div>
-        </div>
+        )}
         {!authorization && (
           <Notice>
             <p>Log in to manage Jobs and Scheduler sources.</p>
@@ -112,10 +71,10 @@ function AutomationContent() {
             </p>
           </Notice>
         )}
-        <section hidden={index !== 1} className="space-y-4">
-          <div className="flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <details hidden={showEvents} className="rounded-xl border border-border-default bg-bg-secondary px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium">Bulk actions</summary>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold">Bulk actions</h2>
               <p className="mt-0.5 text-sm text-text-secondary">
                 Create a reusable Action template for pausing Sessions.
               </p>
@@ -131,13 +90,10 @@ function AutomationContent() {
             </Button>
           </div>
           {template && <PauseTemplate onClose={() => setTemplate(false)} />}
-        </section>
+        </details>
         {authorization && (
           <div key={String(authorization)} className="space-y-5">
-            <section hidden={index !== 0}>
-              <div className="rounded border border-border-default bg-bg-secondary p-4"><p className="text-sm text-text-secondary">Manage Jobs and their Runs in the Jobs directory.</p><Link className="mt-2 inline-block text-accent" to="/jobs">Open Jobs</Link></div>
-            </section>
-            <section hidden={index !== 1}>
+            <section hidden={showEvents}>
               <CanonicalCollection
                 kind="triggers"
                 reviewSourceRefs
@@ -148,7 +104,7 @@ function AutomationContent() {
                 onChanged={workspace.refresh}
               />
             </section>
-            <section hidden={index !== 2}>
+            <section hidden={!showEvents}>
               <EventRegister
                 sources={workspace.sources}
                 providers={workspace.providers}
@@ -164,19 +120,18 @@ function AutomationContent() {
             </div>
           </div>
         )}
-        {!authorization && (
-          <p className="text-sm text-text-secondary">
-            <Link className="text-accent hover:text-accent-hover" to="/jobs">
-              Open Jobs
-            </Link>{' '}
-            to review the definitions that are visible to this profile.
-          </p>
-        )}
       </div>
     </PageShell>
   );
 }
 export default function AutomationView() {
+  const [params] = useSearchParams();
+  const tab = params.get('tab');
+  if (tab !== 'trigger' && tab !== 'events') {
+    const destination = new URLSearchParams(params);
+    destination.delete('tab');
+    return <Navigate replace to={{ pathname: '/jobs', search: destination.toString() }} />;
+  }
   return (
     <DraftBoundary>
       <AutomationContent />

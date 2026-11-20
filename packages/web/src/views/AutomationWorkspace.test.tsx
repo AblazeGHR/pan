@@ -33,7 +33,15 @@ function JobEditorHarness({ item }: { item?: CanonicalObject }) {
 }
 function hostJob(item?: CanonicalObject) { const router = createMemoryRouter([{path:'/',element:<JobEditorHarness item={item}/>},{path:'/actions',element:<h1>Actions destination</h1>}]); return render(<RouterProvider router={router}/>); }
 const validStep = () => ({stepId:'kept',actionRef:{id:'action_form',revision:2,digest:'f'.repeat(64)},arguments:{text:{from:'literal',value:'existing message'}},completion:{contract:'durable-queue-accepted'}});
-function host() { const router=createMemoryRouter([{path:'/',element:<AutomationView/>},{path:'/actions',element:<h1>Actions destination</h1>}]); return render(<RouterProvider router={router}/>); }
+function host(entry = '/automation?tab=trigger') {
+  const router = createMemoryRouter([
+    { path: '/automation', element: <AutomationView /> },
+    { path: '/jobs', element: <h1>Jobs destination</h1> },
+    { path: '/actions', element: <h1>Actions destination</h1> },
+  ], { initialEntries: [entry] });
+  render(<RouterProvider router={router} />);
+  return router;
+}
 beforeEach(()=>{
   sessionStorage.clear();
   vi.stubGlobal('AbortController', function () { return transferableAbortController(); });
@@ -72,15 +80,28 @@ beforeEach(()=>{
   }));
 });
 afterEach(()=>{cleanup();vi.unstubAllGlobals();vi.restoreAllMocks();});
-async function editor(){host();fireEvent.click(screen.getByRole('tab',{name:'Event Register'}));fireEvent.click(await screen.findByRole('button',{name:'Edit Shared timer'}));}
+async function editor(){host();fireEvent.click(screen.getByRole('link',{name:'Event Register'}));fireEvent.click(await screen.findByRole('button',{name:'Edit Shared timer'}));}
 
-it('navigates exactly three tabs and follows canonical Job/Trigger/source references',async()=>{
-  host();const tabs=screen.getAllByRole('tab');expect(tabs.map(t=>t.textContent)).toEqual(['Job','Trigger','Event Register']);
-  fireEvent.keyDown(tabs[0]!,{key:'End'});expect(tabs[2]!.getAttribute('aria-selected')).toBe('true');
-  fireEvent.click(await screen.findByRole('button',{name:'Review trigger'}));expect(tabs[1]!.getAttribute('aria-selected')).toBe('true');
-  fireEvent.click(tabs[2]!);fireEvent.click(screen.getByRole('button',{name:'Morning review'}));expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
+it('follows Scheduler references to the focused Trigger and real Job directory', async () => {
+  const router = host('/automation?tab=events&focus=creator_shared');
+  expect((await screen.findByRole('article', { name: 'Scheduler Shared timer' })).className).toContain('ring-accent');
+  fireEvent.click(await screen.findByRole('button', { name: 'Review trigger' }));
+  expect(router.state.location.search).toContain('focus=');
+  expect(screen.getByRole('link', { name: 'Trigger' }).getAttribute('aria-current')).toBe('page');
+  fireEvent.click(screen.getByRole('link', { name: 'Event Register' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Morning review' }));
+  await screen.findByRole('heading', { name: 'Jobs destination' });
+  expect(router.state.location.pathname).toBe('/jobs');
+  expect(router.state.location.search).toContain('focus=');
   expect(reads.some(p=>p.includes('scheduler/event-sources')||p.includes('action-jobs'))).toBe(false);
 });
+it.each(['/automation', '/automation?tab=job', '/automation?tab=job&focus=sample'])(
+  'redirects the compatibility entry %s to Jobs', async (entry) => {
+    const router = host(entry);
+    await screen.findByRole('heading', { name: 'Jobs destination' });
+    expect(router.state.location.search).toBe(entry.includes('focus') ? '?focus=sample' : '');
+  },
+);
 it('round trips every rule, fraction, timezone, DST, anchor, limit and provider identity',async()=>{
   await editor();fireEvent.change(screen.getByLabelText('Scheduler name'),{target:{value:'Renamed'}});fireEvent.click(screen.getByLabelText('I reviewed the affected subscribers.'));fireEvent.click(screen.getByRole('button',{name:'Save Scheduler'}));
   await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.url).toBe('/api/event-creators/creator_shared');
@@ -108,7 +129,7 @@ it('retires only unreferenced disabled sources and preserves history semantics',
   triggers=[];sources[0]!.state='disabled';await editor();fireEvent.click(screen.getByRole('button',{name:'Delete Scheduler'}));await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]).toMatchObject({method:'DELETE',url:'/api/event-creators/creator_shared',body:{expectedRevision:7,expectedStateRevision:2,expectedReferences:'[]'}});
 });
 it('creates a separate Creator with server-supplied provider metadata and explicit enable',async()=>{
-  host();fireEvent.click(screen.getByRole('tab',{name:'Event Register'}));fireEvent.click(await screen.findByRole('button',{name:'New Scheduler'}));fireEvent.change(screen.getByLabelText('Scheduler name'),{target:{value:'New timer'}});fireEvent.click(screen.getByLabelText('Scheduler enabled'));fireEvent.click(screen.getByRole('button',{name:'Save Scheduler'}));
+  host();fireEvent.click(screen.getByRole('link',{name:'Event Register'}));fireEvent.click(await screen.findByRole('button',{name:'New Scheduler'}));fireEvent.change(screen.getByLabelText('Scheduler name'),{target:{value:'New timer'}});fireEvent.click(screen.getByLabelText('Scheduler enabled'));fireEvent.click(screen.getByRole('button',{name:'Save Scheduler'}));
   await waitFor(()=>expect(writes).toHaveLength(2));expect(writes[0]!.body).toMatchObject({expectedRevision:0,definition:{name:'New timer',providerRef:provider.providerRef}});expect(writes[1]!.body.operation).toBe('enable');
 });
 it('queries an unconfirmed original key and never automatically resends',async()=>{
@@ -122,7 +143,7 @@ it('rejects invalid JSON locally without losing the draft or sending a write',as
   await editor();fireEvent.change(screen.getByLabelText('Scheduler config JSON'),{target:{value:'{invalid'}});fireEvent.click(screen.getByLabelText('I reviewed the affected subscribers.'));fireEvent.click(screen.getByRole('button',{name:'Save Scheduler'}));await screen.findByRole('alert');expect(writes).toEqual([]);expect((screen.getByLabelText('Scheduler config JSON') as HTMLTextAreaElement).value).toBe('{invalid');
 });
 it('selects shared Creator IDs and submits the reviewed source revision with a canonical Trigger',async()=>{
-  host();fireEvent.click(screen.getByRole('tab',{name:'Trigger'}));fireEvent.click(await screen.findByRole('button',{name:'Create Triggers'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'New subscriber'}});await screen.findByRole('option',{name:/Shared timer/});
+  host();fireEvent.click(screen.getByRole('link',{name:'Trigger'}));fireEvent.click(await screen.findByRole('button',{name:'Create Triggers'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'New subscriber'}});await screen.findByRole('option',{name:/Shared timer/});
   fireEvent.change(screen.getByLabelText('Target canonical Job'),{target:{value:'job_review'}});const select=screen.getByLabelText('Scheduler sources') as HTMLSelectElement;select.options[0]!.selected=true;fireEvent.change(select);fireEvent.click(screen.getByRole('button',{name:'Save definition'}));
   await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.body).toMatchObject({expectedCreatorRevisions:{creator_shared:7},definition:{creatorSelector:{mode:'ids',ids:['creator_shared']},target:{type:'job',jobId:'job_review'},eventTypes:['scheduler.time.v2']}});
 });
@@ -150,7 +171,7 @@ it('preserves typed literals, stable step IDs, input/Event/output mappings and p
 
 it('keeps OR events, nested OR/NOT conditions and Event arguments while editing a canonical subscription',async()=>{
   const fields={eventTypes:['scheduler.time.v2','system.signal'],condition:{or:[{field:'payload.count',op:'gt',value:2},{not:{field:'payload.text',op:'eq',value:'ignore'}}]},arguments:{text:{from:'event',path:'payload.text'},typed:{from:'literal',value:[false,3]}},eventFilter:{'payload.scope':'owned'}};
-  Object.assign(triggers[0]!,fields);host();fireEvent.click(screen.getByRole('tab',{name:'Trigger'}));fireEvent.click(await screen.findByRole('button',{name:'Edit Review trigger'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Edited filter'}});fireEvent.click(screen.getByRole('button',{name:'Save definition'}));
+  Object.assign(triggers[0]!,fields);host();fireEvent.click(screen.getByRole('link',{name:'Trigger'}));fireEvent.click(await screen.findByRole('button',{name:'Edit Review trigger'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Edited filter'}});fireEvent.click(screen.getByRole('button',{name:'Save definition'}));
   await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.body).toMatchObject({expectedRevision:3,expectedCreatorRevisions:{creator_shared:7},definition:{...fields,targetJobId:'job_review',creatorSelector:{mode:'ids',ids:['creator_shared']}}});
 });
 
@@ -181,7 +202,7 @@ it('saves an ordinary Scheduler entirely through time-rule fields with canonical
 it('creates a Job from Action and typed binding controls then links a Trigger through source and condition controls',async()=>{
   hostJob();fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Plain form Job'}});await screen.findByRole('option',{name:'Form message · Revision 2'});fireEvent.change(screen.getByLabelText('Action for step 1'),{target:{value:'action_form'}});fireEvent.change(screen.getByLabelText('text value'),{target:{value:'plain text, no schema'}});fireEvent.click(screen.getByRole('button',{name:'Create Action Job'}));await waitFor(()=>expect(writes).toHaveLength(1));
   expect(writes[0]!.body).toMatchObject({expectedRevision:0,definition:{name:'Plain form Job',steps:[{stepId:'step1',actionRef:{id:'action_form',revision:2,digest:'f'.repeat(64)},arguments:{text:{from:'literal',value:'plain text, no schema'}},completion:{contract:'durable-queue-accepted'}}]}});
-  await waitFor(()=>expect(screen.queryByLabelText('Action Job editor')).toBeNull());cleanup();host();fireEvent.click(screen.getByRole('tab',{name:'Trigger'}));fireEvent.click(screen.getByRole('button',{name:'Create Triggers'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Plain form subscriber'}});await screen.findByRole('option',{name:/Plain form Job/});fireEvent.change(screen.getByLabelText('Target canonical Job'),{target:{value:'job_new'}});const select=screen.getByLabelText('Scheduler sources') as HTMLSelectElement;select.options[0]!.selected=true;fireEvent.change(select);fireEvent.click(screen.getByLabelText('Check State after Event'));fireEvent.change(screen.getByLabelText('State field'),{target:{value:'workers.runningCount'}});fireEvent.click(screen.getByRole('button',{name:'Save definition'}));await waitFor(()=>expect(writes).toHaveLength(2));expect(writes[1]!.body).toMatchObject({expectedCreatorRevisions:{creator_shared:7},definition:{target:{type:'job',jobId:'job_new'},creatorSelector:{mode:'ids',ids:['creator_shared']},condition:{field:'workers.runningCount',op:'eq',value:0}}});expect(writes.every(w=>!w.url.includes('scheduler/event-sources'))).toBe(true);
+  await waitFor(()=>expect(screen.queryByLabelText('Action Job editor')).toBeNull());cleanup();host();fireEvent.click(screen.getByRole('link',{name:'Trigger'}));fireEvent.click(screen.getByRole('button',{name:'Create Triggers'}));fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Plain form subscriber'}});await screen.findByRole('option',{name:/Plain form Job/});fireEvent.change(screen.getByLabelText('Target canonical Job'),{target:{value:'job_new'}});const select=screen.getByLabelText('Scheduler sources') as HTMLSelectElement;select.options[0]!.selected=true;fireEvent.change(select);fireEvent.click(screen.getByLabelText('Check State after Event'));fireEvent.change(screen.getByLabelText('State field'),{target:{value:'workers.runningCount'}});fireEvent.click(screen.getByRole('button',{name:'Save definition'}));await waitFor(()=>expect(writes).toHaveLength(2));expect(writes[1]!.body).toMatchObject({expectedCreatorRevisions:{creator_shared:7},definition:{target:{type:'job',jobId:'job_new'},creatorSelector:{mode:'ids',ids:['creator_shared']},condition:{field:'workers.runningCount',op:'eq',value:0}}});expect(writes.every(w=>!w.url.includes('scheduler/event-sources'))).toBe(true);
 });
 
 it('saves retention.pinned through canonical Job definition CAS without a runtime pin override',async()=>{

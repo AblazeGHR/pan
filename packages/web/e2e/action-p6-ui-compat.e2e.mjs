@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { chromium, expect } from '@playwright/test';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const root = path.resolve(import.meta.dirname, '../../..');
-const runtime = path.join(root, '.tmp', `p6-ui-${Date.now()}`);
+const runtime = path.join(root, 'packages/web/test-results', `p6-ui-${Date.now()}`);
 await fs.mkdir(runtime, { recursive: true });
 const port = await new Promise((resolve) => {
   const server = net.createServer();
@@ -43,7 +43,13 @@ let log = '';
 let browser;
 let page;
 const requests = [];
-const evidence = { port, checks: [], errors: [] };
+const evidence = {
+  sha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+  dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim()),
+  port,
+  checks: [],
+  errors: [],
+};
 child.stdout.on('data', (chunk) => {
   log += chunk;
 });
@@ -257,7 +263,11 @@ try {
   evidence.checks.push('canonical Template duplicate preserves the complete advanced definition');
 
   async function revisions(name) {
-    const text = await page.getByRole('article', { name: `JobTemplates ${name}` }).innerText();
+    const item = page.getByRole('article', { name: `JobTemplates ${name}` });
+    const identifiers = item.getByText('Identifiers and revisions', { exact: true });
+    await identifiers.click();
+    const text = await item.innerText();
+    await identifiers.click();
     return {
       revision: Number(text.match(/(?:定义版本|Definition revision)\s*(\d+)/)?.[1]),
       stateRevision: Number(text.match(/(?:状态版本|State revision)\s*(\d+)/)?.[1]),
@@ -355,6 +365,121 @@ try {
     );
     await page.screenshot({ path: path.join(runtime, `template-${width}.png`), fullPage: true });
     evidence.checks.push(`production viewport ${width}: Action and Template flows fit without horizontal overflow`);
+  }
+
+  const protection = await page.evaluate(async () => {
+    const url = '/api/jobs/actions/p6_system';
+    const observed = await (await fetch(url)).json();
+    const versions = await (await fetch(url + '/versions')).json();
+    const expectedRevision = observed.revision;
+    const expectedStateRevision = observed.stateRevision;
+    const request = async (method, endpoint, body) => {
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, expectedRevision, requestKey: crypto.randomUUID() }),
+      });
+      return response.status;
+    };
+    const lifecycle = { expectedStateRevision, parameters: {} };
+    const statuses = await Promise.all([
+      request('PUT', url, { definition: { ...versions.items[0].definition, name: 'Unauthorized change' } }),
+      request('POST', url + '/operations', { ...lifecycle, operation: 'disable' }),
+      request('DELETE', url, lifecycle),
+      request('POST', '/api/actions/actions/p6_system/lifecycle', { enabled: false }),
+    ]);
+    const final = await (await fetch(url)).json();
+    return { statuses, unchanged: final.name === observed.name && final.enabled === observed.enabled &&
+      final.revision === expectedRevision && final.stateRevision === expectedStateRevision };
+  });
+  assert.deepEqual(protection, { statuses: [403, 403, 403, 410], unchanged: true });
+  evidence.checks.push('ordinary profile receives 403 for system Action update, disable and delete; legacy lifecycle returns 410');
+
+  const capture = async (name, surface, width) => {
+    await expect(surface).toBeVisible();
+    await surface.scrollIntoViewIfNeeded();
+    assert.equal(await surface.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true,
+      `${name} has horizontal overflow at ${width}px`);
+    await page.screenshot({ path: path.join(runtime, `${name}-${width}.png`) });
+  };
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(base + '/react/');
+    if (width < 768) await page.getByTitle('Toggle sidebar').click();
+    const entry = page.getByRole('link', { name: 'Automation', exact: true });
+    if (!(await entry.count())) {
+      await page.locator('nav [tabindex="0"][aria-label]').first().press('ArrowRight');
+    }
+    await entry.click();
+    await expect(page).toHaveURL(/\/react\/jobs$/);
+    const mobileOverlay = page.getByTestId('mobile-sidebar-workspace-drawer');
+    if (width < 768 && await mobileOverlay.getAttribute('aria-hidden') !== 'true') {
+      await page.mouse.click(width - 3, 420);
+    }
+    const jobs = page.getByRole('region', { name: 'Jobs management' });
+    await expect(jobs.getByRole('link', { name: 'Jobs', exact: true })).toHaveAttribute('aria-current', 'page');
+    await capture('automation-jobs', jobs, width);
+    const nav = () => page.getByRole('navigation', { name: 'Automation pages' });
+    await nav().getByRole('link', { name: 'Trigger', exact: true }).click();
+    await page.getByRole('button', { name: 'Create Triggers', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Create Triggers' })).toBeVisible();
+    await capture('trigger-editor', page.getByRole('region', { name: 'Automation management' }), width);
+    await nav().getByRole('link', { name: 'Event Register', exact: true }).click();
+    await page.getByRole('button', { name: 'New Scheduler' }).click();
+    const scheduler = page.getByRole('region', { name: 'Scheduler editor' });
+    await scheduler.getByLabel('Scheduler name').fill(`Owned timer ${width}`);
+    await capture('scheduler-editor', scheduler, width);
+    await scheduler.getByRole('button', { name: 'Save Scheduler' }).click();
+    const timer = page.getByRole('article', { name: `Scheduler Owned timer ${width}` });
+    await expect(timer).toBeVisible();
+    const timerId = await timer.getAttribute('id');
+    await page.goto(base + `/react/automation?tab=events&focus=${encodeURIComponent(timerId)}`);
+    await expect(timer).toHaveClass(/ring-accent/);
+    await capture('event-register', page.getByRole('region', { name: 'Automation management' }), width);
+    await nav().getByRole('link', { name: 'Actions & Groups' }).click();
+    await page.getByRole('button', { name: 'Inspect Owned system Action' }).click();
+    const system = page.getByRole('region', { name: 'Canonical Action detail' });
+    await expect(system.getByLabel('Action version').locator('option')).toHaveCount(1);
+    await expect(system.getByRole('button', { name: 'Run fixed version' })).toBeEnabled();
+    await expect(system.getByRole('button', { name: /publish|enable|disable|edit|delete/i })).toHaveCount(0);
+    await capture('system-action', system, width);
+    await system.getByRole('button', { name: 'Back to list' }).click();
+    await page.getByRole('button', { name: 'New Action', exact: true }).click();
+    await capture('user-action-editor', page.getByRole('main', { name: 'Actions Panel' }), width);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).first().click();
+    await page.getByRole('button', { name: /^Groups/ }).click();
+    const actions = page.getByRole('main', { name: 'Actions Panel' });
+    await capture('groups', actions, width);
+    await page.getByRole('button', { name: 'Inspect Owned Group' }).click();
+    await expect(page.getByRole('article', { name: 'Group Owned Group' })).toBeVisible();
+    await capture('group-detail', actions, width);
+
+    const jobId = await page.evaluate(async () => {
+      const result = await (await fetch('/api/jobs/legacy-list')).json();
+      const jobs = Array.isArray(result) ? result : result.jobs;
+      return jobs.find((job) => job.name === 'Owned Action Job edited').jobId;
+    });
+    await page.goto(base + `/react/automation?tab=job&focus=${encodeURIComponent(jobId)}`);
+    await expect(page).toHaveURL(/\/react\/jobs\?focus=/);
+    const detail = page.getByRole('region', { name: 'Job detail' });
+    const runHistory = (url) => url.pathname === `/api/jobs/${encodeURIComponent(jobId)}/runs`;
+    if (width === 1280) {
+      await page.route(runHistory, (route) => route.fulfill({ status: 503, json: { detail: 'Owned test failure' } }), { times: 1 });
+      await page.reload();
+      await expect(detail.getByRole('alert').filter({ hasText: 'Could not load run history.' })).toBeVisible();
+      await capture('job-runs-failure', jobs, width);
+      await detail.getByRole('button', { name: 'Retry', exact: true }).click();
+      await expect(detail.getByText('No runs yet.', { exact: true }).first()).toBeVisible();
+      evidence.checks.push('failed Run history read is distinguished from an empty list and can be retried');
+    }
+    await detail.getByRole('button', { name: 'Manage Run operations' }).click();
+    await expect(detail.getByText('No Runs yet.', { exact: true })).toBeVisible();
+    await capture('job-runs', page.getByRole('region', { name: 'Job runs' }), width);
+    await detail.getByRole('button', { name: 'Close Runs' }).click();
+    await detail.getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save Action Job' })).toBeVisible();
+    await capture('job-editor', jobs, width);
+    evidence.checks.push(`Automation navigation, deep links, Runs and editors at ${width}px`);
   }
 
   assert.deepEqual(evidence.errors, []);

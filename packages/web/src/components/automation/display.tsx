@@ -84,9 +84,9 @@ export function PageHeader({
         <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">{description}</p>
       </div>
       {actions && (
-        <nav aria-label="Related pages" className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0">
           {actions}
-        </nav>
+        </div>
       )}
     </header>
   );
@@ -100,6 +100,36 @@ export function HeaderLink({ to, children }: { to: string; children: ReactNode }
     >
       {children}
     </Link>
+  );
+}
+
+const automationPages = [
+  { id: 'jobs', to: '/jobs', label: 'Jobs' },
+  { id: 'trigger', to: '/automation?tab=trigger', label: 'Trigger' },
+  { id: 'events', to: '/automation?tab=events', label: 'Event Register' },
+  { id: 'actions', to: '/actions', label: 'Actions & Groups' },
+] as const;
+
+export function AutomationNavigation({ current, onLeave }: {
+  current: (typeof automationPages)[number]['id'];
+  onLeave?: () => boolean;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1" aria-label="Automation pages" role="navigation">
+      {automationPages.map(({ id, to, label }) => (
+        <Link
+          key={id}
+          to={to}
+          onClick={(event) => {
+            if (id === current || onLeave?.() === false) event.preventDefault();
+          }}
+          aria-current={current === id ? 'page' : undefined}
+          className={`inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:min-h-9 ${current === id ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'}`}
+        >
+          {label}
+        </Link>
+      ))}
+    </div>
   );
 }
 

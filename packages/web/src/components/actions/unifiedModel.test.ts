@@ -100,6 +100,22 @@ describe('unified directory model', () => {
     expect(rows[0]!.adoption).toBe('adopted');
   });
 
+  it('retains system protection across canonical, legacy and mapped Action identities', () => {
+    const system = canonicalAction('sys', 'System Action', { system: true });
+    const mapped = { object: system, definition: system, reason: 'mapped system' };
+    const variants = [
+      { catalog: [system], registry: emptyRegistry() },
+      { catalog: [system], registry: emptyRegistry({ actions: [legacyAction('old')] }), aliases: { old: 'sys' } },
+      { catalog: [], registry: emptyRegistry({ actions: [legacyAction('old')], canonicalActions: { old: mapped } }) },
+      { catalog: [canonicalAction('sys', 'System Action')], registry: emptyRegistry({ actions: [legacyAction('old', { system: true })] }), aliases: { old: 'sys' } },
+    ];
+    for (const variant of variants) {
+      const result = buildUnifiedActions({ ...variant, groups: [] });
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ system: true, canonicalId: 'sys' });
+    }
+  });
+
   it('shows preserved, legacy and canonical rows side by side with their state', () => {
     const rows = buildUnifiedActions({
       catalog: [canonicalAction('canon', 'Canonical')],

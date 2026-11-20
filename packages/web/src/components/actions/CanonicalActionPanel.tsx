@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { canonicalRequest } from '@/services/api';
 import { canonicalError, canonicalJobs } from '@/services/canonicalJobs';
 import { Button } from '@/components/ui/Button';
+import { JsonDetail } from '@/components/automation/fields';
+import { Notice } from '@/components/automation/display';
 import { TypedValue } from '@/components/automation/CanonicalDefinitionFields';
 import type { JsonObject, CanonicalReceipt } from '@/types/canonicalJobs';
 import { Badge, Field, inputClass } from './ActionsUi';
@@ -65,6 +67,7 @@ export function CanonicalActionPanel({
   }
 
   useEffect(() => {
+    active.current = true;
     void load().catch((caught) => active.current && setError(canonicalError(caught)));
     return () => {
       active.current = false;
@@ -73,7 +76,7 @@ export function CanonicalActionPanel({
   }, [canonicalId]);
 
   async function mutate(operation: string) {
-    if (lock.current || pending || !canonicalId) return;
+    if (lock.current || pending || !canonicalId || (row.system && operation !== 'invoke')) return;
     if (operation === 'invoke') {
       if (argumentError) {
         setError(argumentError);
@@ -142,7 +145,7 @@ export function CanonicalActionPanel({
     <section aria-label="Canonical Action detail" className="min-h-0 overflow-auto p-4 sm:p-6">
       <div className="mx-auto w-full max-w-[880px] space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="min-w-0 break-all text-lg font-semibold">{row.name}</h2>
+          <h2 className="min-w-0 break-words text-xl font-semibold">{row.name}</h2>
           <Badge tone={row.enabled ? 'success' : 'muted'} dot>
             {row.enabled ? 'Enabled' : 'Draft'}
           </Badge>
@@ -152,10 +155,11 @@ export function CanonicalActionPanel({
             </Button>
           </span>
         </div>
-        <p className="break-all font-mono text-[11px] text-text-tertiary">
-          {canonicalId}
-          {row.legacyId && row.legacyId !== canonicalId ? ` · Legacy alias ${row.legacyId}` : ''}
-        </p>
+        {row.system && <Notice>System Action · Product-maintained definition</Notice>}
+        {text(definition.description, row.description) && (
+          <p className="break-words text-sm text-text-secondary">{text(definition.description, row.description)}</p>
+        )}
+        <JsonDetail label="Action reference and identifiers" value={{ id: canonicalId, legacyAlias: row.legacyId || undefined, ref }} />
 
         <Field label="View version" hint="Switching versions changes the view. Groups, Jobs and existing Runs keep their fixed references.">
           <select
@@ -179,10 +183,6 @@ export function CanonicalActionPanel({
             ))}
           </select>
         </Field>
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs">
-          {JSON.stringify(ref, null, 2)}
-        </pre>
-        <p className="break-all text-sm">{text(definition.description)}</p>
 
         {!row.system && version && (() => {
           const draft = legacyDraftFromDefinition(definition, { enabled: row.enabled });
@@ -217,24 +217,16 @@ export function CanonicalActionPanel({
         )}
 
         <div className="space-y-3 rounded-lg border border-border-default p-3">
-          <h3 className="text-sm font-semibold">Fixed version publication and invocation</h3>
-          <div className="flex flex-wrap gap-2">
-            {['publish', 'enable', 'disable'].map((operation) => (
-              <Button key={operation} size="sm" disabled={busy || !!pending} onClick={() => void mutate(operation)}>
-                {operation}
-              </Button>
-            ))}
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={
-                busy || !!pending || !version || version.state !== 'published' || version.enabled !== true
-              }
-              onClick={() => void mutate('invoke')}
-            >
-              Run fixed version
-            </Button>
-          </div>
+          <h3 className="text-sm font-semibold">Run this version</h3>
+          {!row.system && (
+            <div className="flex flex-wrap gap-2">
+              {(['publish', 'enable', 'disable'] as const).map((operation) => (
+                <Button key={operation} disabled={busy || !!pending} onClick={() => void mutate(operation)}>
+                  {operation}
+                </Button>
+              ))}
+            </div>
+          )}
           {Object.entries(obj(obj(definition.inputSchema).properties)).map(([name, schema]) => (
             <Field
               key={`${revision}:${name}`}
@@ -259,7 +251,7 @@ export function CanonicalActionPanel({
             </Field>
           ))}
           <details>
-            <summary className="cursor-pointer text-xs text-text-secondary">Full arguments JSON (including declared extra fields)</summary>
+            <summary className="cursor-pointer text-sm text-text-secondary">Advanced arguments JSON</summary>
             <textarea
               aria-label="Invocation arguments JSON"
               className={`${inputClass} min-h-24 font-mono`}
@@ -279,6 +271,11 @@ export function CanonicalActionPanel({
             />
             {argumentError && <p role="alert" className="text-xs text-danger">{argumentError}</p>}
           </details>
+          <Button variant="primary"
+            disabled={busy || !!pending || !version || version.state !== 'published' || version.enabled !== true}
+            onClick={() => void mutate('invoke')}>
+            Run fixed version
+          </Button>
         </div>
 
         {error && <p role="alert" className="text-xs text-danger break-words">{error}</p>}

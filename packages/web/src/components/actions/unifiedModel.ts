@@ -153,6 +153,7 @@ export function buildUnifiedActions({
     const existing = rowsById.get(`canonical:${canonicalId}`);
     const reason = preserved.get(action.id) ?? '';
     if (existing) {
+      existing.system ||= action.system === true || mapped?.object.system === true;
       existing.legacyId = action.id;
       existing.legacy = action;
       existing.adoption = reason ? 'preserved' : 'adopted';
@@ -166,7 +167,7 @@ export function buildUnifiedActions({
       key: `legacy:${action.id}`,
       name: action.name || action.id,
       description: action.description ?? '',
-      system: action.system === true,
+      system: action.system === true || mapped?.object.system === true,
       adoption: reason ? 'preserved' : mapped ? 'adopted' : 'legacy',
       canonicalId: mapped ? canonicalId : '',
       legacyId: action.id,
@@ -178,6 +179,7 @@ export function buildUnifiedActions({
       executionOperation: text(obj(action.execution).kind),
       preservedReason: reason,
       usedByGroupIds: [],
+      canonical: mapped?.object,
       legacy: action,
       mapped: mapped ? { ...mapped, legacyId: action.id } : undefined,
     });

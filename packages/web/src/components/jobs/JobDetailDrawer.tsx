@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
 import { scheduleEntries, type Job, type JobRunRecord, type JobSource, type JobTimestamp } from '@/types/jobs';
+import { Button } from '@/components/ui/Button';
 import { CanonicalJobEnable } from './CanonicalJobEnable';
 import { RunList } from '@/views/CanonicalJobsView';
 import { CanonicalExecutionDetails } from './CanonicalExecutionDetails';
@@ -69,7 +70,7 @@ function sourceSummary(source: JobSource): string {
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
-      className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-medium ${statusColor(status)}`}
+      className={`shrink-0 rounded border px-1.5 py-px text-xs font-medium ${statusColor(status)}`}
     >
       {status}
     </span>
@@ -221,6 +222,8 @@ export function JobDetailDrawer({
   kindLabel,
   runs,
   runsLoading,
+  runsError,
+  onRetryRuns,
   onLoadMoreRuns,
   onClose,
   onRunNow,
@@ -243,6 +246,8 @@ export function JobDetailDrawer({
   kindLabel: string;
   runs: JobRunRecord[];
   runsLoading: boolean;
+  runsError?: boolean;
+  onRetryRuns?: () => void;
   onLoadMoreRuns: () => void;
   onClose: () => void;
   onRunNow: () => void;
@@ -323,7 +328,7 @@ export function JobDetailDrawer({
         {/* Header */}
         <div className="flex items-center justify-between gap-2 border-b border-border-default px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="min-w-0 truncate text-sm font-semibold text-text-primary">
+            <h2 className="min-w-0 break-words text-lg font-semibold text-text-primary">
               {job.name}
             </h2>
             {job.label && <span title={job.label} className="min-w-0 max-w-[35%] truncate rounded border border-accent/50 bg-accent/10 px-1.5 py-px text-[11px] font-medium text-accent">{job.label}</span>}
@@ -357,22 +362,22 @@ export function JobDetailDrawer({
               {isActionJob && ['draft', 'disabled', 'enabled', 'paused'].includes(canonicalDetail?.job.state ?? '') && canonicalDetail && onCanonicalChanged && <CanonicalJobEnable item={canonicalDetail.job} onChanged={onCanonicalChanged} />}
               {!legacyReadOnly && onCancel && (job.kind !== 'scheduled-task' || job.unified && !job.unified.compatibility) && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status) && <button type="button" onClick={onCancel} disabled={cancelling} className="rounded border border-warning/50 px-2 py-1 text-xs text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
               {(isScheduledTask || isActionJob) && !legacyReadOnly && (
-                <button
+                <Button
                   type="button"
+                  variant="primary"
                   onClick={onRunNow}
                   disabled={isActionJob ? canonicalDetail?.job.state !== 'enabled' : !canRunNow}
                   title={isActionJob ? (canonicalDetail?.job.state === 'enabled' ? undefined : 'Enable the Job before running it') : canRunNow ? undefined : 'No target available for dispatch'}
-                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-tertiary disabled:hover:text-text-secondary"
                 >
                   <Play size={12} />
                   Run now
-                </button>
+                </Button>
               )}
               {isScheduledTask && !isActionJob && !legacyReadOnly && (
                 <button
                   type="button"
                   onClick={onTogglePaused}
-                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 >
                   {job.paused ? <Play size={12} /> : <Pause size={12} />}
                   {job.paused ? 'Resume' : 'Pause'}
@@ -382,31 +387,28 @@ export function JobDetailDrawer({
                 <button
                   type="button"
                   onClick={onChangeTarget}
-                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 >
                   <Target size={12} />
                   Change target
                 </button>
               )}
-              {!legacyReadOnly && <button
-                type="button"
-                onClick={onDelete}
-                className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-danger transition-colors hover:bg-danger/10"
-              >
-                <Trash2 size={12} />
-                Delete
-              </button>}
               {canEdit && (
                 <button
                   type="button"
                   onClick={onEdit}
                   disabled={definitionStatus === 'loading' || definitionStatus === 'error'}
                   title={definitionStatus === 'error' ? 'Job definition unavailable; refresh before editing.' : undefined}
-                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                 >
                   <Pencil size={12} />
                   Edit
                 </button>
+              )}
+              {!legacyReadOnly && (
+                <Button type="button" variant="ghost" className="!text-danger" onClick={onDelete}>
+                  <Trash2 size={14} /> Delete
+                </Button>
               )}
             </div>
 
@@ -543,7 +545,7 @@ export function JobDetailDrawer({
                         </div>
                         <div className="flex items-center gap-2">
                           <span
-                            className={`text-[10px] font-medium ${
+                            className={`text-xs font-medium ${
                               e.enabled ? 'text-success' : 'text-text-tertiary'
                             }`}
                           >
@@ -651,9 +653,14 @@ export function JobDetailDrawer({
               {isActionJob && canonicalDetail && <div className="mb-3">
                 {!showRunOperations ? <button type="button" className="rounded border border-border-default px-2 py-1 text-xs" onClick={() => setShowRunOperations(true)}>Manage Run operations</button> : <RunList job={canonicalDetail.job} onClose={() => setShowRunOperations(false)} />}
               </div>}
-              {runs.length === 0 ? (
+              {runsError ? (
+                <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-danger">
+                  Could not load run history.
+                  <Button size="sm" onClick={onRetryRuns}>Retry</Button>
+                </div>
+              ) : runs.length === 0 ? (
                 <div className="text-xs text-text-tertiary">
-                  {runsLoading ? 'Loading…' : '—'}
+                  {runsLoading ? 'Loading runs…' : 'No runs yet.'}
                 </div>
               ) : (
                 <div className="flex flex-col gap-1.5">
@@ -664,7 +671,7 @@ export function JobDetailDrawer({
                     type="button"
                     onClick={onLoadMoreRuns}
                     disabled={runsLoading}
-                    className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+                    className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
                   >
                     {runsLoading ? 'Loading…' : 'Load more'}
                   </button>

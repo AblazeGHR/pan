@@ -5,7 +5,7 @@ import { canonicalError, canonicalJobs, definitionOf } from '@/services/canonica
 import { newId, type CreatorReferences, type EventCreator, type SchedulerProvider } from '@/types/automationJobs';
 import type { CanonicalReceipt, JsonObject } from '@/types/canonicalJobs';
 import { cardClass, fieldClass, JsonDetail } from './fields';
-import { StateBadge } from './display';
+import { EmptyState, Notice, StateBadge } from './display';
 import { useAutomationDraft } from './DraftBoundary';
 import type { AutomationSnapshot } from '@/types/automation';
 import { CanonicalSchedulerFields } from './CanonicalSchedulerFields';
@@ -22,23 +22,28 @@ export function EventRegister({ sources, providers, references, definitions = []
 }) {
   const [search, setSearch] = useState('');
   const [editor, setEditor] = useState<{ key: string; source: EventCreator | null } | null>(null);
+  const visibleSources = sources.filter((source) =>
+    `${source.name} ${JSON.stringify(source.config)}`.toLowerCase().includes(search.trim().toLowerCase()),
+  );
   const timeProvider = providers.find((p) => p.providerRef.type === 'time' && p.providerRef.id === 'scheduler');
   return <div className="min-w-0 space-y-5">
     <header className="flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <h2 className="text-lg font-semibold">Event Register</h2>
-        <p className="mt-0.5 max-w-2xl text-sm text-text-secondary">Reusable canonical Event Creators. Each Scheduler keeps its own rules and cursor.</p>
+        <h2 className="text-lg font-semibold">Schedulers</h2>
+        <p className="mt-0.5 max-w-2xl text-sm text-text-secondary">Create shared time sources for Trigger subscriptions.</p>
       </div>
       <Button size="sm" variant="primary" className="self-start sm:self-auto" disabled={!!editor || !timeProvider} onClick={() => setEditor({ key: newId('creator'), source: null })}>New Scheduler</Button>
     </header>
     {editor && <SourceEditor key={editor.key} initial={editor.source} latest={sources.find((s) => s.id === editor.source?.id)} provider={timeProvider} refs={editor.source ? references[editor.source.id] ?? emptyRefs : emptyRefs} refresh={refresh} close={() => setEditor(null)} />}
     <label className="block max-w-[28rem] text-sm font-medium">Search event sources<input className={fieldClass} type="search" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
-    {!sources.length && <p className="rounded-xl border border-dashed border-border-default bg-bg-secondary/40 px-4 py-8 text-center text-sm text-text-secondary">No Scheduler sources yet.</p>}
-    <div className="grid min-w-0 gap-3 lg:grid-cols-2">{sources.filter((s) => `${s.name} ${JSON.stringify(s.config)}`.toLowerCase().includes(search.toLowerCase())).map((source) => <article id={source.id} key={source.id} aria-label={`Scheduler ${source.name}`} className={`${cardClass} flex flex-col gap-3 ${focusId === source.id ? 'ring-2 ring-accent' : ''}`}>
+    {!timeProvider && <Notice>The Scheduler provider is unavailable. Refresh to check again.</Notice>}
+    {!visibleSources.length && <EmptyState title={sources.length ? 'No matching Schedulers' : 'No Scheduler sources yet'} hint={sources.length ? 'Try a different search.' : 'Create a Scheduler to publish time events.'} />}
+    <div className="grid min-w-0 gap-3 lg:grid-cols-2">{visibleSources.map((source) => <article id={source.id} key={source.id} aria-label={`Scheduler ${source.name}`} className={`${cardClass} flex flex-col gap-3 ${focusId === source.id ? 'ring-2 ring-accent' : ''}`}>
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 break-words text-base font-semibold">{source.name}</h3><StateBadge state={source.state} /></div>
-      <p className="text-xs text-text-secondary">Revision <span className="font-mono text-text-secondary">{source.revision}</span><span aria-hidden> · </span>State revision <span className="font-mono text-text-secondary">{source.stateRevision}</span></p>
-      <p className="break-all font-mono text-xs text-text-tertiary">{source.id}</p>
-      <JsonDetail label={`Time rules for ${source.name}`} value={source.config} />
+      {typeof source.description === 'string' && source.description && <p className="break-words text-sm text-text-secondary">{String(source.description)}</p>}
+      <JsonDetail label={`Time rules and identifiers for ${source.name}`} value={{
+        id: source.id, revision: source.revision, stateRevision: source.stateRevision, rules: source.config,
+      }} />
       <section className="rounded-lg border border-border-muted bg-bg-primary/40 px-3 py-2">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">{references[source.id]?.references.length ?? 0} referencing subscribers</h4>
         {references[source.id]?.references.map((ref) => <div key={ref.triggerId} className="mt-2 flex flex-wrap items-center gap-2 text-sm">

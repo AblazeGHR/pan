@@ -47,6 +47,7 @@ def run(server, *args, **kwargs):
             raw = old.read()['actions']['old_alias']
             value = command_definition(raw)
             ref = object_ref('action', service.publish_action('p6_original', value))
+            service.publish_action('p6_system', {**value, 'name': 'Owned system Action', 'system': True})
             maps = [{'groupId': 'p6_tools', 'version': v, 'actionId': 'old_alias', 'definitionDigest': fc.digest(raw), 'actionRef': ref}
                     for v in ('draft', built['version'])]
             who = {'type': 'user', 'id': 'local'}

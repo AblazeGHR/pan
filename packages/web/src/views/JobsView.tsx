@@ -1,8 +1,7 @@
 import { useAutomationAuth } from '@/stores/automationStore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft,
   ListChecks,
   MoreHorizontal,
   Pause,
@@ -20,6 +19,7 @@ import type { CanonicalObject, JsonObject } from '@/types/canonicalJobs';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
 import { UnifiedJobForm } from '@/components/jobs/UnifiedJobForm';
 import { CanonicalCollection } from '@/views/CanonicalJobsView';
+import { AutomationNavigation, Notice } from '@/components/automation/display';
 import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
@@ -460,6 +460,8 @@ function JobRow({
 export default function JobsView() {
   const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   const navigate = useNavigate();
+  const location = useLocation();
+  const focusId = new URLSearchParams(location.search).get('focus');
   const showToast = useUIStore((s) => s.showToast);
   const toastRef = useRef(showToast); toastRef.current = showToast;
   const sessions = useSessionStore((s) => s.sessions);
@@ -532,7 +534,13 @@ export default function JobsView() {
   const bulkDeletedIdsRef = useRef<Set<string>>(new Set());
   const selectVisibleRef = useRef<HTMLInputElement>(null);
 
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState(focusId);
+  useEffect(() => {
+    if (focusId) {
+      setTab('list');
+      setSelectedJobId(focusId);
+    }
+  }, [focusId, location.key]);
   const [menuJobId, setMenuJobId] = useState<string | null>(null);
   const [changeTargetJobId, setChangeTargetJobId] = useState<string | null>(null);
   const [newTargetId, setNewTargetId] = useState('');
@@ -542,6 +550,8 @@ export default function JobsView() {
 
   const [runs, setRuns] = useState<JobRunRecord[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
+  const [runsError, setRunsError] = useState(false);
+  const [runsGeneration, setRunsGeneration] = useState(0);
   const [runsLimit, setRunsLimit] = useState(RUNS_PAGE);
 
   // Fresh authoritative list whenever the page is entered. The store is also
@@ -666,12 +676,13 @@ export default function JobsView() {
     }
     let cancelled = false;
     setRunsLoading(true);
+    setRunsError(false);
     fetchJobRuns(selectedJobId, runsLimit)
       .then((r) => {
         if (!cancelled) setRuns(r);
       })
       .catch(() => {
-        if (!cancelled) setRuns([]);
+        if (!cancelled) { setRuns([]); setRunsError(true); }
       })
       .finally(() => {
         if (!cancelled) setRunsLoading(false);
@@ -679,7 +690,7 @@ export default function JobsView() {
     return () => {
       cancelled = true;
     };
-  }, [selectedJobId, runsLimit]);
+  }, [selectedJobId, runsLimit, runsGeneration]);
 
   const kindLabels = useMemo(() => {
     const map: Partial<Record<JobKind, string>> = {};
@@ -1046,24 +1057,28 @@ export default function JobsView() {
     }
   };
 
+  function canLeaveJobs() {
+    if (pendingEditor.current) return false;
+    // The canonical editor already participates in the route draft boundary.
+    if ((editJob && isActionJob) || (tab === 'create' && createMode === 'action')) return true;
+    return !dirtyEditor.current || window.confirm('Discard unsaved Job configuration?');
+  }
+
   return (
     <section aria-label="Jobs management" className="flex flex-col h-full min-h-0 bg-bg-primary [&_button]:min-h-11 sm:[&_button]:min-h-9">
       {/* Header */}
-      <div className="flex items-center gap-2 pl-10 md:pl-3 pr-3 py-2.5 border-b border-border-default bg-bg-secondary/50 shrink-0">
-        <button
-          type="button"
-          onClick={() => { if (!pendingEditor.current && (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?'))) navigate('/'); }}
-          aria-label="Back"
-          title="Back"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border-default bg-bg-tertiary text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-        >
-          <ArrowLeft size={14} />
-        </button>
-        <h1 className="text-sm font-semibold text-text-primary">Jobs</h1>
-      </div>
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 border-b border-border-default bg-bg-secondary/50 px-4 pb-2 pt-14 md:pt-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" aria-label="Back to Chat" onClick={() => {
+            if (canLeaveJobs()) navigate('/');
+          }}>Chat</Button>
+          <h1 className="text-2xl font-semibold tracking-tight text-text-primary">Jobs</h1>
+        </div>
+        <AutomationNavigation current="jobs" onLeave={canLeaveJobs} />
+      </header>
 
       {/* One Jobs surface; configuration is reached from the selected Job. */}
-      <div className="flex gap-1 px-3 py-2 border-b border-border-muted bg-bg-secondary/30 shrink-0">
+      <div className="flex flex-wrap gap-2 px-4 py-2 border-b border-border-muted bg-bg-secondary/30 shrink-0">
         <button
           type="button"
           aria-pressed={tab === 'list'}
@@ -1073,7 +1088,7 @@ export default function JobsView() {
             setSelectionMode(false);
             clearSelectionForViewChange();
           }}
-          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
             tab === 'list'
               ? 'border-accent/50 bg-accent/10 text-accent'
               : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
@@ -1091,16 +1106,16 @@ export default function JobsView() {
             setSelectionMode(false);
             clearSelectionForViewChange();
           }}
-          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
             tab === 'create'
               ? 'border-accent/50 bg-accent/10 text-accent'
-              : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+              : 'border-accent bg-accent text-white hover:bg-accent-hover'
           }`}
         >
           <Plus size={12} />
           New Job
         </button>
-        <button type="button" aria-pressed={tab === 'templates'} disabled={bulkAction !== null} onClick={() => requestTab('templates')} className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-secondary">Job Templates</button>
+        <button type="button" aria-pressed={tab === 'templates'} disabled={bulkAction !== null} onClick={() => requestTab('templates')} className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-tertiary px-3 py-1.5 text-sm font-medium text-text-secondary">Job Templates</button>
         <button
           type="button"
           aria-pressed={tab === 'settings'}
@@ -1110,7 +1125,7 @@ export default function JobsView() {
             setSelectionMode(false);
             clearSelectionForViewChange();
           }}
-          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
             tab === 'settings'
               ? 'border-accent/50 bg-accent/10 text-accent'
               : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
@@ -1121,6 +1136,9 @@ export default function JobsView() {
         </button>
       </div>
 
+      {focusId === selectedJobId && focusId && !loading && !error && !selectedJob && (
+        <div className="px-4 pt-3"><Notice tone="warning" role="status">This Job is unavailable. You can still browse the Jobs directory.</Notice></div>
+      )}
       {(tab === 'list' || tab === 'legacy') && <p className="shrink-0 px-4 py-2 text-xs text-text-secondary" role="note">
         Older records remain available for history and are read-only.
       </p>}
@@ -1156,6 +1174,8 @@ export default function JobsView() {
               kindLabel={isActionJob ? 'Action Job' : labelFor(selectedJob.kind)}
               runs={runs}
               runsLoading={runsLoading}
+              runsError={runsError}
+              onRetryRuns={() => setRunsGeneration((value) => value + 1)}
               onLoadMoreRuns={() => setRunsLimit((n) => n + RUNS_PAGE)}
               onClose={() => setSelectedJobId(null)}
               onRunNow={() => void handleRunNow(selectedJob)}
@@ -1187,7 +1207,7 @@ export default function JobsView() {
                       clearSelectionForViewChange();
                       setStatusFilter(f.key);
                     }}
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:cursor-wait disabled:opacity-60 ${
+                    className={`rounded-full border px-2.5 py-1 text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-60 ${
                       statusFilter === f.key
                         ? 'border-accent/50 bg-accent/10 text-accent'
                         : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
@@ -1206,7 +1226,7 @@ export default function JobsView() {
               )}
               <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                 <label className="flex min-w-0 items-center gap-2">
-                  <span className="shrink-0 text-[11px] text-text-tertiary">Kind</span>
+                  <span className="shrink-0 text-sm text-text-secondary">Kind</span>
                   <select
                     id="job-kind-filter"
                     aria-label="Kind"
@@ -1216,7 +1236,7 @@ export default function JobsView() {
                       clearSelectionForViewChange();
                       setKindFilter(e.target.value as 'all' | JobKind);
                     }}
-                    className="min-w-0 flex-1 rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50"
+                    className="min-w-0 flex-1 rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-sm text-text-primary outline-none focus:border-accent/50"
                   >
                     <option value="all">All kinds</option>
                     {kindOptions.map((k) => (
@@ -1229,13 +1249,13 @@ export default function JobsView() {
                     type="button"
                     disabled={bulkAction !== null}
                     onClick={() => void loadJobs()}
-                    className="shrink-0 rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60"
+                    className="shrink-0 rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60"
                   >
                     Refresh
                   </button>
                 </label>
                 <label className="flex min-w-0 items-center gap-2">
-                  <span className="shrink-0 text-[11px] text-text-tertiary">Search</span>
+                  <span className="shrink-0 text-sm text-text-secondary">Search</span>
                   <input
                     type="search"
                     aria-label="Search jobs"
@@ -1246,7 +1266,7 @@ export default function JobsView() {
                       clearSelectionForViewChange();
                       setSearchQuery(e.target.value);
                     }}
-                    className="min-w-0 flex-1 rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent/50 disabled:opacity-60"
+                    className="min-w-0 flex-1 rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent/50 disabled:opacity-60"
                   />
                 </label>
               </div>
@@ -1258,7 +1278,7 @@ export default function JobsView() {
                 <button type="button" disabled={sort.key === 'active' || bulkAction !== null} onClick={() => setSort({ ...sort, direction: sort.direction === 'asc' ? 'desc' : 'asc' })} className="rounded border border-border-default px-2 py-1.5 disabled:opacity-50">{sort.direction === 'asc' ? 'Ascending' : 'Descending'}</button>
                 <span className="text-[11px] text-text-tertiary">Pinned jobs first</span>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-text-tertiary">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-text-secondary">
                 <span aria-live="polite">
                   {visibleJobs.length} of {jobs.length} jobs
                 </span>

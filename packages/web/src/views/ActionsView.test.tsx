@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LegacyActionsView as ActionsView } from './ActionsView';
@@ -173,7 +174,7 @@ afterEach(() => {
 });
 
 async function renderList() {
-  render(<ActionsView />);
+  render(<MemoryRouter><ActionsView /></MemoryRouter>);
   await screen.findByRole('list', { name: 'Actions' });
 }
 

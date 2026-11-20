@@ -57,7 +57,7 @@ export function CanonicalActionRow({
             <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" title={row.description}>
               {row.description}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-text-tertiary md:hidden">
               <span className={row.enabled ? 'text-success' : 'text-text-tertiary'}>
                 {!row.canonicalId ? 'Invalid / Retired' : row.enabled ? 'Enabled' : 'Draft'}
               </span>
@@ -69,9 +69,6 @@ export function CanonicalActionRow({
         </div>
         <div className="action-col-type min-w-0">
           <p className="text-xs text-text-secondary">{OPERATION_LABELS[operation] ?? (operation || '—')}</p>
-          <p className="truncate font-mono text-[10px] text-text-tertiary" title={row.canonicalId}>
-            {row.canonicalId}
-          </p>
         </div>
         <div className="action-col-effect">
           <Badge tone={row.effectClass === 'high_risk' ? 'danger' : row.effectClass === 'write_external' ? 'warning' : 'neutral'}>
@@ -90,7 +87,7 @@ export function CanonicalActionRow({
         </div>
         <div className="flex shrink-0 items-center justify-end gap-1">
           <Button size="sm" onClick={onOpen}>
-            {row.canonicalId ? 'Versions and publication' : 'Inspect history'}
+            {row.canonicalId ? (row.system ? 'View versions' : 'Versions and publication') : 'Inspect history'}
           </Button>
         </div>
       </div>
@@ -127,7 +124,7 @@ export function CanonicalGroupRow({
             <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary">
               {row.tools.length}  fixed tools
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-text-tertiary md:hidden">
               <span>{row.release ? 'Published' : 'Unbuilt'}</span>
               <span>{row.tools.length}  fixed tools</span>
             </div>

@@ -38,6 +38,10 @@ it('creates a canonical Job with schema typed argv, env, cwd and timeout without
 it('shows exact fixed configuration and preserves unprojected fields in full detail', () => {
   const key = `${ref.id}:${ref.revision}:${ref.digest}`;
   render(<CanonicalExecutionDetails detail={{ job: { id: 'j', name: 'Owned', state: 'enabled', stateRevision: 1, configRevision: 2, custom: { keep: true }, steps: [{ stepId: 'a', actionRef: ref, arguments: { argv: { from: 'literal', value: ['python'] }, env: { from: 'literal', value: { MODE: 'test' } }, timeout: { from: 'literal', value: 19 } } }] }, actions: { [key]: { name: 'Process', execution: { operation: 'process.command', config: { cwd: 'owned', hideWindow: true } } } }, missing: [] }} />);
+  const parameters = screen.getByText('Execution parameters');
+  expect(parameters.parentElement?.hasAttribute('open')).toBe(false);
+  fireEvent.click(parameters);
+  expect(parameters.parentElement?.hasAttribute('open')).toBe(true);
   expect(screen.getByText('19')).toBeTruthy(); expect(screen.getByText('Hidden')).toBeTruthy(); expect(screen.getAllByText(/MODE/).some(node => node.tagName === 'DD')).toBe(true);
   expect(screen.getByText(/"custom"/).textContent).toContain('"keep": true');
 });

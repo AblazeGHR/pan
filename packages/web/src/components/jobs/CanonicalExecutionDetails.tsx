@@ -20,14 +20,36 @@ export function CanonicalExecutionDetails({ detail }: { detail: CanonicalJobDeta
       const env = literal(args.env) ?? literal(args.environment) ?? config.env ?? config.environment;
       const timeout = literal(args.timeout) ?? literal(args.timeoutSec) ?? literal(args.timeout_sec) ?? config.timeout ?? config.timeoutSec ?? config.timeout_sec;
       const window = literal(args.hideWindow) ?? literal(args.hide_window) ?? config.hideWindow ?? config.hide_window;
-      return <div key={String(step.stepId ?? index)} className="space-y-2 rounded border border-border-default bg-bg-primary p-3 text-xs">
+      return <div key={String(step.stepId ?? index)} className="space-y-2 rounded border border-border-default bg-bg-primary p-3 text-sm">
         <p className="font-medium">Step {index + 1} · {String(action?.name ?? ref.id ?? 'Unknown Action')}</p>
         <p className="text-text-secondary">Fixed Action · revision {String(ref.revision ?? 'unknown')}</p>
         <details className="text-text-secondary"><summary className="cursor-pointer">Technical details</summary><p className="break-all">ID: {String(ref.id ?? 'unknown')} · Digest: {String(ref.digest ?? 'unknown')}</p></details>
-        <dl className="grid grid-cols-1 gap-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
-          {Object.entries({ Operation: execution.operation, argv, 'Working directory': cwd, Environment: env, Window: window === undefined ? undefined : window === true ? 'Hidden' : window === false ? 'Visible' : window, Timeout: timeout }).map(([label, value]) => <div key={label} className="contents"><dt className="text-text-tertiary">{label}</dt><dd className="min-w-0 whitespace-pre-wrap break-all font-mono">{display(value)}</dd></div>)}
-        </dl>
-        {commands.map((command, i) => <div key={i} className="rounded bg-bg-tertiary p-2"><p>Command {i + 1}</p><pre className="whitespace-pre-wrap break-all">{display(command.argv)}</pre><p>Timeout: {display(command.timeout ?? command.timeoutSec ?? command.timeout_sec)}</p><p>Environment: {display(command.env)}</p><p>Working directory: {display(command.cwd)}</p></div>)}
+        {execution.operation != null && <p className="break-words text-text-secondary">{display(execution.operation)}</p>}
+        <details className="rounded border border-border-muted p-2">
+          <summary className="cursor-pointer font-medium">Execution parameters</summary>
+          <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
+            {Object.entries({ argv, 'Working directory': cwd, Environment: env, Window: window === undefined ? undefined : window === true ? 'Hidden' : window === false ? 'Visible' : window, Timeout: timeout }).map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt className="text-text-tertiary">{label}</dt>
+                <dd className="min-w-0 whitespace-pre-wrap break-all font-mono">{display(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+        {commands.map((command, i) => (
+          <div key={i} className="space-y-1 rounded border border-border-muted p-2">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <p className="font-medium">Command {i + 1}</p>
+              <p className="text-text-secondary">Timeout: {display(command.timeout ?? command.timeoutSec ?? command.timeout_sec)}</p>
+            </div>
+            <details>
+              <summary className="cursor-pointer text-text-secondary">Arguments and environment</summary>
+              <pre className="mt-2 whitespace-pre-wrap break-all text-xs">{display(command.argv)}</pre>
+              <p className="break-all">Environment: {display(command.env)}</p>
+              <p className="break-all">Working directory: {display(command.cwd)}</p>
+            </details>
+          </div>
+        ))}
         <details><summary>Full step and fixed Action definition</summary><pre className="overflow-auto whitespace-pre-wrap break-all">{JSON.stringify({ step, action: action ?? null }, null, 2)}</pre></details>
       </div>;
     })}

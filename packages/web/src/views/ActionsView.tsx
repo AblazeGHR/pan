@@ -1,5 +1,6 @@
 import { useOperationIdentity, definitelyRejected } from '@/components/actions/useOperationIdentity';
 import { canonicalJobs } from '@/services/canonicalJobs';
+import { AutomationNavigation } from '@/components/automation/display';
 import { useAutomationAuth } from '@/stores/automationStore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LegacyRecordPanel } from '@/components/actions/LegacyRecordPanel';
@@ -181,27 +182,18 @@ export function LegacyActionsView() {
   }
 
   function openAction(action: Action) {
-    if (!registry.canonicalActions?.[action.id]) { setCanonicalTarget({kind: 'action', key: `legacy:${action.id}`}); return; }
-    if (action.system) { notify('System Actions are maintained by the product. Use a Job or Template to supply declared parameters.', 'info'); return; }
+    const row = canonicalCatalog.find((candidate) => candidate.legacyId === action.id);
     const mapped = registry.canonicalActions?.[action.id];
-    if (mapped) {
-      // Keep the observed revision while editing. A concurrent refresh must
-      // not silently attach an old draft body to a newer CAS revision.
-      setCanonicalEditor({ ...structuredClone(mapped), legacyId: action.id });
-      setCanonicalDuplicateIntent(false);
-      setCanonicalDirty(false);
+    if (row && (row.system || !mapped)) {
+      setCanonicalTarget({ kind: 'action', key: row.key });
       return;
     }
-    const preserved = registry.preservedActions?.find((item) => item.id === action.id);
-    if (preserved) {
-      notify(
-        `This Action is preserved because its definition cannot be represented by the old editor: ${preserved.reason}. Editing is blocked; use the unified catalog.`,
-        'warning',
-      );
-      return;
-    }
-    setEditor(actionEditorState(action, 'edit'));
-    setEditorError('');
+    if (action.system || !mapped) return;
+    // Keep the observed revision; a later refresh must not replace the basis
+    // of the operation while this panel is open.
+    setCanonicalEditor({ ...structuredClone(mapped), legacyId: action.id });
+    setCanonicalDuplicateIntent(false);
+    setCanonicalDirty(false);
   }
 
   function newAction() {
@@ -518,7 +510,10 @@ export function LegacyActionsView() {
   }
 
   function requestDeleteAction(action: Action) {
-    if (action.system) { notify('System Actions cannot be deleted.', 'error'); return; }
+    if (action.system || canonicalCatalog.some((row) => row.system && (row.legacyId === action.id || row.canonicalId === action.id))) {
+      notify('System Actions cannot be deleted.', 'error');
+      return;
+    }
     if (
       !registry.canonicalActions?.[action.id] &&
       registry.preservedActions?.some((item) => item.id === action.id)
@@ -678,7 +673,7 @@ export function LegacyActionsView() {
   const totalCount = tab === 'actions' ? actionCount : groupCount;
 
   return (
-    <main aria-label="Actions Panel" className="flex h-full min-h-0 flex-col bg-bg-primary text-text-primary">
+    <main aria-label="Actions Panel" className="flex h-full min-h-0 min-w-0 flex-col bg-bg-primary pt-12 text-text-primary md:pt-0">
       {quickPending && <div role="status" className="shrink-0 border-b border-warning/30 p-3 text-sm">
         <p className="break-all">Original request {quickPending.requestKey}. Unknown results are query-only.</p>
         <Button disabled={quickBusy} onClick={async () => {
@@ -699,10 +694,12 @@ export function LegacyActionsView() {
         <LegacyRecordPanel group={targetGroup} onClose={() => setCanonicalTarget(null)} onChanged={loadCanonical} />
       ) : targetAction ? (
         <CanonicalActionPanel
+          key={targetAction.key}
           row={targetAction}
           onClose={() => setCanonicalTarget(null)}
           onChanged={loadCanonical}
           onEditForm={(draft) => {
+            if (targetAction.system) return;
             setCanonicalEdit({
               id: targetAction.canonicalId,
               revision: Number(targetAction.canonical?.revision ?? 1),
@@ -797,7 +794,7 @@ export function LegacyActionsView() {
         <div className="flex h-full min-h-0 flex-col">
           <header className="shrink-0 border-b border-border-default bg-bg-primary">
             <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
-              <div className="min-w-0 pl-10 sm:pl-0">
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-xl font-semibold tracking-tight text-text-primary sm:text-2xl">
                     Actions &amp; Groups
@@ -832,6 +829,7 @@ export function LegacyActionsView() {
                 </Button>
               </div>
             </div>
+            <div className="px-4 pb-2 sm:px-6"><AutomationNavigation current="actions" /></div>
             <div className="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6">
               <Segmented
                 label="Registry view"
@@ -847,19 +845,19 @@ export function LegacyActionsView() {
                   ? 'Actions are reusable definitions.'
                   : 'Groups become MCP plugins when built.'}
               </span>
-              <Button
+              {tab === 'actions' && <Button
                 type="button"
                 size="sm"
-                className="ml-auto max-sm:w-full max-sm:justify-center"
+                className="sm:ml-auto"
                 onClick={newAdvancedAction}
               >
                 <Braces size={13} /> New advanced Action
-              </Button>
+              </Button>}
               <Button
                 type="button"
                 variant="primary"
                 size="sm"
-                className="max-sm:w-full max-sm:justify-center"
+                className="sm:ml-auto"
                 onClick={tab === 'actions' ? newAction : newGroup}
               >
                 <Plus size={13} /> {tab === 'actions' ? 'New Action' : 'New Group'}
@@ -886,7 +884,7 @@ export function LegacyActionsView() {
                         ? 'Search by name, description, ID or route'
                         : 'Search by Group name, ID or Action name'
                     }
-                    className="w-full rounded-md border border-border-default bg-bg-tertiary py-1.5 pl-8 pr-8 text-xs text-text-primary placeholder:text-text-tertiary focus:border-accent/60 focus:outline-none"
+                    className="w-full rounded-md border border-border-default bg-bg-tertiary py-2 pl-8 pr-8 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent/60 focus:outline-none"
                   />
                   {query && (
                     <button

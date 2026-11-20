@@ -853,8 +853,8 @@ export function CanonicalCollection({
       )}
       {!loading && !items.length && (
         <EmptyState
-          title={`No records ${labels[kind]}.`}
-          hint={`Create ${labels[kind]} or refresh the list to inspect the current definition.`}
+          title={kind === 'job-templates' ? 'No Job templates yet' : `No ${labels[kind].toLowerCase()} yet`}
+          hint="Create a definition to get started."
         />
       )}
       <div className="min-w-0 divide-y divide-border-muted overflow-hidden rounded border border-border-default">
@@ -869,15 +869,16 @@ export function CanonicalCollection({
               <h3 className="min-w-0 break-words text-base font-semibold">{item.name}</h3>
               <StateBadge state={item.state} />
             </div>
-            <div className="min-w-0 space-y-1 text-xs text-text-secondary">
-              <p className="break-all font-mono text-text-tertiary">{item.id}</p>
+            <details className="min-w-0 space-y-1 text-sm text-text-secondary">
+              <summary className="cursor-pointer">Identifiers and revisions</summary>
+              <p className="break-all font-mono">{item.id}</p>
               <p>
                 Definition revision{' '}
                 <span className="font-mono text-text-secondary">{revisionOf(item)}</span>
                 <span aria-hidden> · </span>
                 State revision <span className="font-mono text-text-secondary">{item.stateRevision}</span>
               </p>
-            </div>
+            </details>
             <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border-muted pt-3">
               {kind === 'job-templates' && (
                 <>
@@ -1268,7 +1269,7 @@ export function RunList({ job, onClose }: { job: CanonicalObject; onClose: () =>
         </Notice>
       )}
       {pending && <OperationStatus pending={pending} onChange={setPending} />}
-      {!loading && !runs.length && <EmptyState title="No Runs yet." />}
+      {!loading && !error && !runs.length && <EmptyState title="No Runs yet." />}
       {runs.map((run) => (
         <article
           key={run.runId}

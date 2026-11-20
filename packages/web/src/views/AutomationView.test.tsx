@@ -74,6 +74,7 @@ it('sends Bearer for cancel and never retries rejected effects', async () => {
 });
 it('creates the Event target template as a normal Action using the registry revision', async () => {
   render(<TestRouter><AutomationView /></TestRouter>);
+  fireEvent.click(screen.getByText('Bulk actions'));
   fireEvent.click(await screen.findByRole('button', { name: 'Pause Everything template' }));
   fireEvent.change(await screen.findByLabelText('Target source'), { target: { value: 'event' } });
   fireEvent.change(screen.getByLabelText(/Target Event path/), { target: { value: 'payload.targets' } });
