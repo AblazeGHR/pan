@@ -105,6 +105,10 @@ export function CanonicalGroupPanel({
       .map((tool) => `${text(tool.alias)}@v${text(obj(tool.actionRef).revision, '—')}`)
       .join(' · ');
 
+  function inspect(open: () => void) {
+    if (!busy && !pending && (!dirty || window.confirm('Discard unsaved Group changes?'))) open();
+  }
+
   function patch(index: number, next: Partial<DraftTool>) {
     setTools((current) => current.map((tool, at) => (at === index ? { ...tool, ...next } : tool)));
     setError('');
@@ -313,7 +317,7 @@ export function CanonicalGroupPanel({
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-tertiary">
               <details className="min-w-0"><summary className="cursor-pointer">Technical details</summary><span className="break-all font-mono">{JSON.stringify(tool.actionRef)}</span></details>
               {text(tool.actionRef.id) && (
-                <Button size="sm" variant="ghost" onClick={() => onSelectAction(text(tool.actionRef.id))}>
+                <Button size="sm" variant="ghost" disabled={busy || !!pending} onClick={() => inspect(() => onSelectAction(text(tool.actionRef.id)))}>
                   Inspect Action
                 </Button>
               )}
@@ -328,9 +332,11 @@ export function CanonicalGroupPanel({
           >
             <Plus size={13} /> Add fixed tool
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onInspect(references[text(tools[0]?.actionRef.id)] ?? {})}>
-            Inspect reference in catalog
-          </Button>
+          {text(obj(references[text(tools[0]?.actionRef.id)]).id) && (
+            <Button size="sm" variant="ghost" disabled={busy || !!pending} onClick={() => inspect(() => onInspect(references[text(tools[0]?.actionRef.id)]!))}>
+              Inspect reference in catalog
+            </Button>
+          )}
         </div>
         {blockers.length > 0 && (
           <ul className="space-y-1 rounded-md border border-warning/35 bg-warning/5 p-2 text-[11px] text-warning">

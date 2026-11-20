@@ -214,14 +214,16 @@ export function LegacyActionsView() {
   }
 
   function openGroup(group: ActionGroup) {
-    setCanonicalTarget({kind: 'group', key: `legacy:${group.id}`}); return;
-    setEditor(
-      groupEditorState(
-        { id: group.id, name: group.name, action_ids: [...group.action_ids] },
-        'edit',
-      ),
-    );
-    setEditorError('');
+    const row = canonicalGroupRows.find((candidate) => candidate.id === group.id);
+    if (row) setCanonicalTarget({ kind: 'group', key: row.key });
+  }
+
+  function inspectActionReference(id: string) {
+    const row = canonicalCatalog.find((candidate) => candidate.canonicalId === id);
+    if (row) {
+      setTab('actions');
+      setCanonicalTarget({ kind: 'action', key: row.key });
+    }
   }
 
   function newGroup() {
@@ -711,19 +713,24 @@ export function LegacyActionsView() {
           }}
         />
       ) : targetGroup ? (
-        <CanonicalGroupPanel
-          row={targetGroup}
-          catalog={canonicalCatalog}
-          references={obj(canonicalPage?.references) as Record<string, JsonObject>}
-          sessions={sessions}
-          onChanged={async () => {
-            await loadCanonical();
-            await useActionRegistryStore.getState().ensureRegistry({ force: true });
-          }}
-          onInspect={() => undefined}
-          onSelectAction={() => undefined}
-          onClose={() => setCanonicalTarget(null)}
-        />
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-10 sm:p-6">
+          <div className="mx-auto w-full max-w-5xl">
+            <CanonicalGroupPanel
+              key={targetGroup.key}
+              row={targetGroup}
+              catalog={canonicalCatalog}
+              references={obj(canonicalPage?.references) as Record<string, JsonObject>}
+              sessions={sessions}
+              onChanged={async () => {
+                await loadCanonical();
+                await useActionRegistryStore.getState().ensureRegistry({ force: true });
+              }}
+              onInspect={(ref) => inspectActionReference(text(ref.id))}
+              onSelectAction={inspectActionReference}
+              onClose={() => setCanonicalTarget(null)}
+            />
+          </div>
+        </div>
       ) : canonicalNew ? (
         <section aria-label="New advanced Action" className="min-h-0 overflow-auto p-4 sm:p-6">
           <h2 className="text-lg font-semibold">New advanced Action</h2>

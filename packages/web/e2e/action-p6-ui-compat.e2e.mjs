@@ -453,6 +453,8 @@ try {
     await page.getByRole('button', { name: 'Inspect Owned Group' }).click();
     await expect(page.getByRole('article', { name: 'Group Owned Group' })).toBeVisible();
     await capture('group-detail', actions, width);
+    await page.getByRole('button', { name: 'Inspect Action', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Canonical Action detail' })).toBeVisible();
 
     const jobId = await page.evaluate(async () => {
       const result = await (await fetch('/api/jobs/legacy-list')).json();
