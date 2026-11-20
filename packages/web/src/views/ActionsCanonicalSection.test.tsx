@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { LegacyActionsView } from './ActionsView';
 import { actionRequest, canonicalRequest } from '@/services/api';
 import { resetActionCachesForTests, useActionSessionsStore } from '@/stores/actionRegistryStore';
@@ -64,7 +65,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 it('shows canonical-only Actions inside the designed page and opens their versions', async () => {
-  render(<LegacyActionsView />);
+  render(<MemoryRouter><LegacyActionsView /></MemoryRouter>);
   // One table: the canonical-only Action sits in the same list as legacy rows.
   expect(await screen.findByRole('button', { name: 'Inspect Canonical Echo' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Inspect Canonical Echo' }));
@@ -95,7 +96,7 @@ it('does not require JSON for creation: the designed form posts a mapped definit
       } as never;
     throw new Error(`Unhandled canonical ${path}`);
   });
-  render(<LegacyActionsView />);
+  render(<MemoryRouter><LegacyActionsView /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'New Action' }));
   fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Wire Action' } });
   fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'No JSON needed' } });
@@ -159,7 +160,7 @@ it('edits an expressible canonical Action through the designed form', async () =
       return { status: 'completed', operationId: 'op', requestKey: (body as { requestKey: string }).requestKey } as never;
     throw new Error(`Unhandled canonical ${path}`);
   });
-  render(<LegacyActionsView />);
+  render(<MemoryRouter><LegacyActionsView /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect Canonical Echo' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Edit with form' }));
   // The designed form is populated from the canonical definition, not JSON.
