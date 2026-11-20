@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Check, Copy, Download, ExternalLink, FolderOpen, MessageSquare, Save as SaveIcon } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useCurrentSession } from '@/stores/sessionStore';
@@ -102,7 +101,9 @@ export function EditorFileTopBar({
   const revealAvailable = useCapability('fileManager.reveal');
   const requestChatAttachment = useUIStore((s) => s.requestChatAttachment);
   const showToast = useUIStore((s) => s.showToast);
-  const navigate = useNavigate();
+  const attaching = useUIStore((s) => s.chatAttachmentRequests.some((r) =>
+    r.sessionId === currentSession?.id && r.path === operationPath && r.status === 'pending',
+  ));
   const [copied, setCopied] = useState(false);
   const [openingExternal, setOpeningExternal] = useState(false);
   const [revealingExternal, setRevealingExternal] = useState(false);
@@ -159,14 +160,18 @@ export function EditorFileTopBar({
     }
   };
 
-  const handleAddToChat = () => {
+  const handleAddToChat = async () => {
     if (!currentSession?.id) {
       showToast('当前没有可用的 session', 'error');
       return;
     }
-    requestChatAttachment(currentSession.id, operationPath);
-    showToast('文件已加入聊天附件');
-    navigate('/');
+    if (attaching) return;
+    try {
+      await requestChatAttachment(currentSession.id, operationPath);
+      showToast('文件已加入聊天附件');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '服务端附件注册失败', 'error');
+    }
   };
 
   const handleDownload = () => {
@@ -306,7 +311,8 @@ export function EditorFileTopBar({
             type="button"
             aria-label="加入聊天"
             title="加入聊天"
-            onClick={handleAddToChat}
+            aria-busy={attaching}
+            onClick={() => void handleAddToChat()}
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"
           >
             <MessageSquare size={14} />

@@ -7,7 +7,8 @@ import type {
   UserInputRequest,
 } from '@/types';
 import type { AdapterFilterId, SpecialFilterId } from '@/utils/sessionFilters';
-import { updateUiSettings } from '@/services/api';
+import { updateUiSettings, registerServerFileAttachment } from '@/services/api';
+import { isMockMode, mockRegisterServerFileAttachment } from '@/demo/mockBackend';
 
 // ── localStorage helpers ──
 
@@ -307,9 +308,13 @@ export type GroupMode = 'none' | 'workdir' | 'manager';
 export type SortMode = 'recent' | 'name' | 'custom';
 export type Theme = 'dark' | 'light';
 
+const attachmentRegistrations = new Map<string, Promise<void>>();
+
 export interface ChatAttachmentRequest {
   sessionId: string;
   path: string;
+  status: 'pending' | 'ready';
+  registered?: Awaited<ReturnType<typeof registerServerFileAttachment>>;
 }
 
 function loadTheme(): Theme {
@@ -442,7 +447,7 @@ interface UIStore {
   /** Switch the session-list scope (callers clear the multi-select selection). */
   setActiveWorkspace: (id: string) => void;
   setRailExpanded: (expanded: boolean) => void;
-  requestChatAttachment: (sessionId: string, path: string) => void;
+  requestChatAttachment: (sessionId: string, path: string) => Promise<void>;
   consumeChatAttachmentRequests: (sessionId: string, paths: string[]) => void;
   requestComposerFocus: () => void;
 }
@@ -806,12 +811,31 @@ export const useUIStore = create<UIStore>((set, get) => ({
   },
 
   requestChatAttachment: (sessionId, path) => {
-    if (!sessionId || !path) return;
-    set((s) => s.chatAttachmentRequests.some((request) =>
-      request.sessionId === sessionId && request.path === path,
-    ) ? s : {
-      chatAttachmentRequests: [...s.chatAttachmentRequests, { sessionId, path }],
+    if (!sessionId || !path) return Promise.reject(new Error('缺少 Session 或文件路径'));
+    const key = JSON.stringify([sessionId, path]);
+    const pending = attachmentRegistrations.get(key);
+    if (pending) return pending;
+    if (get().chatAttachmentRequests.some((r) =>
+      r.sessionId === sessionId && r.path === path && r.status === 'ready',
+    )) return Promise.resolve();
+    const request: ChatAttachmentRequest = { sessionId, path, status: 'pending' };
+    set((s) => ({ chatAttachmentRequests: [...s.chatAttachmentRequests, request] }));
+    const completion = Promise.resolve().then(async () => {
+      const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
+      try {
+        const registered = await register(sessionId, path);
+        set((s) => ({ chatAttachmentRequests: s.chatAttachmentRequests.map((r) =>
+          r === request ? { ...request, status: 'ready', registered } : r,
+        ) }));
+      } catch (error) {
+        set((s) => ({ chatAttachmentRequests: s.chatAttachmentRequests.filter((r) => r !== request) }));
+        throw error;
+      } finally {
+        attachmentRegistrations.delete(key);
+      }
     });
+    attachmentRegistrations.set(key, completion);
+    return completion;
   },
 
   consumeChatAttachmentRequests: (sessionId, paths) => {

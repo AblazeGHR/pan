@@ -1095,59 +1095,31 @@ export function InputRow() {
     };
   }, [currentSessionId, updateAttachments]);
 
-  // The editor can be a separate route, so it hands a server path to the
-  // mounted composer through a one-shot UI request. The actual attachment
-  // state, formatting, and queue submission remain owned by InputRow.
+  // Editor registers before reporting success; the composer only inserts ready
+  // results. Claim them synchronously so remounts/StrictMode cannot insert twice.
   useEffect(() => {
     if (!currentSessionId) return;
-    const requested = chatAttachmentRequests
-      .filter((request) => request.sessionId === currentSessionId)
-      .map((request) => request.path);
+    const requested = useUIStore.getState().chatAttachmentRequests.filter((request) =>
+      request.sessionId === currentSessionId && request.status === 'ready' && request.registered,
+    );
     if (requested.length === 0) return;
-    const register = isMockMode() ? mockRegisterServerFileAttachment : registerServerFileAttachment;
-    const sessionEpoch = attachmentEpochRef.current;
-    void Promise.all(requested.map((path) => register(currentSessionId, path)))
-      .then((registered) => {
-        if (
-          activeAttachmentSessionRef.current !== currentSessionId ||
-          attachmentEpochRef.current !== sessionEpoch
-        )
-          return;
-        updateAttachments((current) => {
-          const additions = registered.map((item) => {
-            const occurrenceId = attachmentId();
-            return {
-              occurrenceId,
-              id: occurrenceId,
-              attachmentId: item.attachmentId,
-              displayName: item.displayName,
-              path: item.path,
-              href: item.href,
-              mimeType: item.mimeType,
-              source: 'server_file' as const,
-              status: 'ready' as const,
-            };
-          });
-          return additions.length > 0 ? [...current, ...additions] : current;
-        });
-      })
-      .catch((error) => {
-        if (
-          activeAttachmentSessionRef.current !== currentSessionId ||
-          attachmentEpochRef.current !== sessionEpoch
-        )
-          return;
-        showToast(error instanceof Error ? error.message : '服务端附件注册失败', 'error');
-      });
-    consumeChatAttachmentRequests(currentSessionId, requested);
-  }, [
-    chatAttachmentRequests,
-    consumeChatAttachmentRequests,
-    currentSessionId,
-    showToast,
-    updateAttachments,
-  ]);
-
+    consumeChatAttachmentRequests(currentSessionId, requested.map((request) => request.path));
+    updateAttachments((current) => [...current, ...requested.map((request) => {
+      const item = request.registered!;
+      const occurrenceId = attachmentId();
+      return {
+        occurrenceId,
+        id: occurrenceId,
+        attachmentId: item.attachmentId,
+        displayName: item.displayName,
+        path: item.path,
+        href: item.href,
+        mimeType: item.mimeType,
+        source: 'server_file' as const,
+        status: 'ready' as const,
+      };
+    })]);
+  }, [chatAttachmentRequests, consumeChatAttachmentRequests, currentSessionId, updateAttachments]);
   useEffect(() => {
     if (!isMobile) {
       setMobileFullscreen(false);

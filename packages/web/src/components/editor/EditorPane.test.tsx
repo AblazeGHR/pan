@@ -13,6 +13,7 @@ vi.mock('./CodeEditor', () => ({
 }));
 
 vi.mock('@/services/api', () => ({
+  registerServerFileAttachment: vi.fn(async (_sessionId: string, path: string) => ({ ok: true, attachmentId: 'att_test', path, displayName: path, href: '/test', mimeType: 'text/plain', size: 1 })),
   listFiles: vi.fn(async () => []),
   readFile: vi.fn(async () => ''),
   writeFile: vi.fn(async () => undefined),
@@ -118,7 +119,7 @@ describe('EditorPane editor action wiring', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '加入聊天' }));
     await waitFor(() => expect(useUIStore.getState().chatAttachmentRequests).toEqual([
-      { sessionId: 's1', path: 'src/main.ts' },
+      expect.objectContaining({ sessionId: 's1', path: 'src/main.ts', status: 'ready' }),
     ]));
   });
 

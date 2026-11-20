@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { EditorFileTopBar, getDisplayPath } from './EditorFileTopBar';
 import { EditorConfirmationModal } from './EditorConfirmationModal';
 import { useEditorStore } from '@/stores/editorStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { resetPlatformStoreForTests, usePlatformStore } from '@/stores/platformStore';
 import { useUIStore } from '@/stores/uiStore';
-import { writeFile, openFileExternally, revealFileExternally } from '@/services/api';
+import { registerServerFileAttachment, writeFile, openFileExternally, revealFileExternally } from '@/services/api';
 
 vi.mock('@/services/api', () => ({
+  registerServerFileAttachment: vi.fn(async (_sessionId: string, path: string) => ({ ok: true, attachmentId: 'att_test', path, displayName: path, href: '/test', mimeType: 'text/plain', size: 1 })),
   listFiles: vi.fn(async () => []),
   readFile: vi.fn(async () => ''),
   writeFile: vi.fn(async () => undefined),
@@ -73,7 +74,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function RouteProbe() { return <span data-testid="route">{useLocation().pathname}</span>; }
+
 describe('EditorFileTopBar', () => {
+  it('reports registration failure and stays in Editor without an attachment', async () => {
+    vi.mocked(registerServerFileAttachment).mockRejectedValueOnce(new Error('denied'));
+    render(<MemoryRouter initialEntries={['/editor']}><RouteProbe /><EditorFileTopBar operationPath="failed.txt" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: '加入聊天' }));
+    await waitFor(() => expect(useUIStore.getState().toastQueue).toEqual(expect.arrayContaining([expect.objectContaining({ message: 'denied', type: 'error' })])));
+    expect(screen.getByTestId('route').textContent).toBe('/editor');
+    expect(useUIStore.getState().chatAttachmentRequests).toEqual([]);
+  });
   it('copies the displayed full path and resets success feedback when the operation path changes', async () => {
     const { rerender } = render(
       <MemoryRouter initialEntries={['/editor']}>
@@ -114,7 +125,7 @@ describe('EditorFileTopBar', () => {
 
     await waitFor(() =>
       expect(useUIStore.getState().chatAttachmentRequests).toEqual([
-        { sessionId: 's1', path: 'src/two.ts' },
+        expect.objectContaining({ sessionId: 's1', path: 'src/two.ts', status: 'ready' }),
       ]),
     );
   });
