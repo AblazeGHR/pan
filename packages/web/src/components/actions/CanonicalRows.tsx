@@ -1,9 +1,9 @@
+import { useId } from 'react';
 import { Badge, IconTile } from './ActionsUi';
 import { Button } from '@/components/ui/Button';
 import { Braces, Layers, TerminalSquare } from 'lucide-react';
-import { shortVersion } from './actionsModel';
 import type { UnifiedActionRow, UnifiedGroupRow } from './unifiedModel';
-import { text } from './unifiedModel';
+import { obj, text } from './unifiedModel';
 
 const EFFECT_LABELS: Record<string, string> = {
   read: 'Read',
@@ -21,10 +21,7 @@ const OPERATION_LABELS: Record<string, string> = {
 };
 
 /**
- * Canonical-only rows rendered inside the designed table (same grid, same
- * columns). They are the same logical objects as the legacy projection, so a
- * merged row is never shown twice: only rows without a legacy identity land
- * here.
+ * Canonical card rows show stable identity and source alongside the display name.
  */
 export function CanonicalActionRow({
   row,
@@ -34,9 +31,14 @@ export function CanonicalActionRow({
   onOpen: () => void;
 }) {
   const operation = text(row.executionOperation);
+  const owner = obj(row.canonical?.owner);
+  const identityLabel = useId();
+  const identity = [text(owner.type), text(owner.id), row.canonicalId || row.legacyId].filter(Boolean).join(' · ');
   return (
-    <li className="border-b border-border-muted last:border-0">
-      <div className="action-grid action-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
+    <li className="cursor-pointer rounded-lg border border-border-default bg-bg-secondary/35" onClick={event => {
+      if (event.target instanceof Element && !event.target.closest('button')) onOpen();
+    }}>
+      <div className="flex flex-wrap items-center gap-2 action-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
         <div className="flex min-w-0 flex-1 items-start gap-2.5">
           <IconTile tone={operation === 'api.get' ? 'accent' : 'neutral'}>
             {operation === 'api.get' ? <Braces size={14} /> : <TerminalSquare size={14} />}
@@ -47,6 +49,7 @@ export function CanonicalActionRow({
                 type="button"
                 onClick={onOpen}
                 aria-label={`Inspect ${row.name}`}
+                aria-describedby={identityLabel}
                 className="truncate text-left text-sm font-medium text-text-primary transition-colors hover:text-accent"
                 title={`Inspect ${row.name}`}
               >
@@ -57,7 +60,8 @@ export function CanonicalActionRow({
             <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" title={row.description}>
               {row.description}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-text-tertiary md:hidden">
+            <p id={identityLabel} className="break-all text-xs text-text-secondary">{identity}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-text-tertiary">
               <span className={row.enabled ? 'text-success' : 'text-text-tertiary'}>
                 {!row.canonicalId ? 'Invalid / Retired' : row.enabled ? 'Enabled' : 'Draft'}
               </span>
@@ -66,24 +70,6 @@ export function CanonicalActionRow({
               <span>{row.versionCount} versions</span>
             </div>
           </div>
-        </div>
-        <div className="action-col-type min-w-0">
-          <p className="text-xs text-text-secondary">{OPERATION_LABELS[operation] ?? (operation || '—')}</p>
-        </div>
-        <div className="action-col-effect">
-          <Badge tone={row.effectClass === 'high_risk' ? 'danger' : row.effectClass === 'write_external' ? 'warning' : 'neutral'}>
-            {EFFECT_LABELS[row.effectClass] ?? row.effectClass ?? '—'}
-          </Badge>
-        </div>
-        <div className="action-col-status">
-          <Badge tone={row.enabled ? 'success' : 'muted'} dot>
-            {!row.canonicalId ? 'Invalid / Retired' : row.enabled ? 'Enabled' : 'Draft'}
-          </Badge>
-        </div>
-        <div className="action-col-usage text-xs text-text-secondary">
-          {row.usedByGroupIds.length
-            ? `${row.usedByGroupIds.length} ${row.usedByGroupIds.length === 1 ? 'Group' : 'Groups'}`
-            : '—'}
         </div>
         <div className="flex shrink-0 items-center justify-end gap-1">
           <Button size="sm" onClick={onOpen}>
@@ -103,8 +89,10 @@ export function CanonicalGroupRow({
   onOpen: () => void;
 }) {
   return (
-    <li className="border-b border-border-muted last:border-0">
-      <div className="group-grid group-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
+    <li className="cursor-pointer rounded-lg border border-border-default bg-bg-secondary/35" onClick={event => {
+      if (event.target instanceof Element && !event.target.closest('button')) onOpen();
+    }}>
+      <div className="flex flex-wrap items-center gap-2 group-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
         <div className="flex min-w-0 flex-1 items-start gap-2.5">
           <IconTile tone={row.release ? 'accent' : 'neutral'}>
             <Layers size={14} />
@@ -122,28 +110,12 @@ export function CanonicalGroupRow({
               </button>
             </div>
             <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary">
-              {row.tools.length}  fixed tools
+              {row.tools.length} fixed tools
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-text-tertiary md:hidden">
-              <span>{row.release ? 'Published' : 'Unbuilt'}</span>
-              <span>{row.tools.length}  fixed tools</span>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-text-tertiary">
+              <span>{!row.canonicalWritable ? 'Retired' : row.release ? 'Published' : 'Unbuilt'}</span>
             </div>
           </div>
-        </div>
-        <div className="group-col-release min-w-0" title={row.release || row.pluginId}>
-          {row.release ? (
-            <span className="font-mono text-[11px] text-text-secondary">{shortVersion(row.release)}</span>
-          ) : (
-            <span className="text-[11px] text-text-tertiary">Unpublished</span>
-          )}
-        </div>
-        <div className="group-col-composition min-w-0 text-[11px] text-text-tertiary">
-          {row.tools.map((tool) => `${tool.alias}@v${String(tool.actionRef.revision ?? '—')}`).join(' · ') || '—'}
-        </div>
-        <div className="group-col-status">
-          <Badge tone={row.release ? 'success' : 'muted'} dot>
-            {!row.canonicalWritable ? 'Retired' : row.release ? 'Built' : 'Unbuilt'}
-          </Badge>
         </div>
         <div className="flex shrink-0 items-center justify-end gap-1">
           <Button size="sm" onClick={onOpen}>

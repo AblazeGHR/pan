@@ -207,7 +207,7 @@ it.each(runOperations)(
       expect(writes[0]!.body.expectedRevision).toBe(7);
     else expect(writes[0]!.body).not.toHaveProperty('expectedRevision');
     if (operation === 'retry') expect(writes[0]!.body.stepId).toBe('failed-step');
-    await screen.findByText('Operation status:completed');
+    await screen.findByText('Operation status: completed');
   },
 );
 it('disables operations when the Run state cannot admit them', async () => {
@@ -257,7 +257,7 @@ it('does not resend an unconfirmed request and queries its original identity', a
     true,
   );
   click('Query original operation');
-  await screen.findByText('Operation status:completed');
+  await screen.findByText('Operation status: completed');
   const calls = vi.mocked(fetch).mock.calls;
   expect(
     calls.some(([url]) =>
@@ -277,7 +277,7 @@ it('shows accepted as pending effect and queries by operationId', async () => {
     true,
   );
   click('Query original operation');
-  await screen.findByText('Operation status:completed');
+  await screen.findByText('Operation status: completed');
   expect(vi.mocked(fetch).mock.calls.some(([url]) => url === '/api/operations/op%2Fone')).toBe(
     true,
   );

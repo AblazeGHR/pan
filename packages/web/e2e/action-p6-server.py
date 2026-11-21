@@ -11,6 +11,9 @@ sys.path.insert(0, str(ROOT))
 RUNTIME = Path(os.environ['PAN_E2E_RUNTIME']).resolve()
 if ROOT not in RUNTIME.parents:
     raise RuntimeError('Owned fixture must stay inside this worktree')
+from packages.automation.auth import UserAuth
+
+UserAuth(RUNTIME / 'automation').initialize(os.environ['PAN_E2E_ADMIN_SECRET'])
 original_run = uvicorn.Server.run
 
 
@@ -48,6 +51,7 @@ def run(server, *args, **kwargs):
             value = command_definition(raw)
             ref = object_ref('action', service.publish_action('p6_original', value))
             service.publish_action('p6_system', {**value, 'name': 'Owned system Action', 'system': True})
+            service.publish_action('p6_system_distinct', {**value, 'name': 'Owned system Action', 'system': True})
             maps = [{'groupId': 'p6_tools', 'version': v, 'actionId': 'old_alias', 'definitionDigest': fc.digest(raw), 'actionRef': ref}
                     for v in ('draft', built['version'])]
             who = {'type': 'user', 'id': 'local'}

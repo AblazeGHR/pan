@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LegacyActionsView } from './ActionsView';
+import { MemoryRouter } from 'react-router-dom';
 import { actionRequest, ApiRequestError, canonicalRequest } from '@/services/api';
 import { resetActionCachesForTests } from '@/stores/actionRegistryStore';
 import type { ActionRegistry } from '@/types/actions';
@@ -99,7 +100,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 async function openMapped() {
-  render(<LegacyActionsView />);
+  render(<MemoryRouter><LegacyActionsView /></MemoryRouter>);
   await screen.findByText('Old alias');
   fireEvent.click(screen.getByRole('button', { name: 'Inspect Old alias' }));
 }
@@ -232,7 +233,7 @@ it('deletes an unreferenced mapped Action through the compatibility adapter with
 });
 
 it('creates a new advanced canonical Action from the old entry without a legacy write', async () => {
-  render(<LegacyActionsView />);
+  render(<MemoryRouter><LegacyActionsView /></MemoryRouter>);
   await screen.findByText('Old alias');
   fireEvent.click(screen.getByRole('button', { name: 'New advanced Action' }));
   fireEvent.click(screen.getByRole('button', { name: 'New definition' }));

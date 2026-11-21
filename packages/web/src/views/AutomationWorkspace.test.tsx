@@ -89,6 +89,7 @@ it('follows Scheduler references to the focused Trigger and real Job directory',
   expect(router.state.location.search).toContain('focus=');
   expect(screen.getByRole('link', { name: 'Trigger' }).getAttribute('aria-current')).toBe('page');
   fireEvent.click(screen.getByRole('link', { name: 'Event Register' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Shared timer$/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Morning review' }));
   await screen.findByRole('heading', { name: 'Jobs destination' });
   expect(router.state.location.pathname).toBe('/jobs');

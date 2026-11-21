@@ -63,8 +63,15 @@ export function CanonicalJobEditor({ item, onSaved, onDirtyChange, onPendingChan
     finally { lock.current = false; setBusy(false); }
   };
   return <div className="space-y-4" aria-label="Action Job editor">
+    <section className="space-y-3 rounded-lg border border-border-default bg-bg-secondary/35 p-4">
+    <h3 className="text-base font-semibold">What should this Job do?</h3>
     <label className="block text-sm">Name<input aria-label="Name" placeholder={baseItem ? undefined : "Blank uses server-generated job-N"} className="mt-1 block w-full rounded border border-border-default bg-bg-primary p-2" value={String(value.name ?? '')} disabled={busy || !!pending || advanced} onChange={e => update({ ...value, name: e.target.value })} /></label>
     {!advanced && <fieldset disabled={busy || !!pending}><CanonicalDefinitionFields kind="jobs" value={value} onChange={update} /></fieldset>}
+    </section>
+    <section className="space-y-2 rounded-lg border border-border-default bg-bg-secondary/35 p-4">
+      <h3 className="text-base font-semibold">When should this Job run?</h3>
+      <p className="text-sm text-text-secondary">Action Jobs can run manually or be started by a Trigger. For timed runs, configure the Scheduler source in Event Register and connect it to a Trigger targeting this Job.</p>
+    </section>
     <details open={advanced}><summary onClick={e => {
       e.preventDefault();
       if (!advanced) { setJson(JSON.stringify(value, null, 2)); setAdvanced(true); return; }

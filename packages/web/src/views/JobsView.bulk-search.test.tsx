@@ -247,7 +247,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
     api.pinJob.mockResolvedValue({ ...pinned, pinned: false });
     const { container } = renderView();
     await screen.findByText('Pinned reminder');
-    const names = () => Array.from(container.querySelectorAll('div[title]')).map((el) => el.getAttribute('title')).filter((v) => v === 'Pinned reminder' || v === 'Running process');
+    const names = () => Array.from(container.querySelectorAll('button[title]')).map((el) => el.getAttribute('title')).filter((v) => v === 'Pinned reminder' || v === 'Running process');
     expect(names()).toEqual(['Pinned reminder', 'Running process']);
     const { pinned: ignored, ...eventJob } = pinned;
     expect(ignored).toBe(true);

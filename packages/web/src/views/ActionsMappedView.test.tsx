@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LegacyActionsView } from './ActionsView';
+import { MemoryRouter } from 'react-router-dom';
 import { actionRequest, canonicalRequest } from '@/services/api';
 import { resetActionCachesForTests, useActionRegistryStore } from '@/stores/actionRegistryStore';
 import type { ActionRegistry } from '@/types/actions';
@@ -25,10 +26,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 it('opens the full mapped definition through the old Edit entry and keeps its observed CAS on refresh', async () => {
-  render(<LegacyActionsView />);
+  render(<MemoryRouter><LegacyActionsView /></MemoryRouter>);
   await screen.findByText('Old alias');
   fireEvent.click(screen.getByRole('button', { name: 'Inspect Old alias' }));
   fireEvent.click(screen.getByRole('button', { name: 'Edit as a new draft version' }));
+  expect(screen.getByRole('complementary', { name: 'Record workspace' }).getAttribute('data-layout')).toBe('expanded');
   const text = screen.getByRole('textbox', { name: 'Action definition' });
   const edited = { ...definition, name: 'Edited full series' };
   expect(JSON.parse((text as HTMLTextAreaElement).value)).toEqual(definition);
@@ -47,7 +49,7 @@ it('opens the full mapped definition through the old Edit entry and keeps its ob
 });
 
 it('retains the existing discard confirmation for unsaved multi-command text', async () => {
-  render(<LegacyActionsView />);
+  render(<MemoryRouter><LegacyActionsView /></MemoryRouter>);
   await screen.findByText('Old alias');
   fireEvent.click(screen.getByRole('button', { name: 'Inspect Old alias' }));
   fireEvent.click(screen.getByRole('button', { name: 'Edit as a new draft version' }));

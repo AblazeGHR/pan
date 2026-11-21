@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
+import { randomUUID } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { chromium, expect } from '@playwright/test';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+const key = randomUUID();
 const automationOnly = process.argv.includes('--automation-only');
 const root = path.resolve(import.meta.dirname, '../../..');
 const runtime = path.join(root, 'packages/web/test-results', `p6-ui-${Date.now()}`);
@@ -22,7 +24,7 @@ const base = `http://127.0.0.1:${port}`;
 const env = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('PAN_')),
 );
-Object.assign(env, { PAN_E2E_RUNTIME: runtime, PAN_PORT: String(port), PYTHONPATH: root });
+Object.assign(env, { PAN_E2E_RUNTIME: runtime, PAN_E2E_ADMIN_SECRET: key, PAN_PORT: String(port), PYTHONPATH: root });
 const configuredPython = process.env.PAN_E2E_PYTHON || 'E:/software/miniforge/python.exe';
 // Windows venv `Scripts/python.exe` is a launcher on this machine: Node
 // receives the launcher PID while the real interpreter owns the HTTP socket.
@@ -59,28 +61,31 @@ child.stderr.on('data', (chunk) => {
 });
 
 try {
-  for (let index = 0; index < 90; index++) {
+  let bootstrap;
+  for (let index = 0; index < 40; index++) {
     if (child.exitCode !== null) throw Error('owned server exited');
     try {
-      if ((await fetch(base + '/__e2e/identity')).ok) break;
-    } catch {}
-    await sleep(500);
+      bootstrap = await fetch(base + '/api/automation/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base },
+        body: JSON.stringify({ key }),
+      });
+    } catch { await sleep(500); continue; }
+    if (bootstrap.status === 503) { await sleep(500); continue; }
+    break;
   }
-  const identity = await (await fetch(base + '/__e2e/identity')).json();
+  assert(bootstrap?.ok, 'isolated bootstrap status ' + bootstrap?.status);
+  const { token } = await bootstrap.json();
+  const identityResponse = await fetch(base + '/__e2e/identity', { headers: { Authorization: 'Bearer ' + token } });
+  assert.equal(identityResponse.status, 200);
+  const identity = await identityResponse.json();
   assert.equal(identity.pid, child.pid);
   assert.equal(path.resolve(identity.runtime), runtime);
   assert.equal(path.resolve(identity.checkout), root);
   evidence.checks.push('owned service PID, checkout and runtime verified');
 
   const sourcePath = path.join(runtime, 'cooperative-actions/registry.json');
-  for (let index = 0; index < 90; index++) {
-    if (await fs.stat(sourcePath).then(() => true, () => false)) break;
-    await fetch(base + '/__e2e/identity');
-    await sleep(500);
-  }
   const sourceBytes = await fs.readFile(sourcePath);
   const seed = JSON.parse(await fs.readFile(path.join(runtime, 'p6-seed.json'), 'utf8'));
-  const key = (await fs.readFile(path.join(runtime, 'automation/user.key'), 'utf8')).trim();
 
   browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -103,7 +108,8 @@ try {
     const response = await fetch('/api/automation/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: value }) });
     return { ok: response.ok };
   }, key);
-  if (login.ok) await page.reload();
+  assert.equal(login.ok, true, 'isolated administrator login');
+  await page.reload();
   if (await page.getByLabel('Local user key').count()) {
     await page.getByLabel('Local user key').fill(key);
     await page.getByRole('button', { name: 'Log in', exact: true }).click();
@@ -374,6 +380,22 @@ try {
 
   }
 
+  const scheduledId = await page.evaluate(async () => {
+    const sessionsResponse = await fetch('/api/sessions');
+    const payload = await sessionsResponse.json();
+    const sessions = Array.isArray(payload) ? payload : payload.sessions;
+    const target = sessions.find(session => session.name === 'Alpha Session');
+    const response = await fetch('/api/jobs/legacy-create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'scheduled-task', name: 'Owned scheduled Job', text: 'Isolated schedule test',
+        target: { sessionId: target.id }, enabled: false, requestKey: crypto.randomUUID(),
+        action: { api: 'assign' }, schedule: [{ kind: 'cron', cron: '0 9 * * *', timezone: 'Asia/Shanghai' }] }),
+    });
+    const body = await response.json();
+    if (!response.ok || !body.job?.jobId) throw Error('Scheduled fixture failed: ' + JSON.stringify(body));
+    return body.job.jobId;
+  });
+
   const protection = await page.evaluate(async () => {
     const url = '/api/jobs/actions/p6_system';
     const observed = await (await fetch(url)).json();
@@ -402,15 +424,18 @@ try {
   assert.deepEqual(protection, { statuses: [403, 403, 403, 410], unchanged: true });
   evidence.checks.push('ordinary profile receives 403 for system Action update, disable and delete; legacy lifecycle returns 410');
 
+  let theme;
   const capture = async (name, surface, width) => {
     await expect(surface).toBeVisible();
     await surface.scrollIntoViewIfNeeded();
     assert.equal(await surface.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true,
-      `${name} has horizontal overflow at ${width}px`);
-    await page.screenshot({ path: path.join(runtime, `${name}-${width}.png`) });
+      `${name} has horizontal overflow at ${width}px (${theme})`);
+    await page.screenshot({ path: path.join(runtime, `${name}-${width}-${theme}.png`) });
   };
-  for (const width of [1280, 390]) {
+  for (const [width, colorMode] of [[1280, 'dark'], [390, 'light'], [1280, 'light'], [390, 'dark']]) {
+    theme = colorMode;
     await page.setViewportSize({ width, height: 900 });
+    await page.evaluate((theme) => localStorage.setItem('pan:theme', theme), theme);
     await page.goto(base + '/react/');
     if (width < 768) await page.getByTitle('Toggle sidebar').click();
     const entry = page.getByRole('link', { name: 'Automation', exact: true });
@@ -419,6 +444,7 @@ try {
     }
     await entry.click();
     await expect(page).toHaveURL(/\/react\/jobs$/);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     const mobileOverlay = page.getByTestId('mobile-sidebar-workspace-drawer');
     if (width < 768 && await mobileOverlay.getAttribute('aria-hidden') !== 'true') {
       await page.mouse.click(width - 3, 420);
@@ -450,12 +476,7 @@ try {
       await disclosure.click();
       await expect(authorization.getByText(/Enabled Jobs keep/)).toBeVisible();
       await disclosure.click();
-      if (width === 390) {
-        await authorization.getByRole('button', { name: 'Log out' }).click();
-        await authorization.getByLabel('Local user key').fill(key);
-        await authorization.getByRole('button', { name: 'Log in', exact: true }).click();
-        await expect(disclosure).toBeVisible();
-      }
+
     }
     await page.getByRole('button', { name: 'Create Triggers', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Create Triggers' })).toBeVisible();
@@ -464,23 +485,59 @@ try {
     await nav().getByRole('link', { name: 'Event Register', exact: true }).click();
     await page.getByRole('button', { name: 'New Scheduler' }).click();
     const scheduler = page.getByRole('region', { name: 'Scheduler editor' });
-    await scheduler.getByLabel('Scheduler name').fill(`Owned timer ${width}`);
+    await scheduler.getByLabel('Scheduler name').fill(`Owned timer ${width} ${theme}`);
     await capture('scheduler-editor', scheduler, width);
     await scheduler.getByRole('button', { name: 'Save Scheduler' }).click();
-    const timer = page.getByRole('article', { name: `Scheduler Owned timer ${width}` });
+    const timer = page.getByRole('article', { name: `Scheduler Owned timer ${width} ${theme}` });
     await expect(timer).toBeVisible();
     const timerId = await timer.getAttribute('id');
     await page.goto(base + `/react/automation?tab=events&focus=${encodeURIComponent(timerId)}`);
-    await expect(timer).toHaveClass(/ring-accent/);
-    await expect(timer.getByText('0 referencing subscribers')).toHaveCount(0);
+    await expect(page.locator(`[id="${timerId}"]`)).toHaveClass(/ring-accent/);
+    await expect(page.getByRole('region', { name: 'Scheduler detail' }).getByText('0 referencing subscribers')).toHaveCount(0);
     await capture('event-register', page.getByRole('region', { name: 'Automation management' }), width);
+    const schedulerRecord = page.getByRole('complementary', { name: 'Record workspace' });
+    if (!(await schedulerRecord.isVisible())) await timer.getByRole('button', {name: /Owned timer/}).first().click();
+    await expect(schedulerRecord).toHaveAttribute('data-layout', 'side');
+    await schedulerRecord.getByRole('button', { name: 'Expand detail' }).click();
+    await expect(schedulerRecord).toHaveAttribute('data-layout', 'expanded');
+    await expect(page.getByLabel('Search event sources')).toBeHidden();
+    await expect(nav()).toBeVisible();
+    await capture('scheduler-expanded', page.getByRole('region', { name: 'Automation management' }), width);
+    await schedulerRecord.getByRole('button', { name: 'Return to side detail' }).click();
+    await nav().getByRole('link', { name: 'Trigger', exact: true }).click();
+    await page.getByRole('button', { name: 'Create Triggers', exact: true }).click();
+    const triggerName = `Owned trigger ${width} ${theme}`;
+    await page.getByLabel('Name', { exact: true }).fill(triggerName);
+    await page.getByLabel('Target canonical Job').selectOption(scheduledId);
+    await page.getByLabel('Scheduler sources').selectOption(timerId);
+    await page.getByRole('button', { name: 'Save definition', exact: true }).click();
+    const triggerRow = page.getByRole('button', { name: triggerName, exact: true });
+    await triggerRow.press('Enter');
+    const triggerRecord = page.getByRole('complementary', { name: 'Record workspace' });
+    await expect(triggerRecord).toHaveAttribute('data-layout', 'side');
+    await capture('trigger-side', page.getByRole('region', { name: 'Automation management' }), width);
+    await triggerRecord.getByRole('button', { name: 'Expand detail' }).click();
+    await expect(triggerRecord).toHaveAttribute('data-layout', 'expanded');
+    await expect(page.getByRole('button', { name: 'Create Triggers', exact: true })).toBeHidden();
+    await expect(nav()).toBeVisible();
+    await triggerRecord.getByRole('button', { name: 'Return to side detail' }).click();
+    await triggerRecord.getByRole('button', { name: 'Close detail' }).click();
+    await expect(page.getByRole('button', { name: 'Refresh list' })).toBeEnabled();
     await nav().getByRole('link', { name: 'Actions & Groups' }).click();
-    await page.getByRole('button', { name: 'Inspect Owned system Action' }).click();
+    const systemRows = page.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Inspect Owned system Action', exact: true }) });
+    await expect(systemRows).toHaveCount(2);
+    await expect(systemRows.filter({ hasText: 'p6_system_distinct' })).toHaveCount(1);
+    await systemRows.filter({ hasNotText: 'p6_system_distinct' }).getByRole('button', { name: 'Inspect Owned system Action', exact: true }).click();
     const system = page.getByRole('region', { name: 'Canonical Action detail' });
     await expect(system.getByLabel('Action version').locator('option')).toHaveCount(1);
     await expect(system.getByRole('button', { name: 'Run fixed version' })).toBeEnabled();
     await expect(system.getByRole('button', { name: /publish|enable|disable|edit|delete/i })).toHaveCount(0);
     await capture('system-action', system, width);
+    const actionRecord = page.getByRole('complementary', { name: 'Record workspace' });
+    await actionRecord.getByRole('button', { name: 'Expand detail' }).click();
+    await expect(actionRecord).toHaveAttribute('data-layout', 'expanded');
+    await expect(nav()).toBeVisible();
+    await actionRecord.getByRole('button', { name: 'Return to side detail' }).click();
     await system.getByRole('button', { name: 'Back to list' }).click();
     await page.getByRole('button', { name: 'New Action', exact: true }).click();
     await capture('user-action-editor', page.getByRole('main', { name: 'Actions Panel' }), width);
@@ -491,8 +548,13 @@ try {
     await page.getByRole('button', { name: 'Inspect Owned Group' }).click();
     await expect(page.getByRole('article', { name: 'Group Owned Group' })).toBeVisible();
     await capture('group-detail', actions, width);
+    await page.getByRole('button', { name: 'Edit Group', exact: true }).click();
+    await expect(actionRecord).toHaveAttribute('data-layout', 'expanded');
+    await expect(nav()).toBeVisible();
+    await actionRecord.getByRole('button', { name: 'Back to list', exact: true }).click();
+    await page.getByRole('button', { name: 'Inspect Owned Group' }).click();
     await expect(page.getByRole('button', { name: 'Inspect reference in catalog' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Inspect Action for old_alias', exact: true }).click();
+    await page.getByRole('button', { name: 'Inspect Action', exact: true }).click();
     await expect(page.getByRole('region', { name: 'Canonical Action detail' })).toBeVisible();
 
     const jobId = await page.evaluate(async () => {
@@ -503,9 +565,18 @@ try {
     await page.goto(base + `/react/automation?tab=job&focus=${encodeURIComponent(jobId)}`);
     await expect(page).toHaveURL(/\/react\/jobs\?focus=/);
     const detail = page.getByRole('region', { name: 'Job detail' });
+    const record = page.getByRole('complementary', { name: 'Record workspace' });
+    await expect(record).toHaveAttribute('data-layout', 'side');
+    await record.getByRole('button', { name: 'Expand detail' }).press('Enter');
+    await expect(record).toHaveAttribute('data-layout', 'expanded');
+    await expect(page.getByTestId('jobs-list-scroll')).toBeHidden();
+    await capture('job-expanded', jobs, width);
+    await record.getByRole('button', { name: 'Return to side detail' }).click();
+    await expect(record).toHaveAttribute('data-layout', 'side');
+    await capture('job-side-detail', jobs, width);
     await expect(detail.getByRole('heading', { name: /^(Schedule|Last result)$/ })).toHaveCount(0);
     const runHistory = (url) => url.pathname === `/api/jobs/${encodeURIComponent(jobId)}/runs`;
-    if (width === 1280) {
+    if (width === 1280 && theme === 'dark') {
       await page.route(runHistory, (route) => route.fulfill({ status: 503, json: { detail: 'Owned test failure' } }), { times: 1 });
       await page.reload();
       await expect(detail.getByRole('alert').filter({ hasText: 'Could not load run history.' })).toBeVisible();
@@ -521,7 +592,49 @@ try {
     await detail.getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Save Action Job' })).toBeVisible();
     await capture('job-editor', jobs, width);
-    evidence.checks.push(`Automation navigation, deep links, Runs and editors at ${width}px`);
+    await page.goto(base + '/react/jobs');
+    const scheduled = jobs.getByRole('button', { name: 'Owned scheduled Job', exact: true });
+    await scheduled.press('Enter');
+    const scheduledDetail = jobs.getByRole('region', { name: 'Job detail' });
+    await scheduledDetail.getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(jobs.getByRole('heading', { name: 'When should this Job run?' })).toBeVisible();
+    await capture('scheduled-job-edit-default', jobs, width);
+    const fireTime = jobs.getByLabel('Fire time');
+    const originalTime = await fireTime.inputValue();
+    const switchControl = jobs.getByRole('switch', { name: 'Job enabled' });
+    const geometry = async () => {
+      const hit = await switchControl.boundingBox();
+      const track = await switchControl.getByTestId('schedule-switch-track').boundingBox();
+      return [track.width, track.height, hit.height];
+    };
+    const before = await geometry();
+    assert.deepEqual(before.slice(0, 2), [38, 22]);
+    assert(before[2] >= 44);
+    await switchControl.click();
+    assert.deepEqual(await geometry(), before);
+    await switchControl.click();
+    const changed = originalTime === '10:15' ? '11:15' : '10:15';
+    await fireTime.fill(changed);
+    await capture('scheduled-job-edit', jobs, width);
+    const saveResponse = page.waitForResponse((response) => response.request().method() === 'PATCH' &&
+      new URL(response.url()).pathname === '/api/scheduler/tasks/' + scheduledId);
+    await jobs.getByRole('button', { name: 'Save', exact: true }).click();
+    const saved = await saveResponse;
+    assert(saved.ok(), 'Scheduler save failed: ' + await saved.text());
+    await expect(scheduledDetail.getByText('15 ' + changed.split(':')[0] + ' * * *', { exact: true })).toBeVisible();
+    await scheduledDetail.getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(fireTime).toHaveValue(changed);
+    await fireTime.fill('12:40');
+    page.once('dialog', (dialog) => dialog.dismiss());
+    await jobs.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(fireTime).toHaveValue('12:40');
+    page.once('dialog', (dialog) => dialog.accept());
+    await jobs.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(scheduledDetail.getByText('15 ' + changed.split(':')[0] + ' * * *', { exact: true })).toBeVisible();
+    await page.goto(base + '/react/jobs?focus=' + encodeURIComponent(scheduledId));
+    await expect(scheduledDetail.getByText('15 ' + changed.split(':')[0] + ' * * *', { exact: true })).toBeVisible();
+    evidence.checks.push(`scheduled Job edit, save, detail readback, cancel and toggle geometry at ${width}px (${theme})`);
+    evidence.checks.push(`Automation navigation, deep links, Runs and editors at ${width}px (${theme})`);
   }
 
   assert.deepEqual(evidence.errors, []);

@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ApiRequestError } from '@/services/api';
 import { canonicalError, canonicalJobs, definitionOf } from '@/services/canonicalJobs';
 import { newId, type CreatorReferences, type EventCreator, type SchedulerProvider } from '@/types/automationJobs';
 import type { CanonicalReceipt, JsonObject } from '@/types/canonicalJobs';
 import { cardClass, fieldClass, JsonDetail } from './fields';
+import { RecordWorkspace } from './RecordWorkspace';
 import { EmptyState, Notice, StateBadge } from './display';
 import { useAutomationDraft } from './DraftBoundary';
 import type { AutomationSnapshot } from '@/types/automation';
@@ -20,23 +21,27 @@ export function EventRegister({ sources, providers, references, definitions = []
   refresh: () => Promise<void>; jump: (tab: 'Job' | 'Trigger' | 'Event Register', id: string) => void;
   definitions?: AutomationSnapshot['definitions'];
 }) {
+  const [recordId, setRecordId] = useState<string>();
+  useEffect(() => { setRecordId(undefined); }, [focusId]);
   const [search, setSearch] = useState('');
   const [editor, setEditor] = useState<{ key: string; source: EventCreator | null } | null>(null);
   const visibleSources = sources.filter((source) =>
     `${source.name} ${JSON.stringify(source.config)}`.toLowerCase().includes(search.trim().toLowerCase()),
   );
   const timeProvider = providers.find((p) => p.providerRef.type === 'time' && p.providerRef.id === 'scheduler');
-  return <div className="min-w-0 space-y-5">
-    <header className="flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:items-end sm:justify-between">
-      <label className="block w-full max-w-[28rem] text-sm font-medium">Search event sources<input className={fieldClass} type="search" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
-      <Button size="sm" variant="primary" className="self-start sm:self-auto" disabled={!!editor || !timeProvider} onClick={() => setEditor({ key: newId('creator'), source: null })}>New Scheduler</Button>
-    </header>
-    {editor && <SourceEditor key={editor.key} initial={editor.source} latest={sources.find((s) => s.id === editor.source?.id)} provider={timeProvider} refs={editor.source ? references[editor.source.id] ?? emptyRefs : emptyRefs} refresh={refresh} close={() => setEditor(null)} />}
-    {!timeProvider && <Notice>The Scheduler provider is unavailable. Refresh to check again.</Notice>}
-    {!visibleSources.length && <EmptyState title={sources.length ? 'No matching Schedulers' : 'No Scheduler sources yet'} hint={sources.length ? 'Try a different search.' : 'Create a Scheduler to publish time events.'} />}
-    <div className="grid min-w-0 gap-3 lg:grid-cols-2">{visibleSources.map((source) => <article id={source.id} key={source.id} aria-label={`Scheduler ${source.name}`} className={`${cardClass} flex flex-col gap-3 ${focusId === source.id ? 'ring-2 ring-accent' : ''}`}>
-      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 break-words text-base font-semibold">{source.name}</h3><StateBadge state={source.state} /></div>
-      {typeof source.description === 'string' && source.description && <p className="break-words text-sm text-text-secondary">{String(source.description)}</p>}
+  if (editor) return <SourceEditor key={editor.key} initial={editor.source} latest={sources.find((s) => s.id === editor.source?.id)} provider={timeProvider} refs={editor.source ? references[editor.source.id] ?? emptyRefs : emptyRefs} refresh={refresh} close={() => setEditor(null)} />;
+  const active = recordId ?? focusId;
+  const source = sources.find(item => item.id === active);
+  const event = definitions.find(item => active === 'event:' + item.type);
+  const editSource = (item: EventCreator) => setEditor({ key: newId('edit'), source: item });
+  const detail = (source || event) && (
+    <section aria-label={source ? 'Scheduler detail' : 'Event type detail'} className="space-y-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="break-all text-lg font-semibold">{source?.name ?? event?.type}</h3>
+        <Button variant="ghost" size="sm" onClick={() => setRecordId('')}>Close detail</Button>
+      </div>
+      {source ? <>
+        <StateBadge state={source.state} />
       <JsonDetail label={"Time rules and identifiers"} value={{
         id: source.id, revision: source.revision, stateRevision: source.stateRevision, rules: source.config,
       }} />
@@ -49,15 +54,47 @@ export function EventRegister({ sources, providers, references, definitions = []
           <span className={`ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium ${ref.enabled ? 'border-success/40 bg-success/10 text-success' : 'border-border-default bg-bg-tertiary text-text-secondary'}`}>{ref.enabled ? 'Enabled' : 'Disabled'}</span>
         </div>)}
       </section>}
-      <div className="mt-auto border-t border-border-muted pt-3"><Button size="sm" disabled={!!editor} onClick={() => setEditor({ key: newId('edit'), source })}>Edit {source.name}</Button></div>
-    </article>)}</div>
-    <section className="space-y-3 rounded-xl border border-border-default bg-bg-secondary p-4">
-      <h3 className="text-base font-semibold">System and plugin event types</h3>
-      <div className="divide-y divide-border-muted">{definitions.map((definition) => <div key={definition.type} className="py-2 first:pt-0 last:pb-0">
-        <p className="flex flex-wrap items-center gap-2 text-sm"><span className="break-all font-mono text-xs text-text-secondary">{definition.type}</span><span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${definition.available ? 'border-success/40 bg-success/10 text-success' : 'border-warning/40 bg-warning/10 text-warning'}`}>{definition.available ? 'Available' : 'Unavailable'}</span></p>
-        <JsonDetail label={`Schema ${definition.type}`} value={definition.schema} />
-      </div>)}</div>
+        <Button variant="primary" onClick={() => editSource(source)}>Edit Scheduler</Button>
+      </> : event && <>
+        <StateBadge state={event.available ? 'available' : 'unavailable'} />
+        <JsonDetail label="Event schema" value={event.schema} />
+      </>}
     </section>
+  );
+  return <div className="min-w-0 space-y-5">
+    <RecordWorkspace flow recordKey={source?.id ?? (event ? active : undefined)} detail={detail}>
+      <div className="space-y-3">
+        <header className="flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <label className="block w-full max-w-[28rem] text-sm font-medium">Search event sources<input className={fieldClass} type="search" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+          <Button size="sm" variant="primary" className="self-start sm:self-auto" disabled={!!editor || !timeProvider} onClick={() => setEditor({ key: newId('creator'), source: null })}>New Scheduler</Button>
+        </header>
+        {!timeProvider && <Notice>The Scheduler provider is unavailable. Refresh to check again.</Notice>}
+        {!visibleSources.length && <EmptyState title={sources.length ? 'No matching Schedulers' : 'No Scheduler sources yet'} hint={sources.length ? 'Try a different search.' : 'Create a Scheduler to publish time events.'} />}
+        {visibleSources.map(source => (
+          <article key={source.id} id={source.id} aria-label={'Scheduler ' + source.name}
+            className={cardClass + ' cursor-pointer hover:bg-bg-tertiary/35' + (focusId === source.id ? ' ring-2 ring-accent' : '')}
+            onClick={event => {
+              if (event.target instanceof Element && !event.target.closest('button, a')) setRecordId(source.id);
+            }}>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="min-w-0 flex-1 break-words text-left text-sm font-semibold hover:text-accent" onClick={() => setRecordId(source.id)}>{source.name}</button>
+              <StateBadge state={source.state} />
+              <Button size="sm" onClick={() => editSource(source)}>Edit {source.name}</Button>
+            </div>
+            {typeof source.description === 'string' && <p className="break-words text-sm text-text-secondary">{source.description}</p>}
+          </article>
+        ))}
+        <section className="space-y-2" aria-label="System and plugin event types">
+          <h3 className="text-base font-semibold">System and plugin event types</h3>
+          {definitions.map(definition => (
+            <div key={definition.type} className={cardClass + ' flex items-center gap-2'}>
+              <button type="button" className="min-w-0 flex-1 break-all text-left text-sm hover:text-accent" onClick={() => setRecordId('event:' + definition.type)}>{definition.type}</button>
+              <StateBadge state={definition.available ? 'available' : 'unavailable'} />
+            </div>
+          ))}
+        </section>
+      </div>
+    </RecordWorkspace>
   </div>;
 }
 function SourceEditor({ initial, latest, provider, refs, refresh, close }: { initial: EventCreator | null; latest?: EventCreator; provider?: SchedulerProvider; refs: CreatorReferences; refresh: () => Promise<void>; close: () => void }) {

@@ -1,3 +1,4 @@
+import { RecordWorkspace } from '@/components/automation/RecordWorkspace';
 import { useOperationIdentity, definitelyRejected } from '@/components/actions/useOperationIdentity';
 import { canonicalJobs } from '@/services/canonicalJobs';
 import { AutomationNavigation } from '@/components/automation/display';
@@ -62,6 +63,8 @@ export function LegacyActionsView() {
   const [quickBusy, setQuickBusy] = useState(false);
   const [tab, setTab] = useState<Tab>('actions');
   const [editor, setEditor] = useState<EditorState | null>(null);
+  const [groupEditing, setGroupEditing] = useState(false);
+  const [actionEditing, setActionEditing] = useState(false);
   const [canonicalEditor, setCanonicalEditor] = useState<(CanonicalLegacyAction & { legacyId: string }) | null>(null);
   const [canonicalNew, setCanonicalNew] = useState(false);
   const [canonicalDuplicateIntent, setCanonicalDuplicateIntent] = useState(false);
@@ -214,6 +217,7 @@ export function LegacyActionsView() {
   }
 
   function openGroup(group: ActionGroup) {
+    setGroupEditing(false);
     const row = canonicalGroupRows.find((candidate) => candidate.id === group.id);
     if (row) setCanonicalTarget({ kind: 'group', key: row.key });
   }
@@ -590,11 +594,10 @@ export function LegacyActionsView() {
     );
   }
 
-  const canonicalOnlyTotal = canonicalCatalog.filter((row) => row.adoption === 'canonical').length;
   const canonicalGroupOnlyTotal = canonicalGroupRows.filter(
     (row) => row.adoption === 'canonical',
   ).length;
-  const actionCount = hasLoaded ? registry.actions.length + canonicalOnlyTotal : 0;
+  const actionCount = hasLoaded ? canonicalCatalog.length : 0;
   const groupCount = hasLoaded ? registry.groups.length + canonicalGroupOnlyTotal : 0;
   const useGroup = registry.groups.find((group) => group.id === useGroupId) ?? null;
   const liveGroup =
@@ -604,7 +607,9 @@ export function LegacyActionsView() {
   const loadingFirst = status === 'loading' && !hasLoaded;
   const blockingError = status === 'error' && !hasLoaded;
 
+  const visibleLegacyIds = new Set(canonicalCatalog.map((row) => row.legacyId));
   const filteredActions = registry.actions.filter((action) => {
+    if (!visibleLegacyIds.has(action.id)) return false;
     const value = actionQuery.trim().toLowerCase();
     const matches =
       !value ||
@@ -674,32 +679,22 @@ export function LegacyActionsView() {
       : filteredGroups.length + canonicalOnlyGroups.length;
   const totalCount = tab === 'actions' ? actionCount : groupCount;
 
-  return (
-    <main aria-label="Actions Panel" className="flex h-full min-h-0 min-w-0 flex-col bg-bg-primary pt-12 text-text-primary md:pt-0">
-      {quickPending && <div role="status" className="shrink-0 border-b border-warning/30 p-3 text-sm">
-        <p className="break-all">Original request {quickPending.requestKey}. Unknown results are query-only.</p>
-        <Button disabled={quickBusy} onClick={async () => {
-          setQuickBusy(true);
-          try {
-            const result = await canonicalJobs.lookup(quickPending.operation, quickPending.requestKey);
-            if (['completed', 'rejected', 'cancelled'].includes(result.status)) {
-              setQuickPending(null); await loadCanonical();
-              if (result.status === 'completed') closeEditor();
-            }
-          } catch (cause) { notify(messageOf(cause), 'error'); }
-          finally { setQuickBusy(false); }
-        }}>Query original operation</Button>
-      </div>}
-      {targetAction && !targetAction.canonicalId ? (
-        <LegacyRecordPanel action={targetAction} onClose={() => setCanonicalTarget(null)} onChanged={loadCanonical} />
+  const recordKey = editor || canonicalNew ? undefined : targetAction?.key ?? targetGroup?.key ?? (canonicalEditor ? 'mapped:' + canonicalEditor.legacyId : undefined);
+  const recordDetail = targetAction && !targetAction.canonicalId ? (
+        <LegacyRecordPanel action={targetAction} onClose={() => { setCanonicalTarget(null); setGroupEditing(false); setActionEditing(false); }} onChanged={loadCanonical} />
       ) : targetGroup && !targetGroup.canonicalWritable ? (
-        <LegacyRecordPanel group={targetGroup} onClose={() => setCanonicalTarget(null)} onChanged={loadCanonical} />
+        <LegacyRecordPanel group={targetGroup} onClose={() => { setCanonicalTarget(null); setGroupEditing(false); setActionEditing(false); }} onChanged={loadCanonical} />
       ) : targetAction ? (
         <CanonicalActionPanel
           key={targetAction.key}
           row={targetAction}
-          onClose={() => setCanonicalTarget(null)}
+          onClose={() => {
+            if (actionEditing && !window.confirm('Discard unsaved Action changes?')) return;
+            setCanonicalTarget(null);
+            setActionEditing(false);
+          }}
           onChanged={loadCanonical}
+          onAdvancedEditChange={setActionEditing}
           onEditForm={(draft) => {
             if (targetAction.system) return;
             setCanonicalEdit({
@@ -718,6 +713,8 @@ export function LegacyActionsView() {
             <CanonicalGroupPanel
               key={targetGroup.key}
               row={targetGroup}
+              draftMode={groupEditing}
+              onEditDraft={() => setGroupEditing(true)}
               catalog={canonicalCatalog}
               references={obj(canonicalPage?.references) as Record<string, JsonObject>}
               sessions={sessions}
@@ -727,11 +724,83 @@ export function LegacyActionsView() {
               }}
               onInspect={(ref) => inspectActionReference(text(ref.id))}
               onSelectAction={inspectActionReference}
-              onClose={() => setCanonicalTarget(null)}
+              onClose={() => { setCanonicalTarget(null); setGroupEditing(false); setActionEditing(false); }}
             />
           </div>
         </div>
-      ) : canonicalNew ? (
+      ) : canonicalEditor ? (
+        <MappedActionPanel
+          key={canonicalEditor.legacyId}
+          mapped={canonicalEditor}
+          legacyAction={registry.actions.find((action) => action.id === canonicalEditor.legacyId)}
+          existingNames={registry.actions.map((action) => action.name)}
+          defaultDuplicateOpen={canonicalDuplicateIntent}
+          onClose={requestCloseEditor}
+          onChanged={() => syncCanonicalEditor(canonicalEditor.legacyId)}
+          onOpenCopy={openCanonicalCopy}
+          onRequestDelete={requestDeleteAction}
+          error={editorError}
+          onDirtyChange={setCanonicalDirty}
+        />
+      ) : null;
+
+  return (
+    <main aria-label="Actions Panel" className="flex h-full min-h-0 min-w-0 flex-col bg-bg-primary pt-12 text-text-primary md:pt-0">
+      {quickPending && <div role="status" className="shrink-0 border-b border-warning/30 p-3 text-sm">
+        <p className="break-all">Original request {quickPending.requestKey}. Unknown results are query-only.</p>
+        <Button disabled={quickBusy} onClick={async () => {
+          setQuickBusy(true);
+          try {
+            const result = await canonicalJobs.lookup(quickPending.operation, quickPending.requestKey);
+            if (['completed', 'rejected', 'cancelled'].includes(result.status)) {
+              setQuickPending(null); await loadCanonical();
+              if (result.status === 'completed') closeEditor();
+            }
+          } catch (cause) { notify(messageOf(cause), 'error'); }
+          finally { setQuickBusy(false); }
+        }}>Query original operation</Button>
+      </div>}
+      <header className="shrink-0 border-b border-border-default bg-bg-primary">
+        <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold tracking-tight text-text-primary sm:text-2xl">
+                Actions &amp; Groups
+              </h1>
+            </div>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-secondary sm:text-sm">
+              {tab === 'actions'
+                ? 'Define an Action once. Share it across Groups, then build a Group to use it in a Session.'
+                : 'Select Actions, build a release, then bind it to a Session in one of three modes.'}
+            </p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden flex-col items-end text-[10px] leading-tight text-text-tertiary md:flex">
+              {lastLoadedAt ? (
+                <>
+                  <span>Updated {formatTime(lastLoadedAt)}</span>
+                  <span className="font-mono">revision {registry.revision}</span>
+                </>
+              ) : (
+                <span>{loadingFirst ? 'Loading…' : 'Not loaded'}</span>
+              )}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void refresh()}
+              disabled={refreshing || loadingFirst}
+              title="Refresh the Action registry"
+            >
+              <RefreshCw size={13} className={refreshing ? 'animate-spin' : undefined} />
+              <span>Refresh</span>
+            </Button>
+          </div>
+        </div>
+        <div className="px-4 pb-2 sm:px-6"><AutomationNavigation current="actions" onLeave={() => !quickPending && (!actionEditing && !canonicalDirty && (!editor || !isEditorDirty(editor)) || window.confirm('Discard unsaved Action changes?'))} /></div>
+      </header>
+      <RecordWorkspace editing={groupEditing || actionEditing || canonicalDuplicateIntent || (!!canonicalEditor && canonicalDirty)} recordKey={recordKey} detail={recordDetail} onToggleView={() => !canonicalDirty && !quickPending}>
+      {canonicalNew ? (
         <section aria-label="New advanced Action" className="min-h-0 overflow-auto p-4 sm:p-6">
           <h2 className="text-lg font-semibold">New advanced Action</h2>
           <p className="my-3 text-sm">
@@ -749,20 +818,6 @@ export function LegacyActionsView() {
             Back to catalog
           </Button>
         </section>
-      ) : canonicalEditor ? (
-        <MappedActionPanel
-          key={canonicalEditor.legacyId}
-          mapped={canonicalEditor}
-          legacyAction={registry.actions.find((action) => action.id === canonicalEditor.legacyId)}
-          existingNames={registry.actions.map((action) => action.name)}
-          defaultDuplicateOpen={canonicalDuplicateIntent}
-          onClose={requestCloseEditor}
-          onChanged={() => syncCanonicalEditor(canonicalEditor.legacyId)}
-          onOpenCopy={openCanonicalCopy}
-          onRequestDelete={requestDeleteAction}
-          error={editorError}
-          onDirtyChange={setCanonicalDirty}
-        />
       ) : editor ? (
         editor.kind === 'action' ? (
           <ActionEditorPage
@@ -799,44 +854,7 @@ export function LegacyActionsView() {
         )
       ) : (
         <div className="flex h-full min-h-0 flex-col">
-          <header className="shrink-0 border-b border-border-default bg-bg-primary">
-            <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-semibold tracking-tight text-text-primary sm:text-2xl">
-                    Actions &amp; Groups
-                  </h1>
-                </div>
-                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-secondary sm:text-sm">
-                  {tab === 'actions'
-                    ? 'Define an Action once. Share it across Groups, then build a Group to use it in a Session.'
-                    : 'Select Actions, build a release, then bind it to a Session in one of three modes.'}
-                </p>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                <span className="hidden flex-col items-end text-[10px] leading-tight text-text-tertiary md:flex">
-                  {lastLoadedAt ? (
-                    <>
-                      <span>Updated {formatTime(lastLoadedAt)}</span>
-                      <span className="font-mono">revision {registry.revision}</span>
-                    </>
-                  ) : (
-                    <span>{loadingFirst ? 'Loading…' : 'Not loaded'}</span>
-                  )}
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void refresh()}
-                  disabled={refreshing || loadingFirst}
-                  title="Refresh the Action registry"
-                >
-                  <RefreshCw size={13} className={refreshing ? 'animate-spin' : undefined} />
-                  <span>Refresh</span>
-                </Button>
-              </div>
-            </div>
-            <div className="px-4 pb-2 sm:px-6"><AutomationNavigation current="actions" /></div>
+          <div className="shrink-0 border-b border-border-default bg-bg-primary pt-2">
             <div className="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6">
               <Segmented
                 label="Registry view"
@@ -870,7 +888,7 @@ export function LegacyActionsView() {
                 <Plus size={13} /> {tab === 'actions' ? 'New Action' : 'New Group'}
               </Button>
             </div>
-          </header>
+          </div>
 
           <div className="min-h-0 flex-1 overflow-auto">
             <div className="sticky top-0 z-10 border-b border-border-muted bg-bg-primary/95 px-4 py-2.5 backdrop-blur sm:px-6">
@@ -981,16 +999,9 @@ export function LegacyActionsView() {
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
-                    <div className="action-grid list-header border-b border-border-default px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
-                      <span>Name</span>
-                      <span>Type</span>
-                      <span className="action-col-effect">Effect</span>
-                      <span className="action-col-status">Status</span>
-                      <span className="action-col-usage">Used in</span>
-                      <span className="text-right">Actions</span>
-                    </div>
-                    <ul aria-label="Actions">
+                  <div className="min-w-0">
+
+                    <ul aria-label="Actions" className="space-y-2">
                       {canonicalOnlyActions.map((row) => (
                         <CanonicalActionRow
                           key={row.key}
@@ -1038,20 +1049,13 @@ export function LegacyActionsView() {
                   )}
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
-                  <div className="group-grid list-header border-b border-border-default px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
-                    <span>Name</span>
-                    <span className="group-col-release">Release</span>
-                    <span className="group-col-composition">Composition</span>
-                    <span className="group-col-status">Status</span>
-                    <span className="text-right">Actions</span>
-                  </div>
-                  <ul aria-label="Groups">
+                <div className="min-w-0">
+                  <ul aria-label="Groups" className="space-y-2">
                     {canonicalOnlyGroups.map((row) => (
                       <CanonicalGroupRow
                         key={row.key}
                         row={row}
-                        onOpen={() => setCanonicalTarget({ kind: 'group', key: row.key })}
+                        onOpen={() => { setGroupEditing(false); setCanonicalTarget({ kind: 'group', key: row.key }); }}
                       />
                     ))}
                     {filteredGroups.map((group) => (
@@ -1065,6 +1069,7 @@ export function LegacyActionsView() {
         </div>
       )}
 
+      </RecordWorkspace>
       {confirm?.kind === 'discard' && (
         <ConfirmDialog
           title="Discard unsaved changes?"

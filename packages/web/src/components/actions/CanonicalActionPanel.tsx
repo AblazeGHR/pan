@@ -24,10 +24,12 @@ export function CanonicalActionPanel({
   onClose,
   onChanged,
   onEditForm,
+  onAdvancedEditChange,
 }: {
   row: UnifiedActionRow;
   onClose: () => void;
   onChanged: () => Promise<void>;
+  onAdvancedEditChange?: (editing: boolean) => void;
   onEditForm?: (draft: Action) => void;
 }) {
   const [versions, setVersions] = useState<JsonObject[]>([]);
@@ -208,6 +210,7 @@ export function CanonicalActionPanel({
             <CanonicalDefinitionEditor
               item={row.canonical}
               definition={definition}
+              onDirtyChange={onAdvancedEditChange}
               onChanged={async () => {
                 await load();
                 await onChanged();

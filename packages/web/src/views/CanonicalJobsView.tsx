@@ -1,3 +1,4 @@
+import { RecordWorkspace } from '@/components/automation/RecordWorkspace';
 import { useOperationIdentity } from '@/components/actions/useOperationIdentity';
 import { TriggerTarget } from '@/components/automation/TriggerTarget';
 import { wsClient } from '@/services/ws';
@@ -203,6 +204,8 @@ export function CanonicalCollection({
   reviewSourceRefs?: boolean;
   refreshToken?: CanonicalObject[];
 }) {
+  const [recordId, setRecordId] = useState<string>();
+  useEffect(() => { setRecordId(undefined); }, [focusId]);
   const [items, setItems] = useState<CanonicalObject[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -296,47 +299,79 @@ export function CanonicalCollection({
       if (alive.current) setBusy(false);
     }
   }
+  function openEditor(item: CanonicalObject) {
+    setAdvancedEditing(false);
+    setStructuredEdited(false);
+    setConflict(false);
+    const definition = definitionOf(kind, item);
+    delete definition.name;
+    const ids =
+      (definition.creatorSelector as { ids?: string[] } | undefined)?.ids ?? [];
+    setCreatorRevisions(
+      Object.fromEntries(
+        sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]),
+      ),
+    );
+    setEditor({ item, name: item.name, json: JSON.stringify(definition, null, 2) });
+  }
+
+  const record = kind === 'triggers' ? items.find(item => item.id === (recordId ?? focusId)) : undefined;
+  const recordDetail = record && <section aria-label="Trigger detail" className="space-y-3 p-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="break-all text-lg font-semibold">{record.name}</h3>
+      <Button size="sm" variant="ghost" onClick={() => setRecordId('')}>Close detail</Button>
+    </div>
+    <StateBadge state={record.state} />
+    {typeof record.description === 'string' && <p className="break-words text-sm text-text-secondary">{record.description}</p>}
+    <details><summary className="cursor-pointer">Trigger definition</summary>
+      <pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(definitionOf(kind, record), null, 2)}</pre>
+    </details>
+    <Button variant="primary" disabled={busy || !!enabling} onClick={() => openEditor(record)}>Edit</Button>
+  </section>;
+  const listControls = (
+  <div className="flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:flex-wrap sm:items-end">
+    <div className="min-w-0 sm:mr-auto">
+      <h2 className="text-lg font-semibold">{labels[kind]}</h2>
+      <p className="mt-0.5 text-sm text-text-secondary">{hints[kind]}</p>
+    </div>
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load()}>
+        Refresh list
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="primary"
+        disabled={busy || !!editor || !!enabling || !!simpleKind}
+        onClick={() => {
+          const definition = { ...examples[kind] };
+          delete definition.name;
+          setAdvancedEditing(false);
+          setStructuredEdited(false);
+          setConflict(false);
+          setCreatorRevisions({});
+          setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
+        }}
+      >
+        Create {labels[kind]}
+      </Button>
+      {kind === 'job-templates' &&
+        (['assign', 'shell'] as const).map((value) => (
+          <Button
+            key={value}
+            size="sm"
+            disabled={busy || !!editor || !!simpleKind}
+            onClick={() => setSimpleKind(value)}
+          >
+            {value === 'assign' ? 'New assign Template' : 'New shell Template'}
+          </Button>
+        ))}
+    </div>
+  </div>
+  );
   return (
     <div className="min-w-0 space-y-4">
-      <div className="flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:flex-wrap sm:items-end">
-        <div className="min-w-0 sm:mr-auto">
-          <h2 className="text-lg font-semibold">{labels[kind]}</h2>
-          <p className="mt-0.5 text-sm text-text-secondary">{hints[kind]}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load()}>
-            Refresh list
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="primary"
-            disabled={busy || !!editor || !!enabling || !!simpleKind}
-            onClick={() => {
-              const definition = { ...examples[kind] };
-              delete definition.name;
-              setAdvancedEditing(false);
-              setStructuredEdited(false);
-              setConflict(false);
-              setCreatorRevisions({});
-              setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
-            }}
-          >
-            Create {labels[kind]}
-          </Button>
-          {kind === 'job-templates' &&
-            (['assign', 'shell'] as const).map((value) => (
-              <Button
-                key={value}
-                size="sm"
-                disabled={busy || !!editor || !!simpleKind}
-                onClick={() => setSimpleKind(value)}
-              >
-                {value === 'assign' ? 'New assign Template' : 'New shell Template'}
-              </Button>
-            ))}
-        </div>
-      </div>
+      {(kind !== 'triggers' || editor) && listControls}
       {loading && (
         <div role="status" className="space-y-3">
           <p className="text-sm text-text-secondary">Loading...</p>
@@ -860,19 +895,27 @@ export function CanonicalCollection({
           hint="Create a definition to get started."
         />
       )}
-      <div className="min-w-0 divide-y divide-border-muted overflow-hidden rounded border border-border-default">
+      <RecordWorkspace flow recordKey={editor ? undefined : record?.id} detail={recordDetail}>
+      <div hidden={kind === "triggers" && !!editor} className="min-w-0 space-y-2">
+        {kind === 'triggers' && listControls}
         {items.map((item) => (
           <article
             key={item.id}
             id={item.id}
             aria-label={`${labels[kind]} ${item.name}`}
-            className={`min-w-0 flex flex-col gap-2 bg-bg-secondary/20 p-3 hover:bg-bg-tertiary/35 ${focusId === item.id ? 'ring-2 ring-accent' : ''}`}
+            className={`flex min-w-0 gap-2 rounded-lg border border-border-default bg-bg-secondary/35 p-3 ${kind === 'triggers' ? 'cursor-pointer flex-wrap items-center hover:bg-bg-tertiary/35' : 'flex-col'} ${focusId === item.id ? 'ring-2 ring-accent' : ''}`}
+            onClick={kind === 'triggers' ? event => {
+              if (event.target instanceof Element && !event.target.closest('button, a, input, select, summary')) setRecordId(item.id);
+            } : undefined}
           >
-            <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-              <h3 className="min-w-0 break-words text-base font-semibold">{item.name}</h3>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <h3 className="min-w-0 break-words text-base font-semibold">{kind === "triggers" ? <button type="button" className="text-left hover:text-accent" onClick={() => setRecordId(item.id)}>{item.name}</button> : item.name}</h3>
               <StateBadge state={item.state} />
+              {kind === 'triggers' && typeof item.description === 'string' && item.description && (
+                <p className="basis-full break-words text-sm text-text-secondary">{item.description}</p>
+              )}
             </div>
-            <details className="min-w-0 space-y-1 text-sm text-text-secondary">
+            {kind !== 'triggers' && <details className="min-w-0 space-y-1 text-sm text-text-secondary">
               <summary className="cursor-pointer">Identifiers and revisions</summary>
               <p className="break-all font-mono">{item.id}</p>
               <p>
@@ -881,8 +924,8 @@ export function CanonicalCollection({
                 <span aria-hidden> · </span>
                 State revision <span className="font-mono text-text-secondary">{item.stateRevision}</span>
               </p>
-            </details>
-            <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border-muted pt-3">
+            </details>}
+            <div className={`flex flex-wrap items-center gap-2 ${kind === 'triggers' ? 'ml-auto' : 'mt-auto border-t border-border-muted pt-3'}`}>
               {kind === 'job-templates' && (
                 <>
                   {item.state === 'draft' && (
@@ -1004,21 +1047,7 @@ export function CanonicalCollection({
                 aria-label={`Edit ${item.name}`}
                 className="max-w-full break-all"
                 disabled={busy || !!editor || !!enabling}
-                onClick={() => {
-                  setAdvancedEditing(false);
-                  setStructuredEdited(false);
-                  setConflict(false);
-                  const definition = definitionOf(kind, item);
-                  delete definition.name;
-                  const ids =
-                    (definition.creatorSelector as { ids?: string[] } | undefined)?.ids ?? [];
-                  setCreatorRevisions(
-                    Object.fromEntries(
-                      sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]),
-                    ),
-                  );
-                  setEditor({ item, name: item.name, json: JSON.stringify(definition, null, 2) });
-                }}
+                onClick={() => openEditor(item)}
               >
                 Edit
               </Button>
@@ -1049,6 +1078,7 @@ export function CanonicalCollection({
           </article>
         ))}
       </div>
+      </RecordWorkspace>
       {cursor && (
         <div className="flex justify-center">
           <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load(cursor)}>
@@ -1078,7 +1108,7 @@ function OperationStatus({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p role="status" className="min-w-0 break-words">
           {receipt
-            ? `Operation status:${receipt.status}`
+            ? `Operation status: ${receipt.status}`
             : pending.rejected
               ? 'Request rejected. Correct the fields before submitting again.'
               : 'The result is unconfirmed. Query the original identity.'}
@@ -1088,7 +1118,9 @@ function OperationStatus({
         </p>
         {receipt && <StateBadge state={receipt.status} />}
       </div>
-      <dl className="space-y-1 text-xs text-text-secondary">
+      <details open={receipt?.status !== 'completed'}>
+        <summary className="cursor-pointer text-sm text-text-secondary">Operation identifiers</summary>
+        <dl className="space-y-1 py-2 text-xs text-text-secondary">
         <div className="flex flex-wrap gap-1">
           <dt>requestKey:</dt>
           <dd className="break-all font-mono">{pending.requestKey}</dd>
@@ -1099,7 +1131,8 @@ function OperationStatus({
             <dd className="break-all font-mono">{receipt.operationId}</dd>
           </div>
         )}
-      </dl>
+        </dl>
+      </details>
       {receipt?.error && (
         <p role="alert" className="break-words text-danger">
           {canonicalErrorMessages[receipt.error.code] ?? receipt.error.code}

@@ -445,7 +445,7 @@ export function CanonicalDefinitionFields({
                   className="min-w-0 space-y-3 rounded border border-border-default p-3"
                 >
                   <legend>Step {index + 1}</legend>
-                  <p className="break-all text-xs">{String(step.stepId)}</p>
+                  <details className="text-xs text-text-secondary"><summary>Step identifier</summary><p className="break-all">{String(step.stepId)}</p></details>
                   <div className="flex gap-2">
                     <Button
                       type="button"

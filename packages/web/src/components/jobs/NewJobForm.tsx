@@ -1,3 +1,4 @@
+import { useAutomationDraft } from '@/components/automation/DraftBoundary';
 import { QqContactName, QqContactSearch } from '@/components/shared/QqContactSearch';
 import { matchesQqContact } from '@/utils/qqContactSearch';
 import { useEffect, useMemo, useState } from 'react';
@@ -111,14 +112,17 @@ function normalizeMessageSchedule(job?: Job): SessionMessageSchedule {
  */
 export function NewJobForm({
   mode = 'create',
+  schedulerBound = false,
   broadcastTargets,
   initialJob,
   submitting = false,
   kindMetas = [],
   onCreate,
   onSave,
+  onDirtyChange,
 }: {
   mode?: JobFormMode;
+  schedulerBound?: boolean;
   /** Fixed click-time targets for the compact selected-Session composer. */
   broadcastTargets?: readonly string[];
   initialJob?: Job;
@@ -126,7 +130,16 @@ export function NewJobForm({
   kindMetas?: JobKindMeta[];
   onCreate?: (input: JobCreateInput) => void;
   onSave?: (patch: JobPatchInput) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const [dirty, setDirty] = useState(false);
+  useAutomationDraft(dirty && mode === 'edit', submitting);
+  const markDirty = () => {
+    if (mode === 'edit') {
+      setDirty(true);
+      onDirtyChange?.(true);
+    }
+  };
   const editing = mode === 'edit' && !!initialJob;
   const sessions = useSessionStore((s) => s.sessions);
   const [template, setTemplate] = useState<TemplateId>('scheduled');
@@ -540,6 +553,10 @@ export function NewJobForm({
         patch.text = text.trim();
       }
       if (actionApi !== 'resume_legal_running' && actionApi !== 'send_qq') {
+        if (schedulerBound && actionApi !== 'shell' && !targetSessionId.trim()) {
+          setTargetError('Choose a target Session');
+          return;
+        }
         patch.target = { sessionId: targetSessionId.trim() || null };
       }
       patch.schedule = entries.map(buildScheduleSpec);
@@ -846,14 +863,10 @@ export function NewJobForm({
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" onChangeCapture={markDirty}>
       {templateSelector}
 
-      {broadcastTargets ? null : editing ? (
-        <Field label="Job kind (fixed)">
-          <input aria-label="Job kind" value={initialJob?.kind ?? ''} readOnly className={inputClass} />
-        </Field>
-      ) : template === 'custom' ? (
+      {!broadcastTargets && !editing && template === 'custom' ? (
         <Field label="Createable Job kind">
           <select
             aria-label="Createable Job kind"
@@ -886,6 +899,8 @@ export function NewJobForm({
         </Field>
       ) : null}
 
+      <section aria-label="What should this Job do?" className="space-y-3 rounded-lg border border-border-default bg-bg-secondary/35 p-4">
+      <h3 className="text-base font-semibold">What should this Job do?</h3>
       {!broadcastTargets && (
         <>
           <Field label={editing ? 'Name *' : 'Name'}>
@@ -912,15 +927,25 @@ export function NewJobForm({
             />
           </Field>
 
-          {sourceNote}
+          {editing ? (
+            <details className="text-sm text-text-secondary">
+              <summary className="cursor-pointer">Job type and source</summary>
+              <p className="my-2">Type {kindOptions.find(option => option.kind === kind)?.label ?? kind}</p>
+              {sourceNote}
+            </details>
+          ) : sourceNote}
         </>
       )}
 
+      </section>
       {kind === 'scheduled-task' && (
         <>
+          <section className="space-y-3 rounded-lg border border-border-default bg-bg-secondary/35 p-4">
+          <h3 className="text-base font-semibold">Task and target</h3>
           <Field label="Execution mode">
             <select
               aria-label="Execution mode"
+              disabled={schedulerBound}
               value={actionApi}
               onChange={(e) => setActionApi(e.target.value as typeof actionApi)}
               className={inputClass}
@@ -1012,9 +1037,27 @@ export function NewJobForm({
             </>
           )}
 
-          <ScheduleListEditor entries={entries} onChange={setEntries} />
-
-          <div className="flex flex-col gap-2 rounded border border-border-default bg-bg-primary p-2.5">
+          </section>
+          <section className="space-y-3 rounded-lg border border-border-default bg-bg-secondary/35 p-4" aria-label="When should this Job run?">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold">When should this Job run?</h3>
+                <p className="text-sm text-text-secondary">Choose the timing and whether the Job can run.</p>
+              </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-[11px] text-text-secondary">
+                <MiniSwitch label="Job enabled" checked={enabled} onChange={next => { setEnabled(next); markDirty(); }} />
+                Enabled
+              </label>
+              <label className="flex items-center gap-2 text-[11px] text-text-secondary">
+                <MiniSwitch label="Job paused" checked={paused} onChange={next => { setPaused(next); markDirty(); }} />
+                Paused
+              </label>
+            </div>
+            </div>
+            <ScheduleListEditor entries={entries} onChange={next => { setEntries(next); markDirty(); }} />
+            <details className="space-y-2 border-t border-border-muted pt-2">
+              <summary className="cursor-pointer text-sm font-medium">Advanced timing options</summary>
             <Field label="Max runs (blank = unlimited)">
               <input
                 aria-label="Max runs"
@@ -1046,17 +1089,8 @@ export function NewJobForm({
                 ))}
               </select>
             </Field>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-[11px] text-text-secondary">
-                <MiniSwitch label="Job enabled" checked={enabled} onChange={setEnabled} />
-                Enabled
-              </label>
-              <label className="flex items-center gap-2 text-[11px] text-text-secondary">
-                <MiniSwitch label="Job paused" checked={paused} onChange={setPaused} />
-                Paused
-              </label>
-            </div>
-          </div>
+            </details>
+          </section>
         </>
       )}
 
@@ -1182,14 +1216,14 @@ export function NewJobForm({
         </div>
       )}
 
-      {((kind === 'background-process' && !editing) || (kind === 'scheduled-task' && actionApi === 'shell')) && (
+      {((kind === 'background-process' && !editing) || (kind === 'scheduled-task' && actionApi === 'shell' && !schedulerBound)) && (
         <label className="flex items-center gap-2 text-xs text-text-secondary">
           <input type="checkbox" checked={hideWindow} onChange={(event) => setHideWindow(event.target.checked)} />
           Hide command window (Windows)
         </label>
       )}
-      {formError && <span className="text-[11px] text-danger">{formError}</span>}
-      <div className="flex items-center gap-2">
+      {formError && <p role="alert" className="text-sm text-danger">{formError}</p>}
+      <div className={editing ? 'sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border-default bg-bg-primary py-2' : 'flex items-center gap-2'}>
         <Button
           variant="primary"
           size="sm"

@@ -1,3 +1,4 @@
+import { RecordWorkspace } from '@/components/automation/RecordWorkspace';
 import { useAutomationAuth } from '@/stores/automationStore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 import { CanonicalJobEditor } from '@/components/jobs/CanonicalJobEditor';
 import { canonicalJobs } from '@/services/canonicalJobs';
-import { canonicalRequest } from '@/services/api';
+import { ApiRequestError, canonicalRequest } from '@/services/api';
 import type { CanonicalObject, JsonObject } from '@/types/canonicalJobs';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
 import { UnifiedJobForm } from '@/components/jobs/UnifiedJobForm';
@@ -58,6 +59,44 @@ import type {
   JobStatus,
 } from '@/types/jobs';
 import type { Action } from '@/types/actions';
+import { newId } from '@/types/automationJobs';
+
+type ScheduledJobProjection = {
+  canonicalJobId: string;
+  revision: number;
+  schedule: Job['schedule'];
+  enabled: boolean;
+  paused: boolean;
+  nextFireAt?: string | null;
+  action?: Job['action'];
+  targetSessionId?: string | null;
+  text?: Job['text'];
+  maxRuns?: Job['maxRuns'];
+  misfirePolicy?: Job['misfirePolicy'];
+};
+type ScheduledJobResponse = { ok: boolean; task?: ScheduledJobProjection; message?: string };
+
+function readScheduledProjection(record: ScheduledJobResponse, jobId: string) {
+  if (!record.ok || record.task?.canonicalJobId !== jobId || !Number.isInteger(record.task.revision)) {
+    throw new Error(record.message || 'Scheduler binding is unavailable for this Job.');
+  }
+  return record.task;
+}
+
+function applyScheduledProjection(job: Job, task: ScheduledJobProjection): Job {
+  const [previousEntry] = scheduleEntries(job.schedule);
+  const schedule = Array.isArray(task.schedule) ? task.schedule :
+    task.schedule && typeof task.schedule === 'object' ? [{
+      ...previousEntry, ...task.schedule, nextFireAt: task.nextFireAt ?? null,
+    }] : job.schedule;
+  return {
+    ...job, schedule, action: task.action ?? job.action, enabled: task.enabled, paused: task.paused,
+    nextFireAt: task.nextFireAt === undefined ? job.nextFireAt : task.nextFireAt,
+    target: task.targetSessionId === undefined ? job.target : { ...job.target, sessionId: task.targetSessionId },
+    text: task.text ?? job.text, maxRuns: task.maxRuns === undefined ? job.maxRuns : task.maxRuns,
+    misfirePolicy: task.misfirePolicy ?? job.misfirePolicy,
+  };
+}
 
 function isReadOnlyJob(job: Job): boolean { return Boolean(job.retirementStatus || job.unified?.compatibility); }
 function canCancelJob(job: Job): boolean {
@@ -121,24 +160,6 @@ function statusColor(status: string): string {
     default:
       return 'border-border-default bg-bg-tertiary text-text-secondary';
   }
-}
-
-function sourceSummary(job: Job): string {
-  const s = job.source;
-  if (s.type === 'plugin') return `plugin:${s.pluginName ?? '?'}`;
-  if (s.sessionId) return `${s.type}:${s.sessionId.slice(0, 8)}…`;
-  return s.type;
-}
-
-function targetSummary(job: Job): string {
-  if (job.action?.api === 'resume_legal_running') {
-    return 'dynamic: legal running Sessions without a live Worker';
-  }
-  if (job.action?.api === 'send_qq') {
-    const { targetType, targetId, botUin } = job.action.args;
-    return `QQ ${targetType} ${targetId} · ${botUin ? `bot ${botUin}` : 'default bot'}`;
-  }
-  return job.target.sessionId ?? 'no target';
 }
 
 function formatDateTime(value?: number | string | null): string {
@@ -312,9 +333,10 @@ function JobRow({
             />
           </label>
         )}
-        <div className="min-w-0 flex-1 truncate text-sm text-text-primary" title={job.name}>
+        <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-medium text-text-primary hover:text-accent focus-visible:outline-2 focus-visible:outline-accent" title={job.name}
+          onClick={event => { event.stopPropagation(); onOpen(); }}>
           {job.name}
-        </div>
+        </button>
         {job.label && <span title={job.label} className="min-w-0 max-w-[28%] truncate rounded border border-accent/50 bg-accent/10 px-1.5 py-px text-[11px] font-medium text-accent">{job.label}</span>}
         {canCancelJob(job) && <button type="button" disabled={cancelling || selectionDisabled} onClick={(e) => { e.stopPropagation(); onCancel(); }} className="shrink-0 rounded border border-warning/50 px-1.5 py-1 text-[11px] text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
         {!pinUnavailable && job.pinned && <span title="Pinned" aria-label="Pinned" className="shrink-0 text-accent"><Pin size={14} /></span>}
@@ -420,11 +442,8 @@ function JobRow({
           {job.retirementStatus ?? (job.unified?.compatibility ? 'Retired' : job.kind === 'background-process' && !job.argv ? 'Action' : kindLabel)}
         </span>
 
-        <span>
-          {sourceSummary(job)} → {targetSummary(job)}
-        </span>
         {next && <span>next {formatDateTime(next)}</span>}
-        <span>{lastResultSummary(job)}</span>
+        <span className={job.lastError ? "break-words text-danger" : undefined}>{job.lastError || lastResultSummary(job)}</span>
         {backlog > 0 && (
           <span className="rounded border border-warning/50 bg-warning/10 px-1 py-px text-[10px] text-warning">
             {backlog} backlogged
@@ -545,6 +564,11 @@ export default function JobsView() {
   const [changeTargetJobId, setChangeTargetJobId] = useState<string | null>(null);
   const [newTargetId, setNewTargetId] = useState('');
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
+  const [scheduleDetail, setScheduleDetail] = useState<ScheduledJobProjection>();
+  const [scheduledProjection, setScheduledProjection] = useState<ScheduledJobProjection>();
+  const [schedulerEditError, setSchedulerEditError] = useState('');
+  const [jobSaveError, setJobSaveError] = useState('');
+  const scheduleIntent = useRef<{ body: string; key: string } | null>(null);
   const [editJobId, setEditJobId] = useState<string | null>(null);
   const [editSnapshot, setEditSnapshot] = useState<Job | null>(null);
 
@@ -639,15 +663,15 @@ export default function JobsView() {
     }
   }, [allJobs]);
 
+  const selectedCanonicalId = jobs.find(job => job.jobId === selectedJobId && !isReadOnlyJob(job))?.jobId;
   // Resolve only the selected Job and its fixed Action versions; never fetch per row.
   useEffect(() => {
     setCanonicalDetail(null); setDetailState('idle');
-    const current = useJobStore.getState().jobs.find((job) => job.jobId === selectedJobId);
-    if (!selectedJobId || !current || isReadOnlyJob(current)) return;
+    if (!selectedCanonicalId) return;
     setDetailState('loading');
     let active = true;
     void (async () => {
-      const job = await canonicalJobs.get('jobs', selectedJobId);
+      const job = await canonicalJobs.get('jobs', selectedCanonicalId);
       const steps = Array.isArray(job.steps) ? job.steps as JsonObject[] : [];
       const refs = steps.map(step => step.actionRef as JsonObject).filter(ref => ref && typeof ref.id === 'string');
       const unique = Array.from(new Set(refs.map(ref => String(ref.id))));
@@ -666,7 +690,7 @@ export default function JobsView() {
       if (active) { setCanonicalDetail({ job, actions, missing }); setDetailState('ready'); }
     })().catch(() => { if (active) { setCanonicalDetail(null); setDetailState('error'); } });
     return () => { active = false; };
-  }, [selectedJobId, authorizationToken, detailGeneration]);
+  }, [selectedCanonicalId, authorizationToken, detailGeneration]);
 
   // 详情 runs：随选中 job / limit 拉取。
   useEffect(() => {
@@ -764,11 +788,49 @@ export default function JobsView() {
     [sessions],
   );
 
-  const selectedJob = jobs.find((j) => j.jobId === selectedJobId) ?? null;
+  const selectedJobSource = jobs.find((j) => j.jobId === selectedJobId) ?? null;
+  const activeRecord = useRef(selectedJobId);
+  activeRecord.current = selectedJobId;
+  const scheduledJobId = selectedJobSource && selectedJobSource.kind === 'scheduled-task' &&
+    !isUnifiedJob(selectedJobSource) && !isReadOnlyJob(selectedJobSource) && scheduleEntries(selectedJobSource.schedule).length ? selectedJobSource.jobId : undefined;
+  const selectedJob = selectedJobSource && scheduleDetail?.canonicalJobId === selectedJobSource.jobId
+    ? applyScheduledProjection(selectedJobSource, scheduleDetail) : selectedJobSource;
+  useEffect(() => {
+    if (!scheduledJobId || !authorizationToken) return;
+    const cancel = new AbortController();
+    void canonicalRequest<ScheduledJobResponse>('scheduler/tasks/' + encodeURIComponent(scheduledJobId), 'GET', undefined, cancel.signal)
+      .then(response => {
+        if (!cancel.signal.aborted && response.ok && response.task?.canonicalJobId === scheduledJobId) setScheduleDetail(response.task);
+      })
+      .catch(() => { /* The Job detail keeps the existing projection if the Scheduler read fails. */ });
+    return () => cancel.abort();
+  }, [scheduledJobId, authorizationToken]);
+
   const changeTargetJob = jobs.find((j) => j.jobId === changeTargetJobId) ?? null;
   const deleteJob = jobs.find((j) => j.jobId === deleteJobId) ?? null;
   // An open draft and its CAS revision are one snapshot. A WS refresh may update
   // the list, but cannot promote the revision attached to unsaved input.
+  async function openJobEditor(job: Job) {
+    let snapshot = structuredClone(job);
+    setSchedulerEditError('');
+    setJobSaveError('');
+    if (job.kind === 'scheduled-task' && !isUnifiedJob(job) && !isReadOnlyJob(job) && scheduleEntries(job.schedule).length) {
+      try {
+        const response = await canonicalRequest<ScheduledJobResponse>('scheduler/tasks/' + encodeURIComponent(job.jobId));
+        const task = readScheduledProjection(response, job.jobId);
+        if (activeRecord.current !== job.jobId) return;
+        setScheduledProjection(task);
+        snapshot = applyScheduledProjection(snapshot, task);
+      } catch (error) {
+        if (activeRecord.current === job.jobId) setSchedulerEditError(errMsg(error));
+        return;
+      }
+    } else setScheduledProjection(undefined);
+    scheduleIntent.current = null;
+    setEditSnapshot(snapshot);
+    setEditJobId(job.jobId);
+  }
+
   const editJob = editSnapshot?.jobId === editJobId ? editSnapshot : null;
   const firstRef = canonicalDetail && Array.isArray(canonicalDetail.job.steps) ? (canonicalDetail.job.steps[0] as JsonObject | undefined)?.actionRef as JsonObject | undefined : undefined;
   const isActionJob = !!firstRef?.id && selectedJob?.kind === 'background-process' && !Array.isArray(selectedJob.argv);
@@ -889,6 +951,7 @@ export default function JobsView() {
     async (jobId: string) => {
       if (bulkActionRef.current) return;
       setSelectedJobId(jobId);
+      setSchedulerEditError('');
       setRunsLimit(RUNS_PAGE);
       try {
         upsertJob(await fetchJob(jobId));
@@ -915,13 +978,42 @@ export default function JobsView() {
 
   const handleUpdate = async (jobId: string, patch: JobPatchInput) => {
     setSubmitting(true);
+    setJobSaveError('');
     try {
-      const job = await patchJob(jobId, patch);
-      upsertJob(job);
+      if (scheduledProjection?.canonicalJobId === jobId) {
+        const { action: _action, target, schedule, enabled, ...fields } = patch;
+        const [single] = Array.isArray(schedule) ? schedule : [];
+        const replaceSingle = single && Array.isArray(schedule) && schedule.length === 1 &&
+          !Array.isArray(scheduledProjection.schedule) && single.graceSec == null &&
+          (single.enabled == null || single.enabled === enabled) &&
+          (single.misfirePolicy == null || single.misfirePolicy === patch.misfirePolicy);
+        // The existing single-entry update preserves the clock rule identity.
+        // Explicit entry options and multiple entries use the Scheduler bulk contract.
+        const body = {
+          ...fields,
+          schedule: replaceSingle ? single : schedule,
+          enabled: enabled === scheduledProjection.enabled ? undefined : enabled,
+          targetSessionId: target?.sessionId && target.sessionId !== editSnapshot?.target.sessionId ? target.sessionId : undefined,
+          expectedRevision: scheduledProjection.revision,
+        };
+        const serialized = JSON.stringify(body);
+        const existing = scheduleIntent.current;
+        if (existing && existing.body !== serialized) throw new Error('Retry the original changes or reload the Scheduler before editing again.');
+        const requestKey = existing?.key ?? newId('scheduler-config');
+        scheduleIntent.current = { body: serialized, key: requestKey };
+        const response = await canonicalRequest<ScheduledJobResponse>('scheduler/tasks/' + encodeURIComponent(jobId), 'PATCH', { ...body, requestKey });
+        if (!response.ok) scheduleIntent.current = null;
+        const task = readScheduledProjection(response, jobId);
+        scheduleIntent.current = null;
+        setScheduleDetail(task);
+        if (editSnapshot) upsertJob(applyScheduledProjection({ ...editSnapshot, name: patch.name ?? editSnapshot.name, description: patch.description ?? editSnapshot.description }, task));
+      } else upsertJob(await patchJob(jobId, patch));
+      dirtyEditor.current = false;
       setEditJobId(null);
-      showToast(`Saved job "${job.name}"`);
+      showToast(`Saved Job "${patch.name ?? jobId}"`);
     } catch (e) {
-      showToast(errMsg(e), 'error');
+      if (e instanceof ApiRequestError && [400, 401, 403, 404, 409, 422].includes(e.status)) scheduleIntent.current = null;
+      setJobSaveError(errMsg(e));
     } finally {
       setSubmitting(false);
     }
@@ -1057,8 +1149,39 @@ export default function JobsView() {
     }
   };
 
+  const detailJob = selectedJob && tab === 'list' && !dialogOpen ? selectedJob : null;
+  const jobDetail = selectedJob && (
+    <div className="mx-auto w-full max-w-4xl p-3 sm:p-4">
+      {schedulerEditError && <Notice tone="danger" role="alert">{schedulerEditError}</Notice>}
+            <JobDetailDrawer inline
+              job={selectedJob}
+              canonicalDetail={canonicalDetail?.job.id === selectedJob.jobId ? canonicalDetail : null}
+              isActionJob={isActionJob}
+              definitionStatus={detailState}
+              onCanonicalChanged={async () => { await loadJobs(); setDetailGeneration((v) => v + 1); }}
+              kindLabel={isActionJob ? 'Action Job' : labelFor(selectedJob.kind)}
+              runs={runs}
+              runsLoading={runsLoading}
+              runsError={runsError}
+              onRetryRuns={() => setRunsGeneration((value) => value + 1)}
+              onLoadMoreRuns={() => setRunsLimit((n) => n + RUNS_PAGE)}
+              onClose={() => setSelectedJobId(null)}
+              onRunNow={() => void handleRunNow(selectedJob)}
+              onTogglePaused={() => void handleTogglePaused(selectedJob)}
+              onCancel={() => void handleCancel(selectedJob)}
+              cancelling={cancellingIds.has(selectedJob.jobId)}
+              onDelete={() => setDeleteJobId(selectedJob.jobId)}
+              onChangeTarget={() => openChangeTarget(selectedJob)}
+              onEdit={() => void openJobEditor(selectedJob)}
+              onToggleEntryEnabled={(entryId) => void handleToggleEntry(selectedJob, entryId)}
+              onRetry={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'retry') : undefined}
+              onConfirmRecovery={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'confirm-recovery') : undefined}
+            />
+    </div>
+  );
+
   function canLeaveJobs() {
-    if (pendingEditor.current) return false;
+    if (pendingEditor.current || submitting) return false;
     // The canonical editor already participates in the route draft boundary.
     if ((editJob && isActionJob) || (tab === 'create' && createMode === 'action')) return true;
     return !dirtyEditor.current || window.confirm('Discard unsaved Job configuration?');
@@ -1144,8 +1267,9 @@ export default function JobsView() {
           <div className="mx-auto w-full max-w-4xl p-4">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><p className="text-xs uppercase tracking-wider text-text-tertiary">Job configuration</p><h2 className="text-xl font-semibold text-text-primary">Edit {editJob.name}</h2></div>
-              <Button variant="ghost" size="sm" disabled={editorPending} onClick={() => { if (!pendingEditor.current && (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?'))) { dirtyEditor.current = false; setEditJobId(null); } }}>Cancel</Button>
+              <Button variant="ghost" size="sm" disabled={editorPending || submitting} onClick={() => { if (!pendingEditor.current && (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?'))) { dirtyEditor.current = false; setEditJobId(null); } }}>Cancel</Button>
             </div>
+            {jobSaveError && <div className="mb-4"><Notice tone="danger" role="alert">{jobSaveError}</Notice></div>}
             {isUnifiedJob(editJob) && <JobUserAuthorization compact />}
             {isActionJob && canonicalDetail?.job.id === editJob.jobId ? <CanonicalJobEditor key={editJob.jobId} item={canonicalDetail.job} onDirtyChange={editorDirtyChange} onPendingChange={editorPendingChange} onSaved={async () => { editorPendingChange(false); dirtyEditor.current = false; setEditJobId(null); await loadJobs(); setDetailGeneration((v) => v + 1); }} /> : editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
               key={editJob.jobId}
@@ -1156,40 +1280,12 @@ export default function JobsView() {
               submitting={submitting}
               onSubmit={(config) => handleUnifiedUpdate(editJob, config)}
               submitLabel="Save Job"
-            /> : <NewJobForm key={editJob.jobId} mode="edit" initialJob={editJob} kindMetas={kindMetas} submitting={submitting} onSave={(patch) => void handleUpdate(editJob.jobId, patch)} />}
-          </div>
-        </div>
-      ) : selectedJob && tab === 'list' && !dialogOpen ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-4xl p-4">
-            <JobDetailDrawer inline
-              job={selectedJob}
-              canonicalDetail={canonicalDetail?.job.id === selectedJob.jobId ? canonicalDetail : null}
-              isActionJob={isActionJob}
-              definitionStatus={detailState}
-              onCanonicalChanged={async () => { await loadJobs(); setDetailGeneration((v) => v + 1); }}
-              kindLabel={isActionJob ? 'Action Job' : labelFor(selectedJob.kind)}
-              runs={runs}
-              runsLoading={runsLoading}
-              runsError={runsError}
-              onRetryRuns={() => setRunsGeneration((value) => value + 1)}
-              onLoadMoreRuns={() => setRunsLimit((n) => n + RUNS_PAGE)}
-              onClose={() => setSelectedJobId(null)}
-              onRunNow={() => void handleRunNow(selectedJob)}
-              onTogglePaused={() => void handleTogglePaused(selectedJob)}
-              onCancel={() => void handleCancel(selectedJob)}
-              cancelling={cancellingIds.has(selectedJob.jobId)}
-              onDelete={() => setDeleteJobId(selectedJob.jobId)}
-              onChangeTarget={() => openChangeTarget(selectedJob)}
-              onEdit={() => { setEditSnapshot(structuredClone(selectedJob)); setEditJobId(selectedJob.jobId); }}
-              onToggleEntryEnabled={(entryId) => void handleToggleEntry(selectedJob, entryId)}
-              onRetry={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'retry') : undefined}
-              onConfirmRecovery={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'confirm-recovery') : undefined}
-            />
+            /> : <NewJobForm key={editJob.jobId} mode="edit" initialJob={editJob} onDirtyChange={editorDirtyChange} schedulerBound={scheduledProjection?.canonicalJobId === editJob.jobId} kindMetas={kindMetas} submitting={submitting} onSave={(patch) => void handleUpdate(editJob.jobId, patch)} />}
           </div>
         </div>
       ) : tab === 'list' || tab === 'legacy' ? (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <RecordWorkspace recordKey={detailJob?.jobId} detail={jobDetail}>
+        <div className="flex h-full min-h-0 flex-1 flex-col">
           {/* Keep filters, search, selection actions, and counts visible while rows scroll. */}
           <div className="shrink-0 border-b border-border-muted bg-bg-primary">
             <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-2 px-4 py-3">
@@ -1441,6 +1537,7 @@ export default function JobsView() {
             </div>
           </div>
         </div>
+        </RecordWorkspace>
       ) : tab === 'create' ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-4xl p-4">

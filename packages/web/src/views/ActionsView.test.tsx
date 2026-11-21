@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { LegacyActionsView as ActionsView } from './ActionsView';
 import { actionRequest, canonicalRequest } from '@/services/api';
 import { resetActionCachesForTests } from '@/stores/actionRegistryStore';
@@ -210,7 +210,7 @@ describe('Action create, edit and duplicate', () => {
     await renderList();
     const before = structuredClone(registry);
     fireEvent.click(screen.getByRole('button', {name: 'Inspect List Sessions'}));
-    expect(screen.getByText('Invalid / Retired')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Preserved source record' })).getByText('Invalid / Retired')).toBeTruthy();
     expect(screen.queryByRole('button', {name: 'Save Action'})).toBeNull();
     expect(screen.getByText(/Legacy definitions are read-only/)).toBeTruthy();
     expect(invoke.mock.calls.some(([, method]) => method === 'PUT' || method === 'POST')).toBe(false);
@@ -258,7 +258,7 @@ describe('Action create, edit and duplicate', () => {
     registry.groups = [makeBuiltGroup()]; const before = structuredClone(registry);
     await renderList(); fireEvent.click(screen.getByRole('button', {name: /^Groups/}));
     fireEvent.click(screen.getByRole('button', {name: 'Inspect Tools'}));
-    expect(screen.getByText('Invalid / Retired')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Preserved source record' })).getByText('Invalid / Retired')).toBeTruthy();
     expect(screen.queryByRole('button', {name: 'Build'})).toBeNull();
     expect(screen.queryByRole('button', {name: 'Use in Session'})).toBeNull();
     expect(registry).toEqual(before);
@@ -305,7 +305,7 @@ describe('Action create, edit and duplicate', () => {
     await renderList();
     expect(screen.getByRole('button', {name: 'Inspect List Sessions copy'})).toBeTruthy();
     fireEvent.click(screen.getByRole('button', {name: 'Inspect List Sessions'}));
-    expect(screen.getByText('Invalid / Retired')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Preserved source record' })).getByText('Invalid / Retired')).toBeTruthy();
     expect(registry.actions.map((item) => item.id)).toEqual(['list_sessions', 'list_sessions_copy']);
     expect(invoke.mock.calls.some(([, method]) => method === 'POST')).toBe(false);
   });

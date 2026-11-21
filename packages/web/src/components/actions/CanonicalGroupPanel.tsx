@@ -41,6 +41,8 @@ export function CanonicalGroupPanel({
   onInspect,
   onSelectAction,
   onClose,
+  draftMode = true,
+  onEditDraft,
 }: {
   row: UnifiedGroupRow;
   catalog: UnifiedActionRow[];
@@ -49,6 +51,8 @@ export function CanonicalGroupPanel({
   onChanged: () => Promise<void>;
   onInspect: (ref: JsonObject) => void;
   onSelectAction: (actionId: string) => void;
+  draftMode?: boolean;
+  onEditDraft?: () => void;
   onClose?: () => void;
 }) {
   const [name, setName] = useState(row.name);
@@ -224,7 +228,17 @@ export function CanonicalGroupPanel({
         <p className="text-[11px] text-text-tertiary">revision {String(row.revision ?? '—')}</p>
       </header>
 
-      <Section
+      {!draftMode && (
+        <Section title="Draft tools" actions={<Button variant="primary" onClick={onEditDraft}>Edit Group</Button>}>
+          {row.tools.length ? row.tools.map(tool => (
+            <div key={tool.alias} className="flex flex-wrap items-center justify-between gap-2">
+              <span className="break-all">{tool.alias}</span>
+              <Button size="sm" variant="ghost" onClick={() => onSelectAction(text(tool.actionRef.id))}>Inspect Action</Button>
+            </div>
+          )) : <p className="text-sm text-text-secondary">No tools added.</p>}
+        </Section>
+      )}
+      {draftMode && <Section
         title="Draft and fixed versions"
         description="Each tool pins an Action version (revision + digest). Switching versions updates the draft. Build explicitly to publish a new release."
         actions={
@@ -353,7 +367,7 @@ export function CanonicalGroupPanel({
           </Button>
           <span>Unbuild and remove references and Session bindings before deleting.</span>
         </div>
-      </Section>
+      </Section>}
 
       <Section
         title="Fixed releases and Session bindings"

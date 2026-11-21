@@ -122,15 +122,12 @@ export function MiniSwitch({
       aria-label={label}
       title={checked ? 'Click to disable' : 'Click to enable'}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex w-8 h-[18px] shrink-0 rounded-full transition-colors ${
-        checked ? 'bg-accent' : 'bg-bg-hover'
-      }`}
+      style={{ minHeight: 44 }}
+      className="inline-flex min-w-11 shrink-0 items-center justify-center rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
-      <span
-        className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform ${
-          checked ? 'translate-x-[14px]' : 'translate-x-0'
-        }`}
-      />
+      <span aria-hidden="true" data-testid="schedule-switch-track" className={`relative block h-[22px] w-[38px] shrink-0 rounded-full transition-colors ${checked ? 'bg-accent' : 'bg-bg-hover'}`}>
+        <span className={`absolute left-[3px] top-[3px] size-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      </span>
     </button>
   );
 }
@@ -439,9 +436,10 @@ function ScheduleEntryEditor({
             </Field>
           )}
 
-          <div className="text-[11px] text-text-tertiary">
-            cron: <code className="font-mono text-text-secondary">{simpleToCron(simpleSpec)}</code>
-          </div>
+          <details className="text-xs text-text-secondary">
+            <summary className="cursor-pointer">Cron representation</summary>
+            <code className="font-mono">{simpleToCron(simpleSpec)}</code>
+          </details>
         </div>
       )}
 
@@ -538,7 +536,18 @@ function ScheduleEntryEditor({
         </>
       )}
 
-      <div className="flex flex-wrap gap-2">
+        <Field label="Timezone">
+          <input
+            aria-label="Timezone"
+            value={entry.timezone}
+            onChange={(e) => onChange({ ...entry, timezone: e.target.value })}
+            placeholder={DEFAULT_TIMEZONE}
+            className={inputClass}
+          />
+        </Field>
+      <details className="border-t border-border-muted pt-2">
+        <summary className="cursor-pointer text-sm font-medium">Missed-run settings</summary>
+        <div className="mt-2 flex flex-wrap gap-2">
         <Field label="Missed fire">
           <select
             aria-label="Missed fire"
@@ -552,15 +561,6 @@ function ScheduleEntryEditor({
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Timezone">
-          <input
-            aria-label="Timezone"
-            value={entry.timezone}
-            onChange={(e) => onChange({ ...entry, timezone: e.target.value })}
-            placeholder={DEFAULT_TIMEZONE}
-            className={inputClass}
-          />
         </Field>
         <Field label="Misfire grace (seconds; blank uses default)">
           <input
@@ -576,7 +576,8 @@ function ScheduleEntryEditor({
             className={inputClass}
           />
         </Field>
-      </div>
+        </div>
+      </details>
 
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px]">
         <span className="text-text-tertiary">Next {preview.length} fires</span>
