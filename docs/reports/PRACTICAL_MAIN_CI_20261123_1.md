@@ -43,3 +43,9 @@ Original Pan Jobs provide terminal notifications; no OS watcher/polling. Both ol
 - Final Behavior HTTP/production Chromium Job `job_f67fc123c3c293adc55677e7`: exit 0, 4 passed/0 skipped. Explicit fixture login, persisted cold reload, two-page Behavior settings, terminal classification policy and Search-to-real-control jump verified. XML `.tmp/practical-main-ci/behavior-live-v4.xml`. Core/classification/auth/lifecycle/standalone-script 143 passing cases are retained from prior Job; not a claim of a final full backend run.
 
 Normal hooks and remote exact-SHA gate results follow in continuation evidence. No test assertion, CI shard/matrix or unknown policy was weakened.
+
+## Scope revision 2
+
+MA added only committed increment `caea000fb52b303bb2240a9e14303727ccdd0f68` (parent b16c06f2), restricted to `scripts/codex_limit_rotate.py` and its test file. Port stale-observation dedupe correction, read-only ledger preflight and redacted scan_complete output. No local watcher configuration/ledger copied and no real watcher started. Directed isolated Job `job_7b7ee71954c87fcacd232cc3` exit 0; XML `.tmp/practical-main-ci/codex-rev2.xml`.
+
+Initial combination commit `b697958f0268552ca39b8ffd724379983a4c6121` is based directly on frozen main. Normal hook Job `job_a966f13de93bbdddb518bd3b` succeeded (React TypeScript check enabled). Original revisions and red/green evidence remain preserved. Remote tests workflow includes 3.12/3.14 full-collection two-shard verification gates, three platform-fast gates, authenticated Ubuntu production browser, and both Windows ownership/lifecycle combinations. Authentication workflow supplies its three-OS contract gates. Both will be dispatched on the final candidate ref and checked for exact headSha and actual job conclusions.

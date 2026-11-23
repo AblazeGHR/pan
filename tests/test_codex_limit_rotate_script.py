@@ -3,6 +3,10 @@ import copy
 import json
 import secrets
 import threading
+import subprocess
+import sys
+import os
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -139,6 +143,102 @@ def test_cursor_terminal_inventory_and_process_recovery(service, tmp_path):
     rotate.observe(api, recovered)
     assert len(recovered.data["batches"]) == 1
     assert not state["posts"]
+
+
+def test_stale_sample_does_not_suppress_terminal_match(service, tmp_path):
+    api, state = service
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    transient, terminal = issue('transient'), issue('terminal')
+    state['events'] = [{'seq': 1, 'event': transient}, {'seq': 2, 'event': terminal}]
+    state['details']['s1'] = detail(terminal)
+    rotate.observe(api, ledger)
+    assert ledger.data['seen']['transient']['outcome'] == 'stale'
+    assert ledger.data['seen']['terminal']['outcome'] == 'matched'
+    assert len(ledger.data['batches']) == 1
+    assert not state['posts']
+
+
+def test_legacy_match_without_batch_stays_unreplayed_and_reported(service, tmp_path, capsys):
+    api, state = service
+    path = tmp_path / 'ledger.json'
+    original = {'version': 1, 'cursor': 10, 'pending': {}, 'batches': [], 'seen': {
+        'old-stale': {'outcome': 'stale', 'sessionId': 's1', 'terminalKey': 'term1'},
+        'old-match': {'outcome': 'matched', 'sessionId': 's1', 'terminalKey': 'term1'}}}
+    path.write_text(json.dumps(original), encoding='utf-8')
+    before = path.read_bytes()
+    assert rotate.main(['--ledger', str(path), '--preflight-ledger']) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report['historicalMatchesWithoutBatch'][0]['issueId'] == 'old-match'
+    assert path.read_bytes() == before
+    event = issue('new-sample')
+    state['events'] = [{'seq': 11, 'event': event}]
+    state['details']['s1'] = detail(event)
+    ledger = rotate.Ledger(path, True)
+    rotate.observe(api, ledger)
+    assert not ledger.data['batches'] and ledger.data['cursor'] == 11
+    assert not state['posts']
+
+
+def test_existing_unknown_batch_still_deduplicates(service, tmp_path):
+    api, state = service
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    ledger.data['batches'].append({'status': 'unknown', 'workers': {},
+        'targets': [{'targetSessionId': 's1', 'terminalKey': 'term1'}]})
+    ledger.data['seen']['old'] = {'outcome': 'stale', 'sessionId': 's1', 'terminalKey': 'term1'}
+    event = issue('terminal')
+    state['events'] = [{'seq': 1, 'event': event}]
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    assert len(ledger.data['batches']) == 1
+    assert ledger.data['batches'][0]['status'] == 'unknown' and not state['posts']
+    assert rotate.preflight_ledger(ledger.data)['unresolvedBatches'][0]['batchIndex'] == 0
+
+
+def test_first_scan_emits_sanitized_health(service, tmp_path):
+    api, state = service
+    script = rotate.__file__
+    result = subprocess.run([sys.executable, '-B', script, '--api', api.base,
+        '--ledger', str(tmp_path / 'ledger.json'), '--bridge-data', str(tmp_path / 'bridge')],
+        capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0
+    health = json.loads(result.stdout)
+    assert health['event'] == 'scan_complete' and health['cursor'] == 0
+    assert health['pendingCount'] == health['batchCount'] == 0
+    assert not (tmp_path / 'ledger.json').exists() and not state['posts']
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='candidate launcher targets Windows PowerShell')
+def test_candidate_launcher_first_scan_and_single_owner(service, tmp_path):
+    api, state = service
+    launcher = 'D:/project/Pan/.workflow/codex-rotation-incident-20261123/run-live.candidate.ps1'
+    command = ['powershell.exe', '-NoProfile', '-File', launcher, '-Python', sys.executable,
+               '-Script', rotate.__file__, '-Api', api.base, '-Ledger', str(tmp_path / 'ledger.json'),
+               '-Bridge', str(tmp_path / 'bridge'), '-OwnerLock', str(tmp_path / 'owner.lock'),
+               '-IntervalSeconds', '30']
+    output = tmp_path / 'watch.log'
+    with output.open('w', encoding='utf-8') as stream:
+        proc = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT,
+                                creationflags=subprocess.CREATE_NO_WINDOW)
+        try:
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                if output.exists() and 'scan_complete' in output.read_text(encoding='utf-8', errors='replace'):
+                    break
+                if proc.poll() is not None:
+                    pytest.fail('candidate watcher exited before first scan')
+                time.sleep(.05)
+            else:
+                pytest.fail('candidate watcher did not report the first scan')
+            other = subprocess.run(command, capture_output=True, text=True, timeout=15,
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
+            assert other.returncode != 0
+            assert 'owner lock' in other.stderr
+            assert not state['posts']
+        finally:
+            proc.terminate()
+            proc.wait(timeout=10)
 
 
 def test_nonterminal_then_terminal_and_conflicts(service, tmp_path):

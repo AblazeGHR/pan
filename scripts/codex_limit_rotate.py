@@ -321,8 +321,11 @@ def observe(api, ledger):
             last = detail["lastResult"]
             terminal_key = last["terminalKey"]
             # Several issue samples belonging to the same terminal count once.
-            if not any(v.get("terminalKey") == terminal_key and v.get("sessionId") == detail["id"]
-                       for v in state["seen"].values()):
+            seen_terminal = any(v.get("terminalKey") == terminal_key and v.get("sessionId") == detail["id"]
+                                and v.get("outcome") != "stale" for v in state["seen"].values())
+            batched_terminal = any(t.get("terminalKey") == terminal_key and t.get("targetSessionId") == detail["id"]
+                                   for batch in state["batches"] for t in batch.get("targets", []))
+            if not seen_terminal and not batched_terminal:
                 inventory = api.inventory()
                 c = issue["correlation"]
                 target = inventory.get(c["sessionId"])
@@ -549,13 +552,55 @@ def reconcile(api, bridge, ledger, now=time.time):
             ledger.save()
 
 
+def preflight_ledger(state):
+    """Identify historical matches without changing or replaying the ledger."""
+    rows = []
+    for iid, entry in state['seen'].items():
+        if not isinstance(entry, dict) or entry.get('outcome') != 'matched':
+            continue
+        sid, terminal = entry.get('sessionId'), entry.get('terminalKey')
+        found = any(t.get('targetSessionId') == sid and t.get('terminalKey') == terminal
+                    for b in state['batches'] for t in b.get('targets', []))
+        if not found:
+            rows.append({'issueId': iid, 'sessionId': sid, 'terminalKey': terminal,
+                         'status': 'manual_reconciliation_required'})
+    unresolved = []
+    for index, batch in enumerate(state['batches']):
+        restart = [w.get('restart', {}).get('status') for w in batch.get('workers', {}).values()]
+        continuation = [t.get('continuation', {}).get('status') for t in batch.get('targets', [])
+                        if isinstance(t.get('continuation'), dict)]
+        if (batch.get('status') in {'unknown', 'switching', 'identity_conflict'}
+                or any(s in {'unknown', 'unknown_duplicate', 'dispatching'} for s in restart + continuation)):
+            unresolved.append({'batchIndex': index, 'status': batch.get('status'),
+                               'restartStatuses': restart, 'continuationStatuses': continuation})
+    return {'version': state['version'], 'cursor': state['cursor'],
+            'pendingCount': len(state['pending']), 'batchCount': len(state['batches']),
+            'pendingIssueIds': list(state['pending']), 'unresolvedBatches': unresolved,
+            'historicalMatchesWithoutBatch': rows,
+            'instruction': 'No replay or absence of external effects is inferred.'}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--api", required=True, help="explicit Pan base URL")
+    parser.add_argument("--api", help="explicit Pan base URL")
     parser.add_argument("--ledger", required=True, type=Path, help="dedicated durable ledger")
-    parser.add_argument("--bridge-data", required=True, type=Path, help="cc-switch bridge data directory")
+    parser.add_argument("--bridge-data", type=Path, help="cc-switch bridge data directory")
+    parser.add_argument("--preflight-ledger", action="store_true", help="read-only historical reconciliation list; no network or writes")
     parser.add_argument("--execute", action="store_true", help="enable ledger and account/Worker effects")
     args = parser.parse_args(argv)
+    if args.preflight_ledger:
+        if args.execute:
+            parser.error('--preflight-ledger cannot be combined with --execute')
+        try:
+            if not args.ledger.is_file():
+                raise Uncertain('ledger not found')
+            print(json.dumps(preflight_ledger(Ledger(args.ledger, False).data), ensure_ascii=False))
+            return 0
+        except (OSError, ValueError, KeyError, TypeError, Uncertain) as exc:
+            print(f'preflight stopped: {type(exc).__name__}', file=sys.stderr)
+            return 1
+    if not args.api or not args.bridge_data:
+        parser.error('--api and --bridge-data are required for scanning')
     try:
         with ledger_lock(args.ledger, args.execute):
             ledger = Ledger(args.ledger, args.execute)
@@ -569,7 +614,11 @@ def main(argv=None):
                 bridge = Bridge(str(args.bridge_data))
                 inspect_quota(ledger, bridge)
                 reconcile(api, bridge, ledger)
-            print(json.dumps(ledger.data, ensure_ascii=False, sort_keys=True))
+            print(json.dumps({'event': 'scan_complete', 'cursor': ledger.data['cursor'],
+                'pendingCount': len(ledger.data['pending']), 'seenCount': len(ledger.data['seen']),
+                'batchCount': len(ledger.data['batches']),
+                'batchStatuses': [b.get('status', 'unknown') for b in ledger.data['batches']]},
+                ensure_ascii=False), flush=True)
     except (OSError, ValueError, Uncertain) as exc:
         print(f"observation stopped: {exc}", file=sys.stderr)
         return 1
