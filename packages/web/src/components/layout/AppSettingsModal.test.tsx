@@ -137,6 +137,27 @@ function tabLabels(): string[] {
   );
 }
 
+function setTabScrollMetrics(
+  tabList: HTMLElement,
+  metrics: { clientWidth: number; scrollWidth: number; scrollLeft?: number },
+) {
+  let scrollLeft = metrics.scrollLeft ?? 0;
+  Object.defineProperty(tabList, 'clientWidth', { configurable: true, get: () => metrics.clientWidth });
+  Object.defineProperty(tabList, 'scrollWidth', { configurable: true, get: () => metrics.scrollWidth });
+  Object.defineProperty(tabList, 'scrollLeft', {
+    configurable: true,
+    get: () => scrollLeft,
+    set: (value: number) => { scrollLeft = value; },
+  });
+  return () => scrollLeft;
+}
+
+function wheelOn(target: EventTarget, init: WheelEventInit = {}) {
+  const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init });
+  target.dispatchEvent(event);
+  return event;
+}
+
 describe('AppSettingsModal', () => {
   beforeEach(() => {
     scrollIntoViewMock.mockClear();
@@ -712,6 +733,67 @@ describe('AppSettingsModal', () => {
     fireEvent.keyDown(tabs[9]!, { key: 'Home' });
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     expect(panel.getAttribute('aria-labelledby')).toBe('app-settings-tab-lifecycle');
+  });
+
+  it('turns an ordinary vertical mouse wheel into horizontal tab scrolling', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const tabList = document.body.querySelector<HTMLElement>('[role="tablist"]')!;
+    const getScrollLeft = setTabScrollMetrics(tabList, { clientWidth: 300, scrollWidth: 900 });
+
+    expect(wheelOn(tabList, { deltaY: 120 }).defaultPrevented).toBe(true);
+    expect(getScrollLeft()).toBe(120);
+    expect(wheelOn(tabList, { deltaY: -40 }).defaultPrevented).toBe(true);
+    expect(getScrollLeft()).toBe(80);
+  });
+
+  it('normalizes line and page wheel delta modes', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const tabList = document.body.querySelector<HTMLElement>('[role="tablist"]')!;
+    const getScrollLeft = setTabScrollMetrics(tabList, { clientWidth: 300, scrollWidth: 900 });
+
+    expect(wheelOn(tabList, { deltaY: 2, deltaMode: 1 }).defaultPrevented).toBe(true);
+    expect(getScrollLeft()).toBe(32);
+    expect(wheelOn(tabList, { deltaY: 1, deltaMode: 2 }).defaultPrevented).toBe(true);
+    expect(getScrollLeft()).toBe(332);
+  });
+
+  it('leaves the wheel alone at tab-row boundaries and without overflow', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const tabList = document.body.querySelector<HTMLElement>('[role="tablist"]')!;
+
+    setTabScrollMetrics(tabList, { clientWidth: 300, scrollWidth: 900, scrollLeft: 600 });
+    expect(wheelOn(tabList, { deltaY: 120 }).defaultPrevented).toBe(false);
+
+    const getAtStart = setTabScrollMetrics(tabList, { clientWidth: 300, scrollWidth: 900 });
+    expect(wheelOn(tabList, { deltaY: -120 }).defaultPrevented).toBe(false);
+    expect(getAtStart()).toBe(0);
+
+    setTabScrollMetrics(tabList, { clientWidth: 300, scrollWidth: 300 });
+    expect(wheelOn(tabList, { deltaY: 120 }).defaultPrevented).toBe(false);
+  });
+
+  it('preserves horizontal trackpad gestures, zoom, and panel scrolling', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    const tabList = document.body.querySelector<HTMLElement>('[role="tablist"]')!;
+    const panel = document.getElementById('app-settings-tabpanel')!;
+    const getScrollLeft = setTabScrollMetrics(tabList, { clientWidth: 300, scrollWidth: 900 });
+
+    expect(wheelOn(tabList, { deltaX: 120, deltaY: 0 }).defaultPrevented).toBe(false);
+    expect(wheelOn(tabList, { deltaX: 120, deltaY: 40 }).defaultPrevented).toBe(false);
+    expect(wheelOn(tabList, { deltaY: 120, ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(wheelOn(tabList, { deltaY: 120, metaKey: true }).defaultPrevented).toBe(false);
+    expect(getScrollLeft()).toBe(0);
+    expect(wheelOn(panel, { deltaY: 120 }).defaultPrevented).toBe(false);
+  });
+
+  it('removes the tab wheel listener when the settings modal closes', () => {
+    const { rerender } = render(<AppSettingsModal open onClose={() => {}} />);
+    const tabList = document.body.querySelector<HTMLElement>('[role="tablist"]')!;
+    const getScrollLeft = setTabScrollMetrics(tabList, { clientWidth: 300, scrollWidth: 900 });
+
+    rerender(<AppSettingsModal open={false} onClose={() => {}} />);
+    expect(wheelOn(tabList, { deltaY: 120 }).defaultPrevented).toBe(false);
+    expect(getScrollLeft()).toBe(0);
   });
 
   it('keeps the canonical category order with the integrated Shortcuts page', () => {

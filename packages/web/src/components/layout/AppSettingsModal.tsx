@@ -585,6 +585,35 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     }
   }, [activeTab]);
 
+  // Ordinary mouse wheels scroll the tab row horizontally. The listener is
+  // local to this row and non-passive so it can prevent page scrolling only
+  // while the row still has room in the wheel direction; horizontal trackpads,
+  // touch gestures, zoom, keyboard, and the panel's vertical scroll are left
+  // to their native behavior.
+  useEffect(() => {
+    if (!open) return;
+    const tabList = tabListRef.current;
+    if (!tabList) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.defaultPrevented || !event.cancelable) return;
+      if (event.ctrlKey || event.metaKey) return;
+      if (event.deltaY === 0 || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+      const maxScrollLeft = tabList.scrollWidth - tabList.clientWidth;
+      if (maxScrollLeft <= 0) return;
+      const movingRight = event.deltaY > 0;
+      if (movingRight ? tabList.scrollLeft >= maxScrollLeft - 1 : tabList.scrollLeft <= 0) return;
+      const delta = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? event.deltaY * 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? event.deltaY * tabList.clientWidth
+          : event.deltaY;
+      event.preventDefault();
+      tabList.scrollLeft = Math.max(0, Math.min(maxScrollLeft, tabList.scrollLeft + delta));
+    };
+    tabList.addEventListener('wheel', onWheel, { passive: false });
+    return () => tabList.removeEventListener('wheel', onWheel);
+  }, [open]);
+
   const [reloadScope, setReloadScope] = useState<ReloadScope | null>(null);
   // Keep each reload outcome with the page and controls that own it.
   const [reloadSection, setReloadSection] = useState<ReloadScope | null>(null);
