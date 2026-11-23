@@ -58,6 +58,15 @@ export function sanitizeBehavior(value: unknown): BehaviorSettings {
   const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   return { autoLockIllegalQueue: raw.autoLockIllegalQueue !== false };
 }
+export interface TerminalBehaviorSettings { autoReportByErrorType: Record<string, boolean> }
+export const DEFAULT_TERMINAL_BEHAVIOR: TerminalBehaviorSettings = { autoReportByErrorType: {} };
+export function sanitizeTerminalBehavior(value: unknown): TerminalBehaviorSettings {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const entries = raw.autoReportByErrorType && typeof raw.autoReportByErrorType === 'object'
+    ? Object.entries(raw.autoReportByErrorType).filter(([k, v]) => !!k && k.length <= 128 && typeof v === 'boolean')
+    : [];
+  return { autoReportByErrorType: Object.fromEntries(entries) as Record<string, boolean> };
+}
 
 /** Default: every automatic Force source stays off (legacy queue behavior). */
 export const DEFAULT_AUTO_FORCE_SEND: AutoForceSendSettings = {
@@ -232,6 +241,7 @@ export interface AppSettings {
    */
   autoForceSend: AutoForceSendSettings;
   behavior: BehaviorSettings;
+  terminalBehavior: TerminalBehaviorSettings;
   /** Show the Codex terminal input popup when a process is waiting for stdin. */
   showCodexTerminalInput: boolean;
   /** Combine adjacent tool and thinking display blocks under one disclosure. */
@@ -301,6 +311,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   errorNotificationExclusions: { enabled: false, types: [] },
   autoForceSend: DEFAULT_AUTO_FORCE_SEND,
   behavior: DEFAULT_BEHAVIOR,
+  terminalBehavior: DEFAULT_TERMINAL_BEHAVIOR,
   showCodexTerminalInput: false,
   mergeConsecutiveNonBodyBlocks: false,
   keepScrollOnSessionSwitch: false,
@@ -399,6 +410,7 @@ export function sanitizeSettings(
     errorNotificationExclusions: sanitizeErrorExclusions(parsed.errorNotificationExclusions),
     autoForceSend: sanitizeAutoForceSend(parsed.autoForceSend),
     behavior: sanitizeBehavior(parsed.behavior),
+    terminalBehavior: sanitizeTerminalBehavior(parsed.terminalBehavior),
     showCodexTerminalInput:
       typeof parsed.showCodexTerminalInput === 'boolean'
         ? parsed.showCodexTerminalInput
@@ -492,6 +504,7 @@ interface AppSettingsStore extends AppSettings {
    */
   saveAutoForceSend: (v: AutoForceSendSettings) => Promise<void>;
   saveBehavior: (v: BehaviorSettings) => Promise<void>;
+  saveTerminalBehavior: (v: TerminalBehaviorSettings) => Promise<void>;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   setConfirmAgentSystemQueueEdit: (v: boolean) => void;
   /** Reset every field to its default and persist. */
@@ -745,6 +758,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
       dirty = true;
       const response = await updateUiSettings({ behavior: sanitizeBehavior(value) });
       set({ behavior: sanitizeBehavior(response.behavior) });
+    },
+    saveTerminalBehavior: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({ terminalBehavior: sanitizeTerminalBehavior(value) });
+      set({ terminalBehavior: sanitizeSettings(response).terminalBehavior });
     },
 
     setCodexWarningToast: (v) => {

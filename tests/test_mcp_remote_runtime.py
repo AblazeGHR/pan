@@ -22,7 +22,7 @@ def test_disabled_never_spawns(tmp_path, monkeypatch):
 def test_foreign_listener_is_never_adopted_or_stopped(tmp_path, monkeypatch):
     settings(tmp_path)
     monkeypatch.setattr(launcher, "_cloudflared_binary", lambda c: "cloudflared")
-    monkeypatch.setattr(launcher, "listener_owner", lambda p: 777)
+    monkeypatch.setattr(launcher, "listener_owner", lambda p, **kwargs: 777)
     monkeypatch.setattr(runtime, "_spawn", lambda *a: pytest.fail("must not spawn"))
     with pytest.raises(launcher.LauncherError, match="unowned"):
         runtime.control(tmp_path, "start")
@@ -50,7 +50,7 @@ def test_start_binds_gateway_to_checkout_and_pan_api(tmp_path, monkeypatch):
     settings(tmp_path)
     spawned = []
     monkeypatch.setattr(launcher, "_cloudflared_binary", lambda c: "cloudflared")
-    monkeypatch.setattr(launcher, "listener_owner", lambda p: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda p, **kwargs: None)
     monkeypatch.setattr(launcher, "resolve_python_argv",
                         lambda root, **kwargs: (["test-python"], "test"))
     monkeypatch.setattr(runtime, "_identity", lambda root, record: {"ok": bool(record)})

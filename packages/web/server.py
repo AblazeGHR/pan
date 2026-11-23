@@ -4284,7 +4284,7 @@ class CLIInstanceGuardMiddleware:
 
     async def __call__(self, scope, receive, send):
         if (scope["type"] == "http" and scope["method"] == "POST"
-                and scope["path"] == "/api/system-actions/main-lifecycle"):
+                and scope["path"] in {"/api/system-actions/main-lifecycle", "/api/main/exit", "/api/main/restart", "/api/internal/main/shutdown"}):
             headers = dict(scope.get("headers", []))
             pid = headers.get(b"x-pan-expected-pid")
             created = headers.get(b"x-pan-expected-created-at")
@@ -4392,8 +4392,12 @@ async def _schedule_main_restart(options: dict) -> dict:
 
     registry_root = _main_restart_registry_root()
     port = status["port"]
-    old_pid = main_lifecycle.listener_owner(port)
+    # This request is executing in the owning host. A same-port listener on
+    # another address must never become the durable lifecycle target.
+    old_pid = os.getpid()
     old_pid_created_at = main_lifecycle.process_create_time(old_pid)
+    if old_pid_created_at is None:
+        raise HTTPException(status_code=503, detail="Current host creation time unavailable")
     request_id = uuid.uuid4().hex
     try:
         job = background_jobs.create_service_job(
@@ -4701,8 +4705,12 @@ async def _schedule_main_exit(options: dict) -> dict:
 
     registry_root = _main_restart_registry_root()
     port = status.get("port", _main_restart_port())
-    old_pid = main_lifecycle.listener_owner(port)
+    # This request is executing in the owning host. A same-port listener on
+    # another address must never become the durable lifecycle target.
+    old_pid = os.getpid()
     old_pid_created_at = main_lifecycle.process_create_time(old_pid)
+    if old_pid_created_at is None:
+        raise HTTPException(status_code=503, detail="Current host creation time unavailable")
     request_id = uuid.uuid4().hex
     try:
         job = background_jobs.create_service_job(
@@ -11702,6 +11710,8 @@ async def api_get_settings_ui():
     from packages.core import auto_report
     ui = dict(load_config().get("ui") or {})
     ui["autoReport"] = auto_report.normalize(ui.get("autoReport"))
+    from packages.core import terminal_behavior
+    ui["terminalBehavior"] = terminal_behavior.normalize(ui.get("terminalBehavior"))
     from packages.core.source_notifications import normalize_error_exclusions
     ui['errorNotificationExclusions'] = normalize_error_exclusions(ui.get('errorNotificationExclusions'))
     return ui
@@ -11798,6 +11808,12 @@ async def api_put_settings_ui(data: dict, request: Request = None):
     if "autoReport" in data:
         try:
             data = {**data, "autoReport": auto_report.normalize(data["autoReport"], strict=True)}
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+    if "terminalBehavior" in data:
+        from packages.core import terminal_behavior
+        try:
+            data = {**data, "terminalBehavior": terminal_behavior.normalize(data["terminalBehavior"], strict=True)}
         except ValueError as exc:
             raise HTTPException(422, detail=str(exc)) from exc
     if 'errorNotificationExclusions' in data:

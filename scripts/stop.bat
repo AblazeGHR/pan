@@ -1,9 +1,13 @@
 @echo off
 setlocal
+set "PAN_STOP_PYTHON=%~dp0..\.venv\Scripts\python.exe"
+if not exist "%PAN_STOP_PYTHON%" (
+    echo [ERROR] Pan checkout Python is missing. Use the registered pan exit command.
+    exit /b 1
+)
 if /I "%~1"=="--diagnose" (
     call "%~dp0diagnose_pan.bat" --root "%~dp0.."
     if errorlevel 1 echo [WARN] Diagnostic capture failed; continuing requested stop.
 )
-set "PAN_PROJECT_ROOT=%~dp0.."
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $port = $env:PAN_PORT; if ([string]::IsNullOrWhiteSpace([string]$port)) { $configPath = Join-Path $env:PAN_PROJECT_ROOT 'config.json'; if (Test-Path -LiteralPath $configPath) { try { $port = (Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json).port } catch { $port = $null } } }; if ([string]::IsNullOrWhiteSpace([string]$port)) { $port = 8768 }; $uri = 'http://127.0.0.1:' + $port + '/api/system-actions/main-lifecycle'; $bodyJson = '{' + [char]34 + 'operation' + [char]34 + ':' + [char]34 + 'exit' + [char]34 + '}'; $curlBody = $bodyJson.Replace([string][char]34, [string][char]92 + [char]34); $raw = & curl.exe --silent --show-error --request POST --header 'Content-Type: application/json' --data-binary $curlBody --write-out \"`n__PAN_HTTP_STATUS__%%{http_code}\" $uri; $curlStatus = $LASTEXITCODE; $rawText = $raw -join [Environment]::NewLine; $marker = '__PAN_HTTP_STATUS__'; $markerIndex = $rawText.LastIndexOf($marker); if ($markerIndex -lt 0) { [Console]::WriteLine($rawText); exit 1 }; $body = $rawText.Substring(0, $markerIndex).TrimEnd(); $status = [int]$rawText.Substring($markerIndex + $marker.Length).Trim(); [Console]::WriteLine($body); if ($curlStatus -ne 0 -or $status -lt 200 -or $status -ge 300) { exit 1 }; try { $payload = $body | ConvertFrom-Json } catch { exit 1 }; if ($null -eq $payload -or $payload.ok -ne $true) { exit 1 }; exit 0"
+"%PAN_STOP_PYTHON%" "%~dp0pan_cli.py" --root "%~dp0.." exit
 exit /b %ERRORLEVEL%

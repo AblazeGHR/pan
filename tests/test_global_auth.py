@@ -1,4 +1,5 @@
 """Whole-ASGI authentication contract, owned fixtures only."""
+import hashlib
 import asyncio
 from types import SimpleNamespace
 
@@ -15,7 +16,9 @@ def test_local_initialize_hash_restart_and_password_revocation(tmp_path):
     auth = UserAuth(tmp_path)
     auth.initialize(PASSWORD)
     assert PASSWORD not in auth.path.read_text()
+    assert hashlib.sha256(PASSWORD.encode()).hexdigest() not in auth.path.read_text()
     token = auth.login(PASSWORD)
+    assert hashlib.sha256(PASSWORD.encode()).hexdigest() not in auth.sessions_path.read_text()
     assert UserAuth(tmp_path).session(token)['authenticated']
     revision = auth.authorization_status()['revision']
     auth.change_password(PASSWORD, 'OtherFixture!234567', 'OtherFixture!234567', revision)
@@ -36,6 +39,8 @@ def test_legacy_migration_preserves_sessions_and_rejects_verifier_login(tmp_path
     auth = UserAuth(tmp_path)
     auth.login(PASSWORD)
     assert PASSWORD not in auth.path.read_text()
+    assert hashlib.sha256(PASSWORD.encode()).hexdigest() not in auth.path.read_text()
+    assert hashlib.sha256(PASSWORD.encode()).hexdigest() not in auth.sessions_path.read_text()
     assert UserAuth(tmp_path).session(token)['authenticated']
     import pytest
     with pytest.raises(PermissionError):

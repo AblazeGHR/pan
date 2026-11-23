@@ -77,9 +77,16 @@ def probe(base, endpoint, timeout=3.0, max_bytes=2 * 1024 * 1024):
             if result["bodyComplete"] and endpoint.startswith("/api/diagnostics/"):
                 result["diagnostics"] = json.loads(body)
     except urllib.error.HTTPError as exc:
-        result.update(status=exc.code, errorType=type(exc).__name__)
+        result.update(status=exc.code, errorType=type(exc).__name__,
+                      classification={401: "authentication_required", 403: "authorization_rejected"}.get(
+                          exc.code, "http_error"))
     except Exception as exc:
-        result.update(errorType=type(exc).__name__, error=str(exc)[:300])
+        import socket
+        cause = getattr(exc, "reason", exc)
+        classification = ("timeout" if isinstance(cause, (TimeoutError, socket.timeout))
+                          else "connection_failed" if isinstance(exc, urllib.error.URLError)
+                          else "response_error")
+        result.update(errorType=type(exc).__name__, error=str(exc)[:300], classification=classification)
     result["totalMs"] = round((time.monotonic() - start) * 1000, 3)
     return result
 

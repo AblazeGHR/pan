@@ -1,6 +1,24 @@
 """Owned real HTTP regression for Illegal behavior and cold persistence."""
+import pytest
+from packages.automation.auth import UserAuth
+from tests.support.auth_credentials import provision
+
 from test_legal_offline_http import runtime, durable, paused, kill_owned_provider
 from test_real_queue_http_e2e import _create, _enqueue, _received, _wait_for
+
+
+@pytest.fixture(autouse=True)
+def authenticated_owned_runtime(runtime, monkeypatch):
+    # Provision only this owned fixture; exercise production login middleware.
+    password = provision(UserAuth(runtime.data_root / 'automation'))
+    request = runtime.request
+    token = request('POST', '/api/automation/login', json={'key': password},
+                    headers={'Origin': runtime.base_url})['token']
+    def authenticated(method, path, **kwargs):
+        kwargs['headers'] = {**kwargs.get('headers', {}), 'Authorization': 'Bearer ' + token}
+        return request(method, path, **kwargs)
+    monkeypatch.setattr(runtime, 'request', authenticated)
+    runtime.test_password = password
 
 
 def test_settings_override_survives_cold_restart(runtime):
@@ -22,6 +40,22 @@ def test_settings_override_survives_cold_restart(runtime):
     synced = runtime.request("PATCH", f"/api/sessions/{sid}", json={"behavior": {"syncWithGlobal": True, "autoLockIllegalQueue": True, "expectedRevision": 1}})
     assert synced["behavior"]["syncWithGlobal"] is True
     assert synced["behavior"]["autoLockIllegalQueue"] is False
+
+
+def test_terminal_behavior_error_type_policy_survives_reload(runtime):
+    initial = runtime.request("GET", "/api/settings/ui")
+    assert initial["terminalBehavior"] == {"autoReportByErrorType": {}}
+    saved = runtime.request("PUT", "/api/settings/ui", json={
+        "terminalBehavior": {"autoReportByErrorType": {"provider_rate_limited": False}},
+    })
+    assert saved["terminalBehavior"]["autoReportByErrorType"] == {"provider_rate_limited": False}
+    runtime.stop(); runtime.start()
+    reloaded = runtime.request("GET", "/api/settings/ui")
+    assert reloaded["terminalBehavior"]["autoReportByErrorType"] == {"provider_rate_limited": False}
+    unknown = runtime.request("PUT", "/api/settings/ui", json={
+        "terminalBehavior": {"autoReportByErrorType": {"unknown": True}},
+    })
+    assert unknown["terminalBehavior"]["autoReportByErrorType"]["unknown"] is True
 
 
 def test_disabled_policy_does_not_lock_preincident_queue(runtime):
@@ -68,16 +102,28 @@ def test_production_chromium_behavior_settings(runtime, tmp_path):
         try:
             page = browser.new_page(viewport={"width": 1440, "height": 960})
             page.goto(runtime.base_url + "/react/", wait_until="networkidle")
+            page.get_by_label("管理员密码", exact=True).fill(runtime.test_password)
+            page.get_by_role("button", name="登录", exact=True).click()
+            expect(page.get_by_role("heading", name="登录 Pan", exact=True)).to_have_count(0)
             page.get_by_title("App settings", exact=True).click()
             page.get_by_role("tab", name="Behavior", exact=True).click()
             toggle = page.get_by_test_id("illegal-queue-behavior-section").get_by_role("switch")
             expect(toggle).to_have_attribute("aria-checked", "true")
             toggle.click()
             _wait_for(lambda: runtime.request("GET", "/api/settings/ui").get("behavior", {}).get("autoLockIllegalQueue") is False)
+            page.get_by_role("tab", name="Search", exact=True).click()
+            page.get_by_role("searchbox", name="Search settings", exact=True).fill("Runtime error classification")
+            page.get_by_test_id("settings-search-results").get_by_role("button").first.click()
+            terminal = page.get_by_test_id("terminal-behavior-settings")
+            expect(terminal).to_be_visible()
+            terminal.get_by_role("combobox", name="Runtime error classification").fill("provider_rate_limited")
+            terminal.get_by_role("button", name="Disable report").click()
+            _wait_for(lambda: runtime.request("GET", "/api/settings/ui")["terminalBehavior"]["autoReportByErrorType"].get("provider_rate_limited") is False)
             page.reload(wait_until="networkidle")
             page.get_by_title("App settings", exact=True).click()
             page.get_by_role("tab", name="Behavior", exact=True).click()
             expect(page.get_by_test_id("illegal-queue-behavior-section").get_by_role("switch")).to_have_attribute("aria-checked", "false")
+            expect(page.get_by_test_id("terminal-behavior-settings").get_by_text("provider_rate_limited")).to_be_visible()
             page.keyboard.press("Escape")
             card = page.locator(f'[data-session-card-id="{sid}"]')
             card.get_by_role("button", name="Session actions", exact=True).click()
@@ -89,11 +135,15 @@ def test_production_chromium_behavior_settings(runtime, tmp_path):
             expect(lock).not_to_be_checked()
             other = browser.new_page(viewport={"width": 1440, "height": 960})
             other.goto(runtime.base_url + "/react/", wait_until="networkidle")
+            other.get_by_label("管理员密码", exact=True).fill(runtime.test_password)
+            other.get_by_role("button", name="登录", exact=True).click()
+            expect(other.get_by_role("heading", name="登录 Pan", exact=True)).to_have_count(0)
             other.get_by_title("App settings", exact=True).click()
             other.get_by_role("tab", name="Behavior", exact=True).click()
             other_toggle = other.get_by_test_id("illegal-queue-behavior-section").get_by_role("switch")
             expect(other_toggle).to_have_attribute("aria-checked", "false")
             other.bring_to_front()
+            _wait_for(lambda: not other_toggle.is_disabled())
             other_toggle.click()
             expect(other_toggle).to_have_attribute("aria-checked", "true")
             page.bring_to_front()

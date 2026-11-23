@@ -117,6 +117,23 @@ def test_lifecycle_does_not_promote_failed_job(tmp_path, monkeypatch, phase, err
         cli.lifecycle(tmp_path, "exit", 1)
 
 
+def test_exit_final_check_keeps_original_identity_after_pid_state_is_cleared(tmp_path, monkeypatch):
+    from packages.core import lifecycle_action
+    monkeypatch.setattr(cli, "verified", lambda root: (25431, {"pid": 5, "createdAt": 1}, {}))
+    launcher.save_state(tmp_path, {"bindHost": "::1"})
+    def request(*args, **kwargs):
+        launcher.clear_state(tmp_path)
+        return {"accepted": True, "effectId": "effect_original"}
+    monkeypatch.setattr(cli, "request", request)
+    proof = {"ok": True, "root": str(tmp_path), "port": 25431, "oldPid": 5, "oldPidCreatedAt": 1}
+    monkeypatch.setattr(lifecycle_action, "run_wait_for_receipt", lambda **kwargs:
+        {"outcome": "succeeded", "receipt": {"phase": "offline", "offlineProof": proof}})
+    assert cli.lifecycle(tmp_path, "exit", 1)["ok"] is True
+    proof['oldPid'] = 6
+    with pytest.raises(launcher.LauncherError, match="offline proof"):
+        cli.lifecycle(tmp_path, "exit", 1)
+
+
 def test_start_lock_refuses_second_start(tmp_path):
     with cli.start_lock(tmp_path):
         with pytest.raises(launcher.LauncherError, match="in progress"):

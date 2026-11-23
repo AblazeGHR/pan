@@ -1975,6 +1975,11 @@ async def _persist_terminal_state_locked(
     if report_diagnostic is not None:
         report_diagnostic.update(_error_log.terminal_report_fields(
             (error_context or {}).get("cli_raw")))
+        raw_issue = (error_context or {}).get("cli_raw")
+        if isinstance(raw_issue, dict):
+            issue = _runtime_issue_sample(w, s, raw_issue)
+            if issue and isinstance(issue.get("issue"), dict):
+                report_diagnostic["runtimeIssue"] = copy.deepcopy(issue["issue"])
     terminal_key = _terminal_enrichment_key(
         task_id, task_seq, w.worker_id, w.generation,
         task_idempotent=task_idempotent,
@@ -6252,6 +6257,15 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     """
     if _shutdown_started:
         return
+    if status == "error" and isinstance(diagnostic, dict):
+        from . import terminal_behavior
+        issue = diagnostic.get("runtimeIssue")
+        classification = issue.get("classification") if isinstance(issue, dict) else None
+        if not terminal_behavior.auto_report_enabled(
+                classification,
+                (load_config().get("ui") or {}).get("terminalBehavior"),
+                default=True):
+            return
     if admission is not None and admission.get("enabled") is not True:
         return
     s = _get_session_shallow(session_id)

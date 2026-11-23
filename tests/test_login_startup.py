@@ -331,7 +331,7 @@ def start_service(root, **kwargs):
 
 def test_launcher_hidden_override_pins_absolute_interpreter_without_path_lookup(tmp_path, monkeypatch):
     from packages.core import launcher
-    monkeypatch.setattr(launcher, 'listener_owner', lambda _: None)
+    monkeypatch.setattr(launcher, 'listener_owner', lambda _, **kwargs: None)
     monkeypatch.setattr(launcher, 'refresh_qq_state', lambda *args: None)
     monkeypatch.setattr(launcher, 'resolve_python_argv', lambda *args, **kwargs: pytest.fail('PATH resolution used'))
     monkeypatch.setattr(launcher, '_console_hidden', lambda *args: pytest.fail('manual console setting overrides login'))

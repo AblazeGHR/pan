@@ -4,6 +4,21 @@
 [P6 平台与兼容矩阵](../reports/ACTION_UNIFICATION_P6_20261106.md#platform-and-delivery-limits)。
 本地 Windows 证据不代表 Linux/macOS 或三平台 CI 验收；未新增 capability。
 
+## 2026-11-22 生命周期监听身份修复
+
+`service.lifecycle` 能力声明保持不变，不将 POSIX 退出/重启标记为已支持。
+`packages/core/platform/listeners.py` 使用 psutil 的平台实现枚举 TCP 监听，
+按绑定地址和端口选择 PID；同端口其他地址不会被当成本实例。通配 IPv6
+无法证明 IPV6_V6ONLY 时保守视为潜在冲突；多 PID、PID 缺失和枚举失败均明确
+返回错误，不等同于无监听。共享代码不引入 Windows-only 顶层依赖。
+
+| 范围 | Windows | Linux / macOS |
+|---|---|---|
+| 地址匹配、重复 PID 去重、歧义与权限失败契约 | 本地单测/真实临时 socket 验证 | 同一套可移植契约；目标平台运行待 CI |
+| HTTP 鉴权拒绝 + 本地 IPC + durable Exit | 本地真实隔离进程验证 | 沿用现有 service.lifecycle unsupported；集成测试显式 skip |
+
+本地 Windows 验证不代表三平台 CI 已通过；本次不 push 或触发远端 CI。
+
 - 日期：2026-10-25
 - 基线：`58c0739a`（跨平台审计基线 `3bf174b1`，结论见
   `docs/audit/CROSS_PLATFORM_GAPS_20261025.md`，审计工作树 `cross-platform-audit-20261025`）

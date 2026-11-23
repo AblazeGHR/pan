@@ -47,6 +47,18 @@ def test_exit_ask_requires_explicit_choice_before_job_or_worker_gate(prepared):
     canonical_preparation.test_ask_without_choice_rejects_before_admission_or_worker_gate(prepared, 'exit')
 
 
+def test_host_creation_time_unavailable_rejects_before_job_or_worker_gate(monkeypatch):
+    monkeypatch.setattr(srv, "_main_exit_status", lambda: {"available": True, "pending": False, "port": 25431})
+    monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+    monkeypatch.setattr(launcher, "process_create_time", lambda pid: None)
+    monkeypatch.setattr(worker, "begin_shutdown", lambda: pytest.fail("must not close worker gate"))
+    monkeypatch.setattr(srv.asyncio, "create_task", lambda *a, **kw: pytest.fail("must not schedule"))
+    with pytest.raises(srv.HTTPException) as caught:
+        asyncio.run(srv.api_system_main_lifecycle({"operation": "exit", "options": {"markRunningSessionsOffline": False}}))
+    assert caught.value.status_code == 409
+    assert background_jobs.list_jobs(srv._main_restart_registry_root()) == []
+
+
 def test_legacy_ask_exit_job_without_choice_fails_before_worker_or_legal_state_changes(
     monkeypatch,
 ):
