@@ -233,6 +233,63 @@ const editorState = (page) =>
   });
 
 try {
+  // Real InputRow and shortcut dispatcher with mocked API transport.
+  {
+    const cases = [];
+    for (const mode of ['normal', 'trailing', 'redo', 'move', 'inside']) {
+      const { context, page, editor } = await openPage({ width: 1440, height: 900 });
+      await editor.evaluate(root => {
+        window.__fenceEvents = [];
+        const ids = new WeakMap(); let next = 1;
+        const id = n => { if (!ids.has(n)) ids.set(n, next++); return ids.get(n); };
+        root.addEventListener('input', e => {
+          const selection = getSelection();
+          const body = root.querySelector('[data-composer-code-body]');
+          window.__fenceEvents.push({inputType:e.inputType,data:e.data,html:body?.innerHTML,
+            nodes:Array.from(body?.childNodes || [], n => ({id:id(n),name:n.nodeName,text:n.textContent})),
+            selection:{id:selection?.anchorNode && id(selection.anchorNode),node:selection?.anchorNode?.nodeName,text:selection?.anchorNode?.textContent,offset:selection?.anchorOffset}});
+        }, true);
+      });
+      await editor.click(); await page.keyboard.type('```'); await page.keyboard.type('one');
+      await page.keyboard.press('Shift+Enter'); await page.keyboard.type('two');
+      if (mode === 'trailing') await page.keyboard.press('Shift+Enter');
+      if (mode === 'redo') {
+        await page.keyboard.press('Control+z'); await page.keyboard.press('Control+z');
+        await page.keyboard.press('Control+Shift+z'); await page.keyboard.press('Control+Shift+z');
+      }
+      if (mode === 'move') { await page.keyboard.press('ArrowDown'); await page.keyboard.type('z'); }
+      if (mode === 'inside') { await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowDown'); await page.keyboard.type('x'); }
+      const before = await editor.evaluate(root => {
+        const body = root.querySelector('[data-composer-code-body]'), s = getSelection();
+        return {html:body?.innerHTML,nodes:Array.from(body?.childNodes || [],n=>({name:n.nodeName,text:n.textContent})),
+          selection:{node:s?.anchorNode?.nodeName,text:s?.anchorNode?.textContent,offset:s?.anchorOffset}};
+      });
+      if (mode === 'normal') await page.screenshot({path:path.join(output,'fence-input-desktop.png')});
+      await page.keyboard.press('Enter'); await expect.poll(() => evidence.queue.length).toBe(1);
+      cases.push({mode,before,events:await page.evaluate(()=>window.__fenceEvents),readPartsOutput:evidence.queue[0].text});
+      evidence.queue.length = 0; await context.tracing.stop(); await context.close();
+    }
+    await fs.writeFile(path.join(output,'fence-intent-comparison.json'),JSON.stringify(cases,null,2));
+    assert.equal(cases[0].readPartsOutput, '```\none\ntwo\n```\n');
+    assert.equal(cases[1].readPartsOutput, '```\none\ntwo\n\n```\n');
+    assert.equal(cases[2].readPartsOutput, '```\none\ntwo\n```\n');
+    assert.equal(cases[3].readPartsOutput, '```\none\ntwo\n```\nz');
+    assert.equal(cases[4].readPartsOutput, '```\none\ntwox\n```\n');
+    evidence.checks.fenceDefaultKeys = true;
+  }
+  {
+    const { context, page, editor } = await openPage({ width: 390, height: 844 });
+    await page.evaluate(() => window.__fenceShortcuts({'composer.send':'Ctrl+Enter','composer.newline':'Enter'}));
+    await editor.click(); await page.keyboard.type('```'); await page.keyboard.type('a');
+    await page.keyboard.press('Enter'); await page.keyboard.type('b');
+    await page.screenshot({ path: path.join(output, 'fence-input-mobile.png') });
+    await page.keyboard.press('Control+Enter');
+    await expect.poll(() => evidence.queue.length).toBe(1);
+    assert.equal(evidence.queue[0].text, '```\na\nb\n```\n');
+    evidence.checks.fenceCustomKeys = true;
+    evidence.queue.length = 0;
+    await context.tracing.stop(); await context.close();
+  }
   // ── A. Desktop: real mouse drag, delete, undo audit, duplicate intent ──
   {
     const { context, page, editor } = await openPage({ width: 1440, height: 900 });

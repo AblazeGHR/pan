@@ -1,0 +1,19 @@
+[data-composer-fence]:has([data-composer-code-body])::before {
+  content: 'CODE';
+  display: block;
+  padding: 4px 12px;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  letter-spacing: .05em;
+  pointer-events: none;
+}
+[data-composer-fence]:not(:has([data-composer-code-body])) {
+  display: contents;
+}
+[data-composer-code-body] {
+  display: block;
+  padding: 12px;
+  line-height: 1.625;
+}

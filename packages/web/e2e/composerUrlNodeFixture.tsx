@@ -53,6 +53,8 @@ useWorkerStore.setState({
   currentWorker: { id: 'w-s1', sessionId: 's1', status: 'running' },
 });
 useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: true });
+(window as unknown as { __fenceShortcuts?: (shortcuts: Record<string, string | null>) => void }).__fenceShortcuts =
+  (shortcuts) => useAppSettingsStore.setState({ shortcuts });
 useAdapterStore.setState({ adapters: [] });
 
 createRoot(document.getElementById('root')!).render(

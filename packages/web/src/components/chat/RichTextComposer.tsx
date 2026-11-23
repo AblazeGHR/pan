@@ -8,6 +8,7 @@ import {
   useState,
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type FormEvent,
 } from 'react';
 import {
   isAttachmentPayloadForSession,
@@ -29,6 +30,7 @@ import {
 } from '@/utils/composerUrl';
 import { hasPanAttachmentMime, inspectNativeAttachmentInput } from '@/utils/nativeAttachmentInput';
 import type { AttachmentLocation } from '@/types/attachment';
+import './composerFence.css';
 
 export type ComposerPart =
   | { type: 'text'; value: string }
@@ -96,6 +98,17 @@ interface DropIndicator {
 
 const EMPTY_PARTS: ComposerPart[] = [{ type: 'text', value: '' }];
 const BLOCK_TAGS = new Set(['DIV', 'LI', 'P']);
+// Chromium's insertLineBreak may create a second text node solely to hold a
+// caret before our non-editable marker. Remember that exact node, never infer
+// a filler from the number of trailing newlines in user content.
+const codeFillers = new WeakSet<Node>();
+
+function logicalText(node: Node): string {
+  const value = node.textContent || '';
+  const next = node.nextSibling;
+  return codeFillers.has(node) && value.endsWith('\n') && next instanceof HTMLElement
+    && next.hasAttribute('data-composer-code-marker') ? value.slice(0, -1) : value;
+}
 
 /** A node the model counts as exactly one position, never as its label text. */
 function isAtomicNode(element: HTMLElement | null): boolean {
@@ -272,12 +285,34 @@ function renderParts(
     attachments.map((attachment) => [attachmentOccurrenceId(attachment), attachment]),
   );
   const fragment = document.createDocumentFragment();
+  const appendText = (value: string) => {
+    const text = document.createElement('span'); text.textContent = value; fragment.append(text);
+  };
   const normalized = mergeTextParts(parts);
   for (const part of normalized) {
     if (part.type === 'text') {
-      const text = document.createElement('span');
-      text.textContent = part.value;
-      fragment.append(text);
+      const pattern = /(^|\n)(```[^\n]*\n)([\s\S]*?)(\n```)(?=\n|$)/g;
+      let offset = 0;
+      for (const match of part.value.matchAll(pattern)) {
+        const leading = match[1]!;
+        const opening = match[2]!;
+        const code = match[3]!;
+        const closing = match[4]!;
+        const start = match.index + leading.length;
+        if (start > offset) appendText(part.value.slice(offset, start));
+        const fence = document.createElement('span');
+        fence.dataset.composerFence = '';
+        fence.className = 'block rounded-lg border border-border-default bg-bg-tertiary font-mono text-xs';
+        const open = document.createElement('span'); open.contentEditable = 'false'; open.className = 'text-[0px] leading-none'; open.textContent = opening;
+        const body = document.createElement('span'); body.dataset.composerCodeBody = '';
+        body.append(document.createTextNode(code));
+        const marker = document.createElement('span'); marker.contentEditable = 'false';
+        marker.dataset.composerCodeMarker = ''; marker.textContent = '\u200b'; body.append(marker);
+        const close = document.createElement('span'); close.contentEditable = 'false'; close.className = 'text-[0px] leading-none'; close.textContent = closing;
+        fence.append(open, body, close); fragment.append(fence);
+        offset = start + opening.length + code.length + closing.length;
+      }
+      if (offset < part.value.length) appendText(part.value.slice(offset));
       continue;
     }
     if (part.type === 'url') {
@@ -365,6 +400,7 @@ function readParts(root: HTMLElement): ComposerPart[] {
 
     for (const node of nodes) {
       const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
+      if (element?.hasAttribute('data-composer-code-marker')) continue;
       const isBlock = !!element && BLOCK_TAGS.has(element.tagName);
       if (hasNode) {
         if (previousWasBlock) {
@@ -381,7 +417,7 @@ function readParts(root: HTMLElement): ComposerPart[] {
       if (isBlock) {
         result = processSequence(Array.from(element.childNodes), element);
       } else if (node.nodeType === Node.TEXT_NODE) {
-        const value = node.textContent || '';
+        const value = logicalText(node);
         parts.push({ type: 'text', value });
         result = { hasContent: value.length > 0, endsWithNewline: value.endsWith('\n') };
       } else if (element?.dataset.composerUrlId) {
@@ -570,6 +606,7 @@ function selectionOffset(root: HTMLElement, target: Node, offset: number): numbe
 
   const consume = (node: Node, container: HTMLElement | null): boolean => {
     const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
+    if (element?.hasAttribute('data-composer-code-marker')) return false;
     if (isAtomicNode(element)) {
       cursor.total += 1;
       cursor.hasContent = true;
@@ -577,7 +614,7 @@ function selectionOffset(root: HTMLElement, target: Node, offset: number): numbe
       return false;
     }
     if (node.nodeType === Node.TEXT_NODE) {
-      const value = node.textContent || '';
+      const value = logicalText(node);
       if (value) {
         cursor.total += value.length;
         cursor.hasContent = true;
@@ -614,7 +651,7 @@ function selectionOffset(root: HTMLElement, target: Node, offset: number): numbe
     if (found !== null) return true;
     if (node === target) {
       if (node.nodeType === Node.TEXT_NODE) {
-        found = cursor.total + Math.min(offset, node.textContent?.length || 0);
+        found = cursor.total + Math.min(offset, logicalText(node).length);
       } else {
         const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
         if (isAtomicNode(element)) {
@@ -748,6 +785,7 @@ function setCaretAtOffset(root: HTMLElement, offset: number): void {
   const visit = (node: Node) => {
     if (placed) return;
     const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : null;
+    if (element?.hasAttribute('data-composer-code-marker')) return;
     if (isAtomicNode(element)) {
       if (remaining <= 0) {
         const parent = node.parentNode || root;
@@ -761,7 +799,7 @@ function setCaretAtOffset(root: HTMLElement, offset: number): void {
       return;
     }
     if (node.nodeType === Node.TEXT_NODE) {
-      const length = node.textContent?.length || 0;
+      const length = logicalText(node).length;
       if (remaining <= length) {
         range.setStart(node, remaining);
         range.collapse(true);
@@ -830,6 +868,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     ref,
   ) {
     const editorRef = useRef<HTMLDivElement>(null);
+    const fencesRef = useRef(new Set<HTMLElement>());
     const [parts, setParts] = useState<ComposerPart[]>(() =>
       initialValue ? initialValue.parts.map((part) => ({ ...part })) : initialText ? [{ type: 'text', value: initialText }] : EMPTY_PARTS,
     );
@@ -908,6 +947,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
     useLayoutEffect(() => {
       if (!editorRef.current) return;
       renderParts(editorRef.current, parts, attachmentsRef.current);
+      fencesRef.current = new Set(editorRef.current.querySelectorAll<HTMLElement>('[data-composer-fence]'));
       const offset = pendingCaretOffsetRef.current;
       if (offset === null) return;
       pendingCaretOffsetRef.current = null;
@@ -919,9 +959,31 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       if (editorRef.current) syncAttachmentNodes(editorRef.current, attachmentsRef.current);
     }, [attachmentSignature]);
 
-    const handleInput = () => {
+    const handleInput = (event: FormEvent<HTMLDivElement>) => {
       if (disabled) return;
       if (!editorRef.current) return;
+      if ((event.nativeEvent as InputEvent).inputType === 'insertLineBreak' && !(event.nativeEvent as InputEvent).isComposing) {
+        const selection = window.getSelection();
+        const node = selection?.anchorNode;
+        const next = node?.nextSibling;
+        const previous = node?.previousSibling;
+        if (node?.nodeType === Node.TEXT_NODE && node.textContent === '\n' && selection?.anchorOffset === 0
+            && node.parentElement?.hasAttribute('data-composer-code-body')
+            && next instanceof HTMLElement && next.hasAttribute('data-composer-code-marker')
+            && previous?.nodeType === Node.TEXT_NODE && previous.textContent?.endsWith('\n')) {
+          codeFillers.add(node);
+        }
+      }
+      const fences = editorRef.current.querySelectorAll<HTMLElement>('[data-composer-fence]');
+      if ((event.nativeEvent as InputEvent).inputType === 'historyRedo') {
+        const restored = Array.from(fences).filter((fence) => !fencesRef.current.has(fence));
+        const body = restored.length === 1 ? restored[0]?.querySelector<HTMLElement>('[data-composer-code-body]') : null;
+        if (body) {
+          const caret = document.createRange(); caret.setStart(body, 0); caret.collapse(true);
+          const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(caret);
+        }
+      }
+      fencesRef.current = new Set(fences);
       const previousParts = partsRef.current;
       const nextParts = readParts(editorRef.current);
       const nextAttachmentIds = new Set(
@@ -998,6 +1060,75 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       }
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      const root = editorRef.current;
+      if (root && range?.collapsed && selection && root.contains(range.startContainer)) {
+        const parent = range.startContainer.nodeType === Node.ELEMENT_NODE
+          ? range.startContainer as HTMLElement : range.startContainer.parentElement;
+        const body = parent?.closest<HTMLElement>('[data-composer-code-body]');
+        const fence = body?.closest<HTMLElement>('[data-composer-fence]');
+        if (body && fence && event.key === 'Backspace' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          const contents = body.cloneNode(true) as HTMLElement;
+          contents.querySelectorAll('[data-composer-code-marker]').forEach((node) => node.remove());
+          if (!contents.textContent) {
+            event.preventDefault();
+            const selected = document.createRange();
+            selected.selectNode(fence);
+            selection.removeAllRanges(); selection.addRange(selected);
+            document.execCommand('delete');
+            return;
+          }
+        }
+        if (body && fence && event.key === 'ArrowDown' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          const start = selectionOffset(root, range.startContainer, range.startOffset);
+          const end = selectionOffset(root, body, body.childNodes.length);
+          const logical = readParts(root).map((part) => part.type === 'text' ? part.value : '\ufffc').join('');
+          const marker = body.querySelector<HTMLElement>('[data-composer-code-marker]');
+          const caretRect = range.getBoundingClientRect();
+          const endRect = marker?.getBoundingClientRect();
+          if (start !== null && end !== null && !logical.slice(start, end).includes('\n')
+              && (!endRect || !caretRect.height || caretRect.top >= endRect.top - 1)) {
+            event.preventDefault();
+            const after = document.createRange();
+            if (fence.nextSibling?.nodeType === Node.TEXT_NODE && fence.nextSibling.textContent?.startsWith('\n'))
+              after.setStart(fence.nextSibling, 1);
+            else if (fence.nextSibling instanceof HTMLBRElement) after.setStartAfter(fence.nextSibling);
+            else if (fence.nextSibling instanceof HTMLElement && fence.nextSibling.dataset.composerAfterFence !== undefined)
+              after.setStart(fence.nextSibling, 0);
+            else after.setStartAfter(fence);
+            after.collapse(true);
+            selection.removeAllRanges(); selection.addRange(after);
+            return;
+          }
+        }
+        if (!body && event.key === '`' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          const offsets = selectedOffsets(root);
+          const text = partsRef.current.map((part) => part.type === 'text' ? part.value : '\ufffc').join('');
+          const before = offsets ? text.slice(0, offsets.start) : '';
+          const line = before.slice(before.lastIndexOf('\n') + 1);
+          const previousLines = before.slice(0, before.length - line.length).split('\n');
+          const inFence = previousLines.filter((value) => /^```/.test(value)).length % 2 === 1;
+          if (offsets && line === '``' && !inFence) {
+            event.preventDefault();
+            setCaretAtOffset(root, offsets.start - 2);
+            const sel = window.getSelection();
+            if (!sel?.rangeCount) return;
+            const selected = sel.getRangeAt(0);
+            selected.setEnd(range.startContainer, range.startOffset);
+            sel.removeAllRanges(); sel.addRange(selected);
+            const tail = text[offsets.start] === '\n' ? '' : '<div data-composer-after-fence><br></div>';
+            const existing = new Set(root.querySelectorAll('[data-composer-fence]'));
+            document.execCommand('insertHTML', false,
+              '<span data-composer-fence class="block rounded-lg border border-border-default bg-bg-tertiary font-mono text-xs"><span contenteditable="false" class="text-[0px] leading-none">```\n</span><span data-composer-code-body><span contenteditable="false" data-composer-code-marker>\u200b</span></span><span contenteditable="false" class="text-[0px] leading-none">\n```</span></span>' + tail);
+            const added = Array.from(root.querySelectorAll<HTMLElement>('[data-composer-fence]')).find((node) => !existing.has(node));
+            const target = added?.querySelector<HTMLElement>('[data-composer-code-body]');
+            if (target) {
+              const caret = document.createRange(); caret.setStart(target, 0); caret.collapse(true);
+              sel.removeAllRanges(); sel.addRange(caret);
+            }
+            return;
+          }
+        }
+      }
       if (
         range &&
         !range.collapsed &&
