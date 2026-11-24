@@ -32,6 +32,7 @@ class Backend:
         self.uncertain.add(context)
         await self.request('submit', {'handle': context, 'turnId': turn_id, 'blocks': blocks})
         cursor = 0
+        permissions_seen = set()
         while True:
             # Poll is a read at a fixed cursor; a lost response is safe to
             # retry. Submit, finish and cancel are deliberately never retried.
@@ -52,6 +53,15 @@ class Backend:
                     raise
             for chunk in result['chunks']:
                 await emit(chunk)
+            for permission in result.get('permissions', []):
+                permission_id = permission.get('id') if isinstance(permission, dict) else None
+                if not isinstance(permission_id, str) or permission_id in permissions_seen:
+                    continue
+                permissions_seen.add(permission_id)
+                decision = await emit({'permissionId': permission_id, 'command': permission.get('command')})
+                await self.request('permission', {'handle': context, 'turnId': turn_id,
+                                   'permissionId': permission_id,
+                                   'decision': 'accept' if decision == 'accept' else 'decline'})
             cursor = result['cursor']
             if result['status'] is not None:
                 try:

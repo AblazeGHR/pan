@@ -27,6 +27,7 @@ class TurnProjection:
         self.event_epoch = None
         self.blocks = {}
         self.terminal = None
+        self.permissions = []
 
     @staticmethod
     def _identity(event):
@@ -96,6 +97,17 @@ class TurnProjection:
         if not isinstance(payload, dict):
             raise Unconfirmed('invalid stream event')
         kind = payload.get('type')
+        if kind == 'approval.request':
+            request_id = payload.get('request_id')
+            params = payload.get('params')
+            command = params.get('command') if isinstance(params, dict) else None
+            if (payload.get('method') == 'item/commandExecution/requestApproval'
+                    and payload.get('approval_pending') is True
+                    and not isinstance(request_id, bool) and isinstance(request_id, (int, str))
+                    and str(request_id) and len(str(request_id)) <= 128
+                    and isinstance(command, str) and command and len(command) <= 4096):
+                self.permissions.append({'id': str(seq), 'requestId': request_id, 'command': command})
+            return []
         if kind == 'content.part' and payload.get('role') == 'assistant':
             part = payload.get('part')
             text = part.get('text') if isinstance(part, dict) and part.get('type') == 'text' else None

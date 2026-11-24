@@ -10134,6 +10134,47 @@ async def interrupt_expected_execution(session_id: str, worker_id: str, generati
         return {'status': 'rejected', 'reason': 'control_unavailable' if error else 'execution_changed'}
 
 
+async def approval_expected_execution(session_id: str, worker_id: str, generation: int,
+                                      execution_seq: int, request_id, decision: str) -> dict:
+    """Submit one approval only while its original execution remains live.
+
+    The native wrapper repeats the turn check before consuming the request.
+    A successful pipe write does not prove that the provider consumed it.
+    """
+    if (not isinstance(session_id, str) or not session_id or not isinstance(worker_id, str) or not worker_id
+            or type(generation) is not int or generation < 0 or type(execution_seq) is not int or execution_seq < 1
+            or isinstance(request_id, bool) or not isinstance(request_id, (int, str))
+            or (isinstance(request_id, str) and not request_id)
+            or decision not in ('accept', 'decline')):
+        return {'status': 'rejected', 'reason': 'invalid_identity'}
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        w = workers.get(worker_id)
+        if (w is None or w.session_id != session_id or w.generation != generation
+                or find_alive_worker_by_session(session_id) is not w or w._execution_seq != execution_seq
+                or w.status != 'running' or w._terminal_handled or not w._current_handoff_acked):
+            return {'status': 'rejected', 'reason': 'execution_changed'}
+        identity = getattr(w, '_acp_native_turn', None)
+        if (getattr(w.adapter, 'name', None) != 'codex' or not isinstance(identity, tuple)
+                or len(identity) != 2 or identity[0] != execution_seq
+                or not isinstance(identity[1], str) or not identity[1]):
+            return {'status': 'rejected', 'reason': 'native_turn_unavailable'}
+        pending = (getattr(w, 'pending_interactions', None) or {}).get(f'request:{request_id}')
+        if (not isinstance(pending, dict) or pending.get('type') != 'approval.request'
+                or type(pending.get('request_id')) is not type(request_id)
+                or pending.get('request_id') != request_id
+                or pending.get('method') != 'item/commandExecution/requestApproval'):
+            return {'status': 'rejected', 'reason': 'approval_unavailable'}
+        runtime = (w, w.generation, w.process, getattr(w.process, 'stdin', None))
+        outcome = {}
+        error = await _send_control_message_unlocked(worker_id,
+            {'type': 'approval_response', 'request_id': request_id, 'decision': decision,
+             'expectedTurnId': identity[1]}, _expected_runtime=runtime, outcome=outcome)
+        if outcome.get('status') == 'accepted': return {'status': 'submitted'}
+        if outcome.get('status') == 'unknown': return {'status': 'unknown'}
+        return {'status': 'rejected', 'reason': 'control_unavailable' if error else 'execution_changed'}
+
+
 async def steer_worker(worker_id: str, text: str,
                        message_id: str | None = None, *, outcome=None) -> str | None:
     """Inject a follow-up instruction into a native running turn.

@@ -33,6 +33,32 @@ class Backend:
     async def disconnect(self): pass
 
 
+def test_permission_reply_unknown_option_declines(tmp_path):
+    async def run():
+        class PermissionBackend(Backend):
+            async def prompt(self, context, blocks, turn_id, emit):
+                self.decision = await emit({'permissionId':'permitted', 'command':'echo example'})
+                return 'end_turn'
+        backend, output = PermissionBackend(), []
+        async def send(message): output.append(message)
+        engine = Protocol(backend, send)
+        async def request(id, method, params):
+            await engine.handle({'jsonrpc':'2.0', 'id':id, 'method':method, 'params':params})
+        await request(1, 'initialize', {'protocolVersion':1})
+        await request(2, 'session/new', {'cwd':str(tmp_path), 'mcpServers':[]})
+        sid = output[-1]['result']['sessionId']
+        await request(3, 'session/prompt', {'sessionId':sid, 'prompt':[{'type':'text','text':'hi'}]})
+        await asyncio.sleep(0)
+        permission = output[-1]
+        assert permission['method'] == 'session/request_permission'
+        await engine.handle({'jsonrpc':'2.0', 'id':permission['id'], 'result':{
+            'outcome':{'outcome':'selected', 'optionId':'unknown'}}})
+        await engine.sessions[sid].task
+        assert backend.decision == 'decline'
+        assert output[-1]['result']['stopReason'] == 'end_turn'
+    asyncio.run(run())
+
+
 def test_v1_lifecycle_busy_cancel_and_session_isolation(tmp_path):
     async def run():
         backend, output = Backend(), []

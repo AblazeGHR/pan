@@ -28,10 +28,12 @@ def test_running_cancel_through_codex_native_bridge(tmp_path, monkeypatch):
     workspace.mkdir()
     plugin.mkdir()
     (plugin / 'manifest.json').write_text(json.dumps({'session_templates':[{'name':'synthetic-codex',
-        'adapter':'codex', 'model':'synthetic-model', 'mcp_mode':'never'}]}))
+        'adapter':'codex', 'model':'synthetic-model', 'mcp_mode':'never',
+        'permission_mode':'read-only'}]}))
     (data / 'config.json').write_text(json.dumps({'qq':{'enabled':False}, 'wechat':{'enabled':False},
         'remote':{'enabled':False}, 'tailscale':{'startupEnabled':False}, 'lan':{'startupEnabled':False},
-        'codex':{'models':['synthetic-model'], 'model':'synthetic-model'}, 'plugin_manifests':[str(plugin)]}))
+        'codex':{'models':['synthetic-model'], 'model':'synthetic-model', 'permission_mode':'read-only'},
+        'plugin_manifests':[str(plugin)]}))
     initialize(data, 'editor', 'synthetic-codex', workspace)
     runtime, child = h._PanRuntime(data), None
     try:
@@ -66,6 +68,20 @@ def test_running_cancel_through_codex_native_bridge(tmp_path, monkeypatch):
         calls = [json.loads(x) for x in log.read_text().splitlines()]
         interrupts = [x for x in calls if x.get('method') == 'turn/interrupt']
         assert len(interrupts) == 1 and interrupts[0]['params']['turnId'] == 'native-1'
+        send({'jsonrpc':'2.0','id':4,'method':'session/prompt',
+              'params':{'sessionId':sid,'prompt':[{'type':'text','text':'permission-probe'}]}})
+        while True:
+            message = output.get(timeout=25)
+            if message.get('method') == 'session/request_permission':
+                break
+        send({'jsonrpc':'2.0', 'id':message['id'], 'result':{'outcome':{
+            'outcome':'selected', 'optionId':'reject_once'}}})
+        while True:
+            message = output.get(timeout=25)
+            if message.get('id') == 4:
+                assert message['result']['stopReason'] == 'end_turn'
+                break
+        assert json.loads((workspace / 'synthetic-approval.json').read_text()) == {'decision':'decline'}
         if os.environ.get('ACP_TCK_TEST') == '1':
             env = dict(os.environ, UV_CACHE_DIR='D:/uv/cache', PYTHONPATH=str(h.ROOT),
                        TMP=str(workspace), TEMP=str(workspace))

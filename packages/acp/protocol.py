@@ -35,6 +35,7 @@ class Protocol:
         self.closed = False
         self.sessions: dict[str, Session] = {}
         self.tasks: set[asyncio.Task] = set()
+        self.pending_permissions = {}
 
     async def _error(self, request_id, code, message):
         await self.send({'jsonrpc': '2.0', 'id': request_id, 'error': {'code': code, 'message': message}})
@@ -43,6 +44,13 @@ class Protocol:
         await self.send({'jsonrpc': '2.0', 'id': request_id, 'result': result})
 
     async def handle(self, message):
+        if isinstance(message, dict) and message.get('jsonrpc') == '2.0' and 'method' not in message:
+            request_id = message.get('id')
+            if isinstance(request_id, str):
+                future = self.pending_permissions.pop(request_id, None)
+                if future is not None and not future.done():
+                    future.set_result(message.get('result'))
+            return
         if not isinstance(message, dict) or message.get('jsonrpc') != '2.0' or not isinstance(message.get('method'), str):
             await self._error(None, -32600, 'Invalid request')
             return
@@ -134,6 +142,27 @@ class Protocol:
         active = True
         emission_lock = asyncio.Lock()
         async def emit(text):
+            if (isinstance(text, dict) and isinstance(text.get('permissionId'), str)
+                    and isinstance(text.get('command'), str) and text['command']):
+                if not active or self.closed or session.turn_id != turn_id:
+                    return 'decline'
+                permission_id = text['permissionId']
+                request = 'pan-permission-' + uuid.uuid4().hex
+                future = asyncio.get_running_loop().create_future()
+                self.pending_permissions[request] = future
+                try:
+                    await self.send({'jsonrpc':'2.0', 'id':request, 'method':'session/request_permission',
+                        'params':{'sessionId':sid,
+                            'toolCall':{'toolCallId':permission_id, 'title':text['command'], 'kind':'execute', 'status':'pending'},
+                            'options':[{'optionId':'allow_once', 'name':'Allow once', 'kind':'allow_once'},
+                                       {'optionId':'reject_once', 'name':'Reject once', 'kind':'reject_once'}]}})
+                    reply = await future
+                    outcome = reply.get('outcome') if isinstance(reply, dict) else None
+                    if isinstance(outcome, dict) and outcome.get('outcome') == 'selected' and outcome.get('optionId') == 'allow_once':
+                        return 'accept'
+                    return 'decline'
+                finally:
+                    self.pending_permissions.pop(request, None)
             async with emission_lock:
                 if not active or self.closed or session.turn_id != turn_id or not isinstance(text, str):
                     return
@@ -164,6 +193,8 @@ class Protocol:
 
     async def close(self):
         self.closed = True
+        for future in self.pending_permissions.values():
+            if not future.done(): future.set_result(None)
         await self.backend.disconnect()
 
 

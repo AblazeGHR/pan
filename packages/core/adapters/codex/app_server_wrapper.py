@@ -1051,7 +1051,8 @@ class AppServer:
         else:
             event_type = "codex.user_input"
         _write_stdout({"type": event_type, "method": method, "request_id": request_id,
-                       "params": params})
+                       "params": params,
+                       "approval_pending": method in _INTERACTIVE_APPROVAL_METHODS and not self.auto_approve})
         native_owned = self.native_control and self.control_owner.snapshot()["mode"] == "native"
 
         # In interactive permission modes, keep the native JSON-RPC request
@@ -1229,6 +1230,11 @@ class AppServer:
                         _write_stdout({"type": "pan.steer_receipt", "requestId": request_id,
                                        "ok": False, "outcome": "unknown", "error": "Steer outcome unknown: Codex turn/steer request write failed"})
             elif kind == "approval_response":
+                if "expectedTurnId" in control:
+                    expected = control.get("expectedTurnId")
+                    if (not isinstance(expected, str) or not expected or state.get("done")
+                            or not isinstance(state.get("turn_id"), str) or state["turn_id"] != expected):
+                        continue
                 request_id = control.get("request_id", control.get("requestId"))
                 pending = (state.get("pending_requests") or {}).pop(str(request_id), None)
                 if pending is None:

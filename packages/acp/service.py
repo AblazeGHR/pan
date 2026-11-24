@@ -32,6 +32,7 @@ class Turn:
     cancelling: bool = False
     submitting: bool = False
     native_retries: int = 0
+    permission_attempts: set = field(default_factory=set)
     changed: asyncio.Event = field(default_factory=asyncio.Event)
 
 
@@ -55,7 +56,7 @@ class Service:
     """Per-process authority. All methods must run on the server event loop."""
 
     def __init__(self, profile_lookup, create_session, enqueue, withdraw=None, interrupt=None, recover=None,
-                 save=None, remove=None, load=None, authorize_mcp=None):
+                 save=None, remove=None, load=None, authorize_mcp=None, approval=None):
         self.profile_lookup = profile_lookup
         self.create_session = create_session
         self.enqueue = enqueue
@@ -66,6 +67,7 @@ class Service:
         self.remove = remove or (lambda *_: None)
         self.load = load
         self.authorize_mcp = authorize_mcp
+        self.approval = approval
         self.contexts: dict[str, Context] = {}
         self.by_session: dict[str, Context] = {}
 
@@ -217,8 +219,28 @@ class Service:
         terminal = turn.projection.terminal if turn.projection else None
         if turn.cancelled:
             terminal = {'status': 'cancelled'}
-        return {'chunks': chunks, 'cursor': end,
-                'status': terminal['status'] if terminal and end == len(turn.chunks) else None}
+        result = {'chunks': chunks, 'cursor': end,
+                  'status': terminal['status'] if terminal and end == len(turn.chunks) else None}
+        if turn.projection and turn.projection.permissions:
+            result['permissions'] = list(turn.projection.permissions)
+        return result
+
+    async def respond_permission(self, principal, handle, turn_id, permission_id, decision):
+        ctx = self._context(principal, handle)
+        turn = ctx.turn
+        if (not turn or turn.turn_id != turn_id or turn.error or not turn.projection
+                or turn.projection.terminal or not turn.projection.identity
+                or not isinstance(permission_id, str) or decision not in ('accept', 'decline')
+                or permission_id in turn.permission_attempts or self.approval is None):
+            raise Unconfirmed('permission outcome unavailable')
+        matches = [p for p in turn.projection.permissions if p['id'] == permission_id]
+        if len(matches) != 1:
+            raise Unconfirmed('permission identity unavailable')
+        turn.permission_attempts.add(permission_id)
+        result = await self.approval(ctx.session_id, *turn.projection.identity,
+                                     matches[0]['requestId'], decision)
+        if result != 'submitted':
+            raise Unconfirmed('permission outcome unknown')
 
     def finish(self, principal, handle, turn_id, cursor):
         ctx = self._context(principal, handle)

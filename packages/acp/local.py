@@ -253,6 +253,9 @@ class Listener:
             elif operation == 'cancel' and set(args) == {'handle', 'turnId'}:
                 await s.cancel(name, args['handle'], args['turnId'])
                 result = {}
+            elif operation == 'permission' and set(args) == {'handle', 'turnId', 'permissionId', 'decision'}:
+                await s.respond_permission(name, args['handle'], args['turnId'], args['permissionId'], args['decision'])
+                result = {}
             elif operation == 'release' and set(args) == {'handle'}:
                 s.release(name, args['handle'])
                 result = {}

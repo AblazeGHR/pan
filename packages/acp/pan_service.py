@@ -109,5 +109,10 @@ def bind(server, profile_lookup, save=None, remove=None, load=None):
         session = server.sess.get(session_id, load_history=False)
         return receipt_status(session, turn_id, queue_id) if session else {'state': 'unknown'}
 
+    async def approval(session_id, worker_id, generation, execution_seq, request_id, decision):
+        result = await server.worker.approval_expected_execution(
+            session_id, worker_id, generation, execution_seq, request_id, decision)
+        return result.get('status')
+
     return Service(profile_lookup, create, enqueue, withdraw, interrupt, recover, save, remove, load,
-                   authorize)
+                   authorize, approval)

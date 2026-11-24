@@ -11,6 +11,32 @@ from packages.acp.backend import Backend, RecoveredTerminal
 from tests.test_acp_projection import delta, frame, receipt
 
 
+def test_permission_identity_projection_and_single_attempt(tmp_path):
+    async def run():
+        profile = validate('p', {'enabled':True, 'template':'text', 'workspaceRoots':[str(tmp_path)]})
+        calls = []
+        async def create(*_): return 's1'
+        async def enqueue(*_): return 'q1'
+        async def approval(*args): calls.append(args); return 'submitted'
+        service = Service(lambda _:profile, create, enqueue, approval=approval)
+        handle = service.prepare('p', str(tmp_path))
+        await service.submit('p', handle, 'turn', 'hello')
+        service.observe(receipt())
+        event = {'type':'approval.request', 'method':'item/commandExecution/requestApproval', 'approval_pending':True,
+                 'request_id':5, 'params':{'command':'echo example', 'secret':'not sent'}}
+        service.observe(frame(1, event, execution=2))
+        assert 'permissions' not in service.poll('p', handle, 'turn')
+        service.observe(frame(2, event))
+        assert service.poll('p', handle, 'turn')['permissions'] == [{'id':'2', 'requestId':5, 'command':'echo example'}]
+        with pytest.raises(PermissionError):
+            await service.respond_permission('other', handle, 'turn', '2', 'accept')
+        await service.respond_permission('p', handle, 'turn', '2', 'decline')
+        assert calls == [('s1', 'w1', 0, 1, 5, 'decline')]
+        with pytest.raises(Unconfirmed):
+            await service.respond_permission('p', handle, 'turn', '2', 'accept')
+    asyncio.run(run())
+
+
 def test_cancel_before_submit_is_bound_to_original_turn(tmp_path):
     async def run():
         profile = validate('p', {'enabled':True, 'template':'text', 'workspaceRoots':[str(tmp_path)]})
