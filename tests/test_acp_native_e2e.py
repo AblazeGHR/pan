@@ -82,6 +82,22 @@ def test_running_cancel_through_codex_native_bridge(tmp_path, monkeypatch):
                 assert message['result']['stopReason'] == 'end_turn'
                 break
         assert json.loads((workspace / 'synthetic-approval.json').read_text()) == {'decision':'decline'}
+        for request_id, option, expected in ((5, 'unknown', 'decline'), (6, 'allow_once', 'accept')):
+            send({'jsonrpc':'2.0','id':request_id,'method':'session/prompt',
+                  'params':{'sessionId':sid,'prompt':[{'type':'text','text':'permission-probe'}]}})
+            while True:
+                message = output.get(timeout=25)
+                if message.get('method') == 'session/request_permission':
+                    break
+            assert message['params']['toolCall']['title'] == 'synthetic'
+            send({'jsonrpc':'2.0', 'id':message['id'], 'result':{'outcome':{
+                'outcome':'selected', 'optionId':option}}})
+            while True:
+                message = output.get(timeout=25)
+                if message.get('id') == request_id:
+                    assert message['result']['stopReason'] == 'end_turn'
+                    break
+            assert json.loads((workspace / 'synthetic-approval.json').read_text()) == {'decision':expected}
         if os.environ.get('ACP_TCK_TEST') == '1':
             env = dict(os.environ, UV_CACHE_DIR='D:/uv/cache', PYTHONPATH=str(h.ROOT),
                        TMP=str(workspace), TEMP=str(workspace))
