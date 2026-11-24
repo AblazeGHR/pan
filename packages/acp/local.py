@@ -54,9 +54,19 @@ def _read_profile(root, name):
     return policy.validate(name, record['config']), credential
 
 
-def initialize(root, name, template, workspace):
+def initialize(root, name, template, workspace, mcp_names=()):
     win, secret = _windows()
     config = {'enabled': True, 'template': template, 'workspaceRoots': [str(workspace)]}
+    if mcp_names:
+        from packages.core.config import DEFAULT_PLUGIN_MANIFESTS
+        from packages.core.manifest_loader import load_manifests
+        from packages.plugins.catalog import Catalog
+        config_path = Path(root) / 'config.json'
+        host_config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
+        manifest = load_manifests(host_config.get('plugin_manifests', DEFAULT_PLUGIN_MANIFESTS))
+        catalog = Catalog(manifest)
+        config['stdioMcp'] = [{'name':item, 'sha256':policy.physical_mcp_pin(catalog, [item])}
+                              for item in mcp_names]
     policy.validate(name, config)
     directory, path = _directory(root), _path(root, name)
     win.create_owner_only_directory(str(directory))
@@ -101,6 +111,8 @@ class StateStore:
         turn = ctx.turn
         data = {'principal':ctx.principal, 'template':ctx.profile.template,
                 'roots':[str(root) for root in ctx.profile.roots], 'cwd':ctx.cwd,
+                'profileMcp':list(zip(ctx.profile.mcp_names, ctx.profile.mcp_pins)),
+                'mcpNames':list(ctx.mcp_names), 'mcpDigest':ctx.mcp_digest,
                 'sessionId':ctx.session_id,
                 'turnId':turn.turn_id if turn else None,
                 'queueId':turn.queue_id if turn else None,
@@ -131,7 +143,8 @@ class StateStore:
                 return None
             profile = service.profile_lookup(principal)
             if (profile is None or profile.template != data['template']
-                    or [str(root) for root in profile.roots] != data['roots']):
+                    or [str(root) for root in profile.roots] != data['roots']
+                    or [list(pair) for pair in zip(profile.mcp_names, profile.mcp_pins)] != data.get('profileMcp', [])):
                 return None
             cwd = str(policy.resolve_workspace(profile, data['cwd']))
             sid, turn_id, qid = data['sessionId'], data['turnId'], data['queueId']
@@ -141,6 +154,13 @@ class StateStore:
             if len(service.contexts) >= 128 or sid in service.by_session: return None
             ctx = Context(principal, profile, cwd, sid)
             ctx.restored = True
+            names, digest = data.get('mcpNames', []), data.get('mcpDigest', '')
+            if (not isinstance(names, list) or any(name not in profile.mcp_names for name in names)
+                    or len(names) != len(set(names)) or not isinstance(digest, str)
+                    or (names and (len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest)))
+                    or (not names and digest)):
+                return None
+            ctx.mcp_names, ctx.mcp_digest = tuple(names), digest
             completed = data.get('completedTurnIds', [])
             if (not isinstance(completed, list) or len(completed) > 1024
                     or any(not isinstance(item, str) or not item for item in completed)
@@ -217,8 +237,13 @@ class Listener:
             s = self.service
             if operation == 'prepare' and set(args) == {'cwd'}:
                 result = {'handle': s.prepare(name, args['cwd'])}
+            elif operation == 'prepare' and set(args) == {'cwd', 'servers'}:
+                result = {'handle': s.prepare(name, args['cwd'], args['servers'])}
             elif operation == 'submit' and set(args) == {'handle', 'turnId', 'text'}:
                 await s.submit(name, args['handle'], args['turnId'], args['text'])
+                result = {}
+            elif operation == 'submit' and set(args) == {'handle', 'turnId', 'blocks'}:
+                await s.submit(name, args['handle'], args['turnId'], args['blocks'])
                 result = {}
             elif operation == 'poll' and set(args) == {'handle', 'turnId', 'cursor'}:
                 result = s.poll(name, args['handle'], args['turnId'], args['cursor'])

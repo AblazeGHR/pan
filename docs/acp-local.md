@@ -19,7 +19,10 @@ rejects remote clients using the existing Windows pipe implementation. No
 equivalent other-host test is implied. Other operating systems currently fail
 closed with an unsupported error.
 
-Only text prompts are supported. A Pan Session is created on the first prompt;
+Text and local `resource_link` prompts are supported. Links must resolve to an
+existing non-reparse file within an authorized workspace root; network URIs,
+UNC paths and out-of-scope paths are rejected. The Worker receives the local
+path as text and this layer does not open or fetch the file. A Pan Session is created on the first prompt;
 each turn uses the normal durable user queue. ACP sees only server-side
 projection for that Session and its matching queue/Worker execution. Polling
 uses an output cursor, so a lost poll response can be retried without duplicating
@@ -45,6 +48,16 @@ Each connection-local context retains at most 1,024 completed turn identities;
 after that it rejects further prompts so a late cancel cannot be mistaken for
 a new turn. Open a new ACP session to continue.
 
-This text-only subset is not fully ACP v1 conformant: the v1 TCK also requires
-resource-link prompt blocks and client-supplied stdio MCP servers, which this
-profile does not accept. Permission requests are not exercised in this subset.
+To authorize a stdio MCP manifest entry when creating a profile, add
+`--allow-mcp MANIFEST_ID` to `acp-init`. This pins the existing manifest's
+physical descriptor in the protected profile. A client descriptor must match
+the name, absolute command, arguments and empty environment exactly; a changed
+manifest is rejected, including on a later Worker startup. Commands and
+arguments must not contain secrets. Client MCP selections are currently
+limited to CBC, Claude and Codex templates; real-provider MCP startup has not
+been verified by the synthetic fixture. Nonempty environments remain unsupported:
+the existing Codex adapter serializes MCP environment values into process
+arguments, so accepting them would leak those values. Do not put credentials in
+the manifest or arguments. This subset is not fully ACP v1 conformant; the
+unfiltered TCK uses an out-of-scope nonexistent file and an unapproved MCP
+command and is expected to reject them. Permission requests are not exercised.

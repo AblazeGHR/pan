@@ -12,7 +12,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 
-from .policy import resolve_workspace
+from .policy import resolve_workspace, resource_text
 from .projection import TurnProjection, Unconfirmed
 
 
@@ -47,13 +47,15 @@ class Context:
     restored: bool = False
     last_access: float = field(default_factory=time.monotonic)
     completed_turns: list[str] = field(default_factory=list)
+    mcp_names: tuple[str, ...] = ()
+    mcp_digest: str = ''
 
 
 class Service:
     """Per-process authority. All methods must run on the server event loop."""
 
     def __init__(self, profile_lookup, create_session, enqueue, withdraw=None, interrupt=None, recover=None,
-                 save=None, remove=None, load=None):
+                 save=None, remove=None, load=None, authorize_mcp=None):
         self.profile_lookup = profile_lookup
         self.create_session = create_session
         self.enqueue = enqueue
@@ -63,6 +65,7 @@ class Service:
         self.save = save or (lambda *_: None)
         self.remove = remove or (lambda *_: None)
         self.load = load
+        self.authorize_mcp = authorize_mcp
         self.contexts: dict[str, Context] = {}
         self.by_session: dict[str, Context] = {}
 
@@ -84,7 +87,7 @@ class Service:
             if ctx.last_access < cutoff and not (ctx.turn and ctx.turn.submitting):
                 self._detach(handle, ctx)
 
-    def prepare(self, principal, cwd):
+    def prepare(self, principal, cwd, servers=None):
         profile = self.profile_lookup(principal)
         if profile is None:
             raise PermissionError('ACP profile unavailable')
@@ -92,14 +95,24 @@ class Service:
         if len(self.contexts) >= 128:
             raise Unconfirmed('ACP context limit reached')
         path = resolve_workspace(profile, cwd)
+        servers = [] if servers is None else servers
+        if servers:
+            if self.authorize_mcp is None:
+                raise PermissionError('MCP unavailable')
+            names, digest = self.authorize_mcp(profile, servers)
+        else:
+            names, digest = (), ''
         handle = secrets.token_urlsafe(32)
         ctx = Context(principal, profile, str(path))
+        ctx.mcp_names, ctx.mcp_digest = names, digest
         self.save(handle, ctx)
         self.contexts[handle] = ctx
         return handle
 
     async def submit(self, principal, handle, turn_id, text):
         ctx = self._context(principal, handle)
+        if isinstance(text, list):
+            text = resource_text(ctx.profile, text)
         if not isinstance(turn_id, str) or not turn_id or not isinstance(text, str) or not text.strip():
             raise ValueError('invalid turn')
         if turn_id in ctx.completed_turns or len(ctx.completed_turns) >= 1024:
@@ -115,7 +128,10 @@ class Service:
             # Persist identity and intent before any external side effect.
             self.save(handle, ctx)
             if ctx.session_id is None:
-                created = await self.create_session(ctx.profile, ctx.cwd)
+                if ctx.mcp_names:
+                    created = await self.create_session(ctx.profile, ctx.cwd, ctx.mcp_names, ctx.mcp_digest)
+                else:
+                    created = await self.create_session(ctx.profile, ctx.cwd)
                 if not isinstance(created, str) or not created or created in self.by_session:
                     raise Unconfirmed('session creation unconfirmed')
                 ctx.session_id = created

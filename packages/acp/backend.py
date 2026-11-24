@@ -19,16 +19,18 @@ class Backend:
         self.contexts = set()
         self.uncertain = set()
 
-    async def prepare(self, cwd):
-        result = await self.request('prepare', {'cwd': cwd})
+    async def prepare(self, cwd, servers=None):
+        args = {'cwd': cwd}
+        if servers:
+            args['servers'] = servers
+        result = await self.request('prepare', args)
         handle = result['handle']
         self.contexts.add(handle)
         return handle
 
     async def prompt(self, context, blocks, turn_id, emit):
-        text = ''.join(block['text'] for block in blocks)
         self.uncertain.add(context)
-        await self.request('submit', {'handle': context, 'turnId': turn_id, 'text': text})
+        await self.request('submit', {'handle': context, 'turnId': turn_id, 'blocks': blocks})
         cursor = 0
         while True:
             # Poll is a read at a fixed cursor; a lost response is safe to

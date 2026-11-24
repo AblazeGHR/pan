@@ -15,6 +15,7 @@ opencode 本轮未接 MCP（无 mcp_args，见 opencode-adaptation.md §4.5）�
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -133,6 +134,12 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
         from packages.plugins.catalog import Catalog
         manifest = load_manifests(load_config().get("plugin_manifests", DEFAULT_PLUGIN_MANIFESTS))
         servers = Catalog(manifest).compile(s.adapter_config.get("plugin_bindings", []))
+    expected = s.adapter_config.get('_acp_mcp_digest')
+    if expected is not None:
+        actual = hashlib.sha256(json.dumps(servers or [], sort_keys=True, ensure_ascii=True,
+                                           separators=(',', ':')).encode()).hexdigest()
+        if not isinstance(expected, str) or actual != expected:
+            raise ValueError('ACP MCP configuration changed; worker startup refused')
     if not servers:
         return {}
     mcp_servers: dict[str, dict] = {}

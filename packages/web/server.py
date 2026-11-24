@@ -6966,6 +6966,10 @@ async def api_set_session_workspaces(session_id: str, data: dict):
 
 @app.post("/api/sessions")
 async def api_create_session(data: dict):
+    return await _create_session_with_mcp_pin(data)
+
+
+async def _create_session_with_mcp_pin(data: dict, *, _acp_mcp_pin: str | None = None):
     """Create a new Session (no worker spawned)."""
     try:
         params = await _plugin_io(_build_session_params, data)
@@ -6983,6 +6987,16 @@ async def api_create_session(data: dict):
             params = await _plugin_io(_build_session_params, data)
             if not _action_groups(params.get('adapter_config', {})) <= groups:
                 continue
+            if _acp_mcp_pin is not None:
+                import hashlib
+                config = params.get('adapter_config', {})
+                catalog = _plugin_catalog()
+                physical = catalog.compile(config.get('plugin_bindings', []))
+                actual = hashlib.sha256(json.dumps(physical, sort_keys=True, ensure_ascii=True,
+                                                   separators=(',', ':')).encode()).hexdigest()
+                if actual != _acp_mcp_pin:
+                    return {'error': 'ACP MCP configuration changed'}
+                config['_acp_mcp_digest'] = _acp_mcp_pin
             err = await _plugin_io(_check_session_name, name)
             if err:
                 return {'error': err}

@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import secrets
+import hashlib
+import json
 
 from .service import Service
 from .projection import Unconfirmed
+from .policy import authorize_mcp, mcp_digest, physical_mcp_pin
 
 
 def receipt_status(session, turn_id, queue_id=None):
@@ -38,12 +41,42 @@ def receipt_status(session, turn_id, queue_id=None):
 
 
 def bind(server, profile_lookup, save=None, remove=None, load=None):
-    async def create(profile, cwd):
-        result = await server.api_create_session({
+    def authorize(profile, requested):
+        template = server._character_manager.get_session_template(profile.template)
+        if template is None or (template.adapter or 'cbc') not in {'cbc', 'claude', 'codex'}:
+            raise PermissionError('MCP transport unavailable for this template')
+        names, digest = authorize_mcp(profile, requested, server._resolve_mcp_server_configs)
+        catalog = server._plugin_catalog()
+        for name in names:
+            if physical_mcp_pin(catalog, [name]) != profile.mcp_pins[profile.mcp_names.index(name)]:
+                raise PermissionError('MCP profile pin changed')
+        return names, digest
+
+    async def create(profile, cwd, names=(), digest=''):
+        if names:
+            template = server._character_manager.get_session_template(profile.template)
+            if template is None or (template.adapter or 'cbc') not in {'cbc', 'claude', 'codex'}:
+                raise PermissionError('MCP transport unavailable for this template')
+        if names and (any(name not in profile.mcp_names for name in names)
+                      or mcp_digest(names, server._resolve_mcp_server_configs) != digest):
+            raise PermissionError('MCP authorization changed')
+        request = {
             'name': 'acp-' + secrets.token_hex(12),
             'sessionTemplate': profile.template,
             'workdir': cwd,
-        })
+        }
+        if names:
+            request['mcpServers'] = list(names)
+            catalog = server._plugin_catalog()
+            for name in names:
+                if physical_mcp_pin(catalog, [name]) != profile.mcp_pins[profile.mcp_names.index(name)]:
+                    raise PermissionError('MCP profile pin changed')
+            physical = catalog.compile(catalog.legacy_bindings(list(names)))
+            pin = hashlib.sha256(json.dumps(physical, sort_keys=True, ensure_ascii=True,
+                                           separators=(',', ':')).encode()).hexdigest()
+            result = await server._create_session_with_mcp_pin(request, _acp_mcp_pin=pin)
+        else:
+            result = await server.api_create_session(request)
         if not isinstance(result, dict) or result.get('error') or not result.get('id'):
             raise Unconfirmed('session creation failed or unconfirmed')
         return result['id']
@@ -76,4 +109,5 @@ def bind(server, profile_lookup, save=None, remove=None, load=None):
         session = server.sess.get(session_id, load_history=False)
         return receipt_status(session, turn_id, queue_id) if session else {'state': 'unknown'}
 
-    return Service(profile_lookup, create, enqueue, withdraw, interrupt, recover, save, remove, load)
+    return Service(profile_lookup, create, enqueue, withdraw, interrupt, recover, save, remove, load,
+                   authorize)

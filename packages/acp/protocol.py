@@ -78,13 +78,13 @@ class Protocol:
             return
         if method == 'session/new':
             cwd, servers = params.get('cwd'), params.get('mcpServers')
-            if not isinstance(cwd, str) or not os.path.isabs(cwd) or servers != []:
-                await self._error(request_id, -32602, 'Absolute cwd and empty mcpServers required')
+            if not isinstance(cwd, str) or not os.path.isabs(cwd) or not isinstance(servers, list):
+                await self._error(request_id, -32602, 'Absolute cwd and mcpServers required')
                 return
             try:
                 # prepare must only authorize and describe: it cannot create a
                 # durable Session before the first prompt.
-                context = await self.backend.prepare(cwd)
+                context = await self.backend.prepare(cwd, servers) if servers else await self.backend.prepare(cwd)
             except Exception:
                 await self._error(request_id, -32000, 'Session authorization unavailable')
                 return
@@ -100,9 +100,11 @@ class Protocol:
                                 'message':'Session not found', 'data':{'sessionId':sid}}})
                 return
             if session is None or not isinstance(blocks, list) or not blocks or any(
-                    not isinstance(block, dict) or block.get('type') != 'text'
-                    or not isinstance(block.get('text'), str) for block in blocks):
-                await self._error(request_id, -32602, 'Invalid session or text prompt')
+                    not isinstance(block, dict) or block.get('type') not in ('text', 'resource_link')
+                    or (block.get('type') == 'text' and not isinstance(block.get('text'), str))
+                    or (block.get('type') == 'resource_link' and
+                        (not isinstance(block.get('uri'), str) or not isinstance(block.get('name'), str))) for block in blocks):
+                await self._error(request_id, -32602, 'Invalid session or prompt')
                 return
             if session.task and not session.task.done():
                 await self._error(request_id, -32000, 'Session is busy')

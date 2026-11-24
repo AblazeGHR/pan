@@ -101,7 +101,7 @@ def test_prompt_immediate_cancel_when_transport_reorders(tmp_path):
             if operation == 'cancel': return await service.cancel('p', args['handle'], args['turnId'])
             if operation == 'submit':
                 await gate.wait()
-                await service.submit('p', args['handle'], args['turnId'], args['text'])
+                await service.submit('p', args['handle'], args['turnId'], args['blocks'])
                 return {}
             if operation == 'poll': return service.poll('p', args['handle'], args['turnId'], args['cursor'])
             if operation == 'finish': service.finish('p', args['handle'], args['turnId'], args['cursor']); return {}
