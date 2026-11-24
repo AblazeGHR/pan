@@ -373,9 +373,28 @@ async def _owned_lifespan(app: FastAPI, owner):
                         app.state.plugin_events = plugin_runtime.events
                         from packages.interactions.user_cards_api import scheduler as user_card_scheduler
                         user_card_task = asyncio.create_task(user_card_scheduler(app, interaction_store=startup_inbox).run())
+                        acp_listener = None
                         try:
+                            # Explicitly provisioned ACP profiles opt this instance
+                            # into the dedicated local transport. No TCP route or
+                            # generic plugin IPC authority is added.
+                            if (sess.SESSION_DIR.parent / 'acp').is_dir() and os.name != 'nt':
+                                _log('[Pan] ACP local transport unavailable on this platform')
+                            elif (sess.SESSION_DIR.parent / 'acp').is_dir():
+                                from packages.acp.local import Listener
+                                import sys
+                                try:
+                                    acp_listener = Listener(sess.SESSION_DIR.parent, sys.modules[__name__])
+                                    acp_listener.start()
+                                except Exception:
+                                    if acp_listener is not None:
+                                        await asyncio.to_thread(acp_listener.close)
+                                    acp_listener = None
+                                    _log('[Pan] ACP local transport unavailable; access disabled')
                             yield
                         finally:
+                            if acp_listener is not None:
+                                await asyncio.to_thread(acp_listener.close)
                             user_card_task.cancel()
                             try:
                                 await user_card_task
@@ -1951,6 +1970,11 @@ async def broadcast(data: dict):
         data = _attach_session_summary_patch(data)
         data = _stamp_live_event(data)
         _stamp_ws_event_ts(data)
+        # ACP only sees its own private server-side projection; no raw event
+        # or generic agent subscription is exposed to an ACP client.
+        acp_service = getattr(app.state, 'acp_service', None)
+        if acp_service is not None:
+            acp_service.observe(data)
     except Exception as exc:
         if is_job_notice:
             # No outbound enqueue has been invoked. Exceptions from enqueue

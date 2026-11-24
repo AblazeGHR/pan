@@ -13,6 +13,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from .backend import RecoveredTerminal
+
 MAX_LINE = 1024 * 1024
 
 
@@ -64,7 +66,7 @@ class Protocol:
         if not has_id:
             return
         if method == 'initialize':
-            if self.initialized or type(params.get('protocolVersion')) is not int or params['protocolVersion'] != 1:
+            if self.initialized or type(params.get('protocolVersion')) is not int:
                 await self._error(request_id, -32602, 'Unsupported initialization')
                 return
             self.initialized = True
@@ -72,7 +74,7 @@ class Protocol:
                 'agentInfo': {'name': 'pan', 'version': '0.1'}, 'authMethods': []})
             return
         if not self.initialized:
-            await self._error(request_id, -32000, 'Initialize first')
+            await self._error(request_id, -32600, 'Initialize first')
             return
         if method == 'session/new':
             cwd, servers = params.get('cwd'), params.get('mcpServers')
@@ -124,6 +126,13 @@ class Protocol:
             async with emission_lock:
                 active = False
                 if not self.closed: await self._result(request_id, {'stopReason': result})
+        except RecoveredTerminal as exc:
+            async with emission_lock:
+                active = False
+                if not self.closed:
+                    await self.send({'jsonrpc':'2.0', 'id':request_id,
+                        'error':{'code':-32000, 'message':'Terminal confirmed; stream outcome unknown',
+                                 'data':{'panTerminal':exc.receipt}}})
         except Exception:
             async with emission_lock:
                 active = False

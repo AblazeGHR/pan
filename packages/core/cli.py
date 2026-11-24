@@ -231,6 +231,12 @@ def parser():
     p.add_argument("--version", action="version", version=f"Pan {__version__}")
     p.add_argument("--root", type=Path, default=launcher.checkout_root(), help="installation root (independent of cwd)")
     sub = p.add_subparsers(dest="command", required=True)
+    item = sub.add_parser('acp', help='Serve ACP v1 over stdio using a local profile')
+    item.add_argument('--profile', required=True)
+    item = sub.add_parser('acp-init', help='Create a private local ACP profile')
+    item.add_argument('--profile', required=True)
+    item.add_argument('--template', required=True)
+    item.add_argument('--workspace', type=Path, required=True)
     from packages.jobs.final_cli import add_parser
     add_parser(sub)
     for name, help_text in (("start", "Start independently, honor startup.console_hidden, wait for ready"),
@@ -263,6 +269,19 @@ def main(argv=None):
             os.environ.pop(key)
     root = args.root.expanduser().resolve()
     try:
+        if args.command == 'acp-init':
+            from packages.acp.local import initialize
+            initialize(root / 'data', args.profile, args.template, args.workspace.resolve())
+            return 0
+        if args.command == 'acp':
+            import asyncio
+            from packages.acp.backend import Backend
+            from packages.acp.local import request as acp_request
+            from packages.acp.protocol import serve
+            async def request_acp(operation, params):
+                return await asyncio.to_thread(acp_request, root / 'data', args.profile, operation, params)
+            asyncio.run(serve(Backend(request_acp), sys.stdin.buffer, sys.stdout.buffer))
+            return 0
         if hasattr(args, "timeout") and (not math.isfinite(args.timeout) or args.timeout <= 0):
             raise launcher.LauncherError("--timeout must be finite and positive")
         if args.command == "start":

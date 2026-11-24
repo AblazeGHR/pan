@@ -41,7 +41,7 @@ def test_v1_lifecycle_busy_cancel_and_session_isolation(tmp_path):
         async def request(id, method, params):
             await engine.handle({'jsonrpc':'2.0', 'id':id, 'method':method, 'params':params})
         await request(1, 'session/new', {})
-        assert output[-1]['error']['code'] == -32000
+        assert output[-1]['error']['code'] == -32600
         await request(2, 'initialize', {'protocolVersion':1, 'clientCapabilities':{}})
         assert output[-1]['result']['protocolVersion'] == 1
         await request(3, 'session/new', {'cwd':os.fspath(tmp_path), 'mcpServers':[]})
