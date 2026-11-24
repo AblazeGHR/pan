@@ -20,9 +20,19 @@ run = ROOT / '.workflow' / 'acp-acceptance' / ('tck-' + uuid.uuid4().hex)
 data, workspace = run / 'data', run / 'workspace'
 data.mkdir(parents=True)
 workspace.mkdir()
-(data / 'config.json').write_text(json.dumps({'qq':{'enabled':False}, 'wechat':{'enabled':False},
-    'remote':{'enabled':False}, 'tailscale':{'startupEnabled':False}, 'lan':{'startupEnabled':False}}))
-initialize(data, 'editor', 'default', workspace)
+native = '--native' in sys.argv[1:]
+config = {'qq':{'enabled':False}, 'wechat':{'enabled':False},
+    'remote':{'enabled':False}, 'tailscale':{'startupEnabled':False}, 'lan':{'startupEnabled':False}}
+template = 'default'
+if native:
+    plugin = run / 'plugin'; plugin.mkdir()
+    (plugin / 'manifest.json').write_text(json.dumps({'session_templates':[{'name':'synthetic-codex',
+        'adapter':'codex', 'model':'synthetic-model', 'mcp_mode':'never'}]}))
+    config.update({'plugin_manifests':[str(plugin)], 'codex':{'models':['synthetic-model'], 'model':'synthetic-model'}})
+    os.environ['PAN_E2E_SYNTH_CODEX'] = '1'
+    template = 'synthetic-codex'
+(data / 'config.json').write_text(json.dumps(config))
+initialize(data, 'editor', template, workspace)
 with socket.socket() as probe:
     probe.bind(('127.0.0.1', 0))
     port = probe.getsockname()[1]
@@ -35,7 +45,7 @@ env = dict(os.environ, UV_CACHE_DIR='D:/uv/cache', PYTHONPATH=str(ROOT), TMP=str
 cmd = ['uvx', '--from',
        'git+https://github.com/agentclientprotocol/acp-tck@7c71c4d1af0994e73bdc100c9f7f6b98f2319cda',
        'acp-tck', '--protocol-version', '1', '--agent-cwd', str(workspace), '--timeout', '8',
-       '--test-timeout', '20', '--report-json', str(run / 'report.json'), '--',
+       '--test-timeout', '20', *(['--cancel-prompt', 'hold'] if native else []), '--report-json', str(run / 'report.json'), '--',
        sys.executable, '-m', 'packages.core.cli', '--root', str(run), 'acp', '--profile', 'editor']
 print('Evidence directory:', run, flush=True)
 try:

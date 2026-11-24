@@ -1,6 +1,6 @@
 import os
 import pytest
-from packages.acp.policy import validate, resolve_workspace, resource_text, authorize_mcp, mcp_digest
+from packages.acp.policy import validate, resolve_workspace, resource_text, prompt_text, authorize_mcp, mcp_digest
 
 
 def test_profile_defaults_closed_and_workspace_is_canonical(tmp_path):
@@ -41,6 +41,8 @@ def test_local_resource_scope_and_untrusted_uri(tmp_path):
                 (root / 'missing').as_uri()):
         with pytest.raises((ValueError, OSError)):
             resource_text(profile, [{'type':'resource_link','uri':uri,'name':'x'}])
+        result = prompt_text(profile, [{'type':'text','text':'question'}, {'type':'resource_link','uri':uri,'name':'secret-name'}])
+        assert result == 'question\n[Resource unavailable]\n' and uri not in result
 
 
 def test_stdio_mcp_exact_trusted_manifest_matching(tmp_path):

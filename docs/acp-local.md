@@ -21,7 +21,8 @@ closed with an unsupported error.
 
 Text and local `resource_link` prompts are supported. Links must resolve to an
 existing non-reparse file within an authorized workspace root; network URIs,
-UNC paths and out-of-scope paths are rejected. The Worker receives the local
+UNC paths and out-of-scope or missing files are represented only as an
+unavailable resource. No URI or file contents are disclosed for those links. The Worker receives the local
 path as text and this layer does not open or fetch the file. A Pan Session is created on the first prompt;
 each turn uses the normal durable user queue. ACP sees only server-side
 projection for that Session and its matching queue/Worker execution. Polling
@@ -59,5 +60,5 @@ been verified by the synthetic fixture. Nonempty environments remain unsupported
 the existing Codex adapter serializes MCP environment values into process
 arguments, so accepting them would leak those values. Do not put credentials in
 the manifest or arguments. This subset is not fully ACP v1 conformant; the
-unfiltered TCK uses an out-of-scope nonexistent file and an unapproved MCP
-command and is expected to reject them. Permission requests are not exercised.
+unfiltered TCK uses an unapproved MCP command, which is rejected. Permission
+requests are not exercised by the default synthetic fixture.

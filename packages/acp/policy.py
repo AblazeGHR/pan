@@ -121,6 +121,32 @@ def resource_text(profile, blocks):
     return result
 
 
+def prompt_text(profile, blocks):
+    """Accept references without granting access to missing or disallowed files."""
+    if not isinstance(blocks, list) or not blocks or len(blocks) > 128:
+        raise ValueError('invalid prompt')
+    out = []
+    for block in blocks:
+        if not isinstance(block, dict):
+            raise ValueError('invalid content block')
+        if block.get('type') == 'text' and isinstance(block.get('text'), str):
+            out.append(block['text'])
+        elif (block.get('type') == 'resource_link' and isinstance(block.get('uri'), str)
+              and isinstance(block.get('name'), str)):
+            try:
+                out.append(resource_text(profile, [block]))
+            except (ValueError, OSError):
+                # Do not disclose the URI, name or any content of a resource
+                # that the profile cannot access. No network fetch occurs.
+                out.append('\n[Resource unavailable]\n')
+        else:
+            raise ValueError('invalid content block')
+    result = ''.join(out)
+    if not result.strip() or len(result.encode('utf-8')) > 128 * 1024:
+        raise ValueError('prompt unavailable or too large')
+    return result
+
+
 def authorize_mcp(profile, requested, resolve):
     """Match client descriptors exactly to profile-authorized manifest entries."""
     if not isinstance(requested, list) or len(requested) > 16:

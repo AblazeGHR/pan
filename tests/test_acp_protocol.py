@@ -119,3 +119,26 @@ def test_prompt_immediate_cancel_when_transport_reorders(tmp_path):
         assert output[-1]['result']['stopReason'] == 'cancelled'
         assert effects == []
     asyncio.run(run())
+
+
+def test_jsonrpc_cancel_is_bound_to_original_request_and_terminal(tmp_path):
+    async def run():
+        backend, out = Backend(), []
+        async def send(msg): out.append(msg)
+        p = Protocol(backend, send)
+        await p.handle({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':1}})
+        await p.handle({'jsonrpc':'2.0','id':2,'method':'session/new','params':{'cwd':str(tmp_path),'mcpServers':[]}})
+        sid = out[-1]['result']['sessionId']
+        backend.hold.clear()
+        await p.handle({'jsonrpc':'2.0','id':10,'method':'session/prompt',
+                        'params':{'sessionId':sid,'prompt':[{'type':'text','text':'x'}]}})
+        await asyncio.sleep(0)
+        await p.handle({'jsonrpc':'2.0','method':'$/cancel_request','params':{'requestId':11}})
+        assert not backend.cancelled
+        await p.handle({'jsonrpc':'2.0','method':'$/cancel_request','params':{'requestId':10}})
+        await p.sessions[sid].task
+        assert [m for m in out if m.get('id') == 10] == [
+            {'jsonrpc':'2.0','id':10,'result':{'stopReason':'cancelled'}}]
+        await p.handle({'jsonrpc':'2.0','method':'$/cancel_request','params':{'requestId':10}})
+        assert len(backend.cancelled) == 1
+    asyncio.run(run())

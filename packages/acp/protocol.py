@@ -23,6 +23,7 @@ class Session:
     context: Any
     task: asyncio.Task | None = None
     turn_id: str | None = None
+    request_id: str | int | None = None
 
 
 class Protocol:
@@ -62,6 +63,18 @@ class Protocol:
                     await self.backend.cancel(session.context, session.turn_id)
                 except Exception:
                     pass  # No notification reply and no claim of cancellation.
+            return
+        if method == '$/cancel_request' and not has_id:
+            target = params.get('requestId')
+            if isinstance(target, bool) or not isinstance(target, (str, int)):
+                return
+            matches = [s for s in self.sessions.values() if type(s.request_id) is type(target)
+                       and s.request_id == target and s.task and not s.task.done() and s.turn_id]
+            if len(matches) == 1:
+                try:
+                    await self.backend.cancel(matches[0].context, matches[0].turn_id)
+                except Exception:
+                    pass  # Cancellation outcome remains unconfirmed.
             return
         if not has_id:
             return
@@ -110,6 +123,7 @@ class Protocol:
                 await self._error(request_id, -32000, 'Session is busy')
                 return
             session.turn_id = uuid.uuid4().hex
+            session.request_id = request_id
             session.task = asyncio.create_task(self._prompt(request_id, sid, session, blocks, session.turn_id))
             self.tasks.add(session.task)
             session.task.add_done_callback(self.tasks.discard)
@@ -146,6 +160,7 @@ class Protocol:
         finally:
             if session.turn_id == turn_id:
                 session.turn_id = None
+                session.request_id = None
 
     async def close(self):
         self.closed = True

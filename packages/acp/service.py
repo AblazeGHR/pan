@@ -12,7 +12,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 
-from .policy import resolve_workspace, resource_text
+from .policy import resolve_workspace, prompt_text
 from .projection import TurnProjection, Unconfirmed
 
 
@@ -112,7 +112,7 @@ class Service:
     async def submit(self, principal, handle, turn_id, text):
         ctx = self._context(principal, handle)
         if isinstance(text, list):
-            text = resource_text(ctx.profile, text)
+            text = prompt_text(ctx.profile, text)
         if not isinstance(turn_id, str) or not turn_id or not isinstance(text, str) or not text.strip():
             raise ValueError('invalid turn')
         if turn_id in ctx.completed_turns or len(ctx.completed_turns) >= 1024:

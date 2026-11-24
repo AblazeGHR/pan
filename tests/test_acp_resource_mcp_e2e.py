@@ -50,6 +50,16 @@ def test_authorized_resource_and_manifest_mcp(tmp_path, monkeypatch):
         records = h._received(runtime, cwd=str(workspace), text=lambda t:'paper.txt' in t)
         assert len(records) == 1 and str(paper.resolve()) in records[0]['text']
         assert 'SYNTHETIC PRIVATE CONTENT' not in records[0]['text']
+        outside = tmp_path / 'outside-secret.txt'; outside.write_text('DO NOT READ')
+        other = request(data, 'editor', 'prepare', {'cwd':str(workspace)})['handle']
+        request(data, 'editor', 'submit', {'handle':other, 'turnId':'outside', 'blocks':[
+            {'type':'text','text':'question'}, {'type':'resource_link','uri':outside.as_uri(),'name':'sensitive-name'}]})
+        def outside_done():
+            response = request(data, 'editor', 'poll', {'handle':other,'turnId':'outside','cursor':0})
+            return response if response['status'] else None
+        assert h._wait_for(outside_done, timeout=25, label='unavailable resource')['status'] == 'done'
+        rows = h._received(runtime, cwd=str(workspace), text=lambda t:'[Resource unavailable]' in t)
+        assert len(rows) == 1 and str(outside) not in rows[0]['text'] and 'DO NOT READ' not in rows[0]['text']
     finally:
         runtime.stop()
     h._wait_for(lambda: marker.exists() and marker.read_text() == 'closed', timeout=10, label='owned MCP cleanup')

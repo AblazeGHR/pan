@@ -24,6 +24,10 @@ for line in sys.stdin:
         current = 'native-' + str(counter)
         send({'id':request_id, 'result':{'turn':{'id':current}}})
         send({'method':'turn/started', 'params':{'threadId':'synthetic-thread', 'turn':{'id':current}}})
+        content = (msg.get('params', {}).get('input') or [{}])[0].get('text', '')
+        if content != 'hold':
+            send({'method':'turn/completed', 'params':{'threadId':'synthetic-thread',
+                  'turn':{'id':current, 'status':'completed', 'items':[]}}})
     elif method == 'turn/interrupt':
         target = msg['params']['turnId']
         send({'id':request_id, 'result':{}})

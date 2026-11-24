@@ -72,14 +72,14 @@ def test_running_cancel_through_codex_native_bridge(tmp_path, monkeypatch):
             cmd = ['uvx', '--from',
                    'git+https://github.com/agentclientprotocol/acp-tck@7c71c4d1af0994e73bdc100c9f7f6b98f2319cda',
                    'acp-tck', '--agent-cwd', str(workspace), '--timeout', '12', '--test-timeout', '20',
-                   '--cancel-prompt', 'hold', '-k', 'test_cancel_resolves or test_no_session_update_follows',
+                   '--cancel-prompt', 'hold', '-k', 'test_cancel_resolves or test_no_session_update_follows or test_cancel_request_for_in_flight_prompt',
                    '--', sys.executable, '-m', 'packages.core.cli', '--root', str(root), 'acp', '--profile', 'editor']
             tck = subprocess.run(cmd, cwd=workspace, env=env, capture_output=True, text=True, timeout=100)
             print('ACP TCK cancellation subset exit:', tck.returncode)
             print(tck.stdout[-12000:])
             print(tck.stderr[-2000:])
             assert tck.returncode == 1
-            assert '2 passed' in tck.stdout
+            assert '3 passed' in tck.stdout
     finally:
         if child:
             child.stdin.close()
