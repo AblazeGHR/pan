@@ -37,7 +37,7 @@ def receipt_status(session, turn_id, queue_id=None):
             'terminalKey': terminal['terminalKey'], 'resultCursor': terminal['resultCursor']}
 
 
-def bind(server, profile_lookup, save=None, remove=None):
+def bind(server, profile_lookup, save=None, remove=None, load=None):
     async def create(profile, cwd):
         result = await server.api_create_session({
             'name': 'acp-' + secrets.token_hex(12),
@@ -68,10 +68,12 @@ def bind(server, profile_lookup, save=None, remove=None):
     async def interrupt(session_id, worker_id, generation, execution_seq):
         result = await server.worker.interrupt_expected_execution(
             session_id, worker_id, generation, execution_seq)
+        if result.get('status') == 'rejected' and result.get('reason') == 'native_turn_unavailable':
+            return 'native_pending'
         return result.get('status')
 
     def recover(session_id, turn_id, queue_id):
         session = server.sess.get(session_id, load_history=False)
         return receipt_status(session, turn_id, queue_id) if session else {'state': 'unknown'}
 
-    return Service(profile_lookup, create, enqueue, withdraw, interrupt, recover, save, remove)
+    return Service(profile_lookup, create, enqueue, withdraw, interrupt, recover, save, remove, load)

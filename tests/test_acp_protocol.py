@@ -83,3 +83,39 @@ def test_stdio_is_only_jsonrpc_and_handles_invalid_lines():
         assert rows[0]['error']['code'] == -32700
         assert rows[1]['result']['protocolVersion'] == 1
     asyncio.run(run())
+
+
+def test_prompt_immediate_cancel_when_transport_reorders(tmp_path):
+    from packages.acp.backend import Backend as LocalBackend
+    from packages.acp.policy import validate
+    from packages.acp.service import Service
+    async def run():
+        profile = validate('p', {'enabled':True, 'template':'text', 'workspaceRoots':[str(tmp_path)]})
+        effects, output = [], []
+        gate = asyncio.Event()
+        async def create(*_): effects.append('create'); return 's'
+        async def enqueue(*_): effects.append('enqueue'); return 'q'
+        service = Service(lambda _:profile, create, enqueue)
+        async def call(operation, args):
+            if operation == 'prepare': return {'handle':service.prepare('p', args['cwd'])}
+            if operation == 'cancel': return await service.cancel('p', args['handle'], args['turnId'])
+            if operation == 'submit':
+                await gate.wait()
+                await service.submit('p', args['handle'], args['turnId'], args['text'])
+                return {}
+            if operation == 'poll': return service.poll('p', args['handle'], args['turnId'], args['cursor'])
+            if operation == 'finish': service.finish('p', args['handle'], args['turnId'], args['cursor']); return {}
+        async def send(item): output.append(item)
+        protocol = Protocol(LocalBackend(call), send)
+        await protocol.handle({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':1}})
+        await protocol.handle({'jsonrpc':'2.0','id':2,'method':'session/new',
+                               'params':{'cwd':str(tmp_path),'mcpServers':[]}})
+        sid = output[-1]['result']['sessionId']
+        await protocol.handle({'jsonrpc':'2.0','id':3,'method':'session/prompt',
+                               'params':{'sessionId':sid,'prompt':[{'type':'text','text':'hello'}]}})
+        await protocol.handle({'jsonrpc':'2.0','method':'session/cancel','params':{'sessionId':sid}})
+        gate.set()
+        await protocol.sessions[sid].task
+        assert output[-1]['result']['stopReason'] == 'cancelled'
+        assert effects == []
+    asyncio.run(run())

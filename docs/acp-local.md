@@ -36,5 +36,11 @@ output was interrupted, it reports an error with the matching `panTerminal`
 receipt rather than claiming that the client received the whole answer. A
 missing or ambiguous receipt remains unknown; do not resubmit the prompt.
 Recovery records contain identities and workspace configuration, not prompts
-or stream text. Active or unknown records remain available for reconciliation;
-they count against the bounded context limit.
+or stream text. Disconnect detaches an uncertain turn from the in-memory
+capacity while preserving its recovery record. If a client disappears without
+disconnecting, later admissions reap an inactive context after 60 seconds;
+an in-flight submission remains protected until it returns. Recovery loads
+the original protected record on demand and never resubmits the prompt.
+Each connection-local context retains at most 1,024 completed turn identities;
+after that it rejects further prompts so a late cancel cannot be mistaken for
+a new turn. Open a new ACP session to continue.

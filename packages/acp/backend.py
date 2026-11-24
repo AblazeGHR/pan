@@ -77,10 +77,8 @@ class Backend:
     async def disconnect(self):
         # Disconnect does not cancel or replay an uncertain turn.
         for handle in self.contexts:
-            if handle in self.uncertain:
-                continue
             try:
-                await self.request('release', {'handle': handle})
+                await self.request('abandon' if handle in self.uncertain else 'release', {'handle': handle})
             except Exception:
                 pass
         self.contexts.clear()

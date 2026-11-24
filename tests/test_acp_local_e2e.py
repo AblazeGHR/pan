@@ -12,8 +12,41 @@ import httpx
 import pytest
 
 from packages.acp.local import StateStore, initialize, request, _pipe_name, _read_frame, _write_frame
+from packages.acp.policy import validate
+from packages.acp.service import Service
 from packages.automation.auth import UserAuth
 from tests import test_real_queue_http_e2e as h
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='DPAPI state store is Windows-only')
+def test_detached_receipts_survive_restart_without_occupying_pool(tmp_path):
+    import asyncio
+    async def run():
+        data, workspace = tmp_path / 'data', tmp_path / 'workspace'
+        data.mkdir(); workspace.mkdir()
+        initialize(data, 'editor', 'default', workspace)
+        profile = validate('editor', {'enabled':True, 'template':'default', 'workspaceRoots':[str(workspace)]})
+        store = StateStore(data)
+        calls = []
+        async def create(*_): return 's' + str(len(calls))
+        async def enqueue(*_): calls.append(1); return 'q'
+        def recover(*_): return {'state':'terminal', 'status':'done'}
+        def make():
+            return Service(lambda _:profile, create, enqueue, recover=recover,
+                           save=store.save, remove=store.remove, load=store.load)
+        service, handles = make(), []
+        for n in range(130):
+            handle = service.prepare('editor', str(workspace))
+            await service.submit('editor', handle, str(n), 'synthetic')
+            service.abandon('editor', handle)
+            handles.append(handle)
+        assert not service.contexts and len(calls) == 130
+        restarted = make()
+        for n, handle in enumerate(handles):
+            assert restarted.recover('editor', handle, str(n))['state'] == 'terminal'
+        assert not restarted.contexts and len(calls) == 130
+        restarted.prepare('editor', str(workspace))
+    asyncio.run(run())
 
 
 @pytest.mark.skipif(os.name != 'nt', reason='dedicated ACP transport currently Windows-only')
@@ -40,6 +73,12 @@ def test_local_stdio_two_turns(tmp_path, monkeypatch):
     child = None
     try:
         runtime.start()
+        early = request(data, 'editor', 'prepare', {'cwd':str(workspace)})['handle']
+        request(data, 'editor', 'cancel', {'handle':early, 'turnId':'before-submit'})
+        request(data, 'editor', 'submit', {'handle':early, 'turnId':'before-submit', 'text':'never-enqueue'})
+        assert request(data, 'editor', 'poll', {'handle':early, 'turnId':'before-submit', 'cursor':0})['status'] == 'cancelled'
+        request(data, 'editor', 'finish', {'handle':early, 'turnId':'before-submit', 'cursor':0})
+        request(data, 'editor', 'release', {'handle':early})
         child = subprocess.Popen([sys.executable, '-m', 'packages.core.cli', '--root', str(root),
                                   'acp', '--profile', 'editor'], cwd=str(h.ROOT),
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -72,6 +111,14 @@ def test_local_stdio_two_turns(tmp_path, monkeypatch):
                     break
             assert ''.join(chunks) == f'ack:owned-{n}'
         assert len(list((data / 'sessions').glob('*.json'))) == 1
+        if os.environ.get('ACP_SDK_TEST') == '1':
+            env = dict(os.environ, UV_CACHE_DIR='D:/uv/cache', PYTHONPATH=str(h.ROOT))
+            result = subprocess.run(['uv', 'run', '--no-project', '--with', 'agent-client-protocol==1.0.0',
+                                     'python', str(h.ROOT / 'tests/support/acp_sdk_client.py'),
+                                     sys.executable, str(root), str(workspace)],
+                                    cwd=workspace, env=env, capture_output=True, text=True, timeout=60)
+            assert result.returncode == 0, result.stderr
+            assert 'ACP Python SDK two-turn fixture passed' in result.stdout
         if os.environ.get('ACP_TCK_TEST') == '1':
             env = dict(os.environ, UV_CACHE_DIR='D:/uv/cache', PYTHONPATH=str(h.ROOT),
                        TMP=str(workspace), TEMP=str(workspace))

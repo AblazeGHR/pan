@@ -104,8 +104,11 @@ class StateStore:
                 'sessionId':ctx.session_id,
                 'turnId':turn.turn_id if turn else None,
                 'queueId':turn.queue_id if turn else None,
+                'cancelledBeforeAdmission':bool(turn and turn.cancelled and turn.queue_id is None),
                 'lastTurnId':ctx.last_turn.turn_id if ctx.last_turn else None,
-                'lastQueueId':ctx.last_turn.queue_id if ctx.last_turn else None}
+                'lastQueueId':ctx.last_turn.queue_id if ctx.last_turn else None,
+                'lastCancelledBeforeAdmission':bool(ctx.last_turn and ctx.last_turn.cancelled and ctx.last_turn.queue_id is None),
+                'completedTurnIds':ctx.completed_turns}
         blob = self.protector.protect(json.dumps(data).encode('utf-8'))
         self.verifier._write_blob_atomically(path, blob)
 
@@ -116,44 +119,48 @@ class StateStore:
         self.verifier.verify_owner_only(path)
         path.unlink()
 
-    def restore(self, service):
+    def load(self, service, handle, principal):
         from .service import Context, Turn
-        for path in self.directory.glob('state-*.bin'):
-            try:
-                handle = path.name[len('state-'):-len('.bin')]
-                if self.path(handle) != path or self.win.is_reparse_point(str(path)):
-                    continue
-                self.verifier.verify_owner_only(path)
-                data = json.loads(self.protector.unprotect(path.read_bytes()))
-                profile = service.profile_lookup(data['principal'])
-                if (profile is None or profile.template != data['template']
-                        or [str(root) for root in profile.roots] != data['roots']):
-                    continue
-                cwd = str(policy.resolve_workspace(profile, data['cwd']))
-                sid, turn_id, qid = data['sessionId'], data['turnId'], data['queueId']
-                if sid is not None and (not isinstance(sid, str) or not sid):
-                    continue
-                if turn_id is not None and (not isinstance(turn_id, str) or not turn_id):
-                    continue
-                if qid is not None and (not isinstance(qid, str) or not qid):
-                    continue
-                if len(service.contexts) >= 128 or sid in service.by_session:
-                    continue
-                ctx = Context(data['principal'], profile, cwd, sid)
-                if turn_id is not None:
-                    ctx.turn = Turn(turn_id, queue_id=qid, error=True)
-                last_id, last_queue = data.get('lastTurnId'), data.get('lastQueueId')
-                if last_id is not None:
-                    if (not isinstance(last_id, str) or not last_id
-                            or not isinstance(last_queue, str) or not last_queue):
-                        continue
-                    ctx.last_turn = Turn(last_id, queue_id=last_queue, error=True)
-                service.contexts[handle] = ctx
-                if sid:
-                    service.by_session[sid] = ctx
-            except Exception:
-                # A malformed, revoked or unreadable record is never authority.
-                continue
+        try:
+            path = self.path(handle)
+            if self.win.is_reparse_point(str(path)):
+                return None
+            self.verifier.verify_owner_only(path)
+            data = json.loads(self.protector.unprotect(path.read_bytes()))
+            if data['principal'] != principal:
+                return None
+            profile = service.profile_lookup(principal)
+            if (profile is None or profile.template != data['template']
+                    or [str(root) for root in profile.roots] != data['roots']):
+                return None
+            cwd = str(policy.resolve_workspace(profile, data['cwd']))
+            sid, turn_id, qid = data['sessionId'], data['turnId'], data['queueId']
+            if sid is not None and (not isinstance(sid, str) or not sid): return None
+            if turn_id is not None and (not isinstance(turn_id, str) or not turn_id): return None
+            if qid is not None and (not isinstance(qid, str) or not qid): return None
+            if len(service.contexts) >= 128 or sid in service.by_session: return None
+            ctx = Context(principal, profile, cwd, sid)
+            ctx.restored = True
+            completed = data.get('completedTurnIds', [])
+            if (not isinstance(completed, list) or len(completed) > 1024
+                    or any(not isinstance(item, str) or not item for item in completed)
+                    or len(set(completed)) != len(completed)):
+                return None
+            ctx.completed_turns = completed
+            if turn_id is not None:
+                cancelled = data.get('cancelledBeforeAdmission') is True and qid is None
+                ctx.turn = Turn(turn_id, queue_id=qid, error=not cancelled, cancelled=cancelled)
+            last_id, last_queue = data.get('lastTurnId'), data.get('lastQueueId')
+            if last_id is not None:
+                if (not isinstance(last_id, str) or not last_id
+                        or (last_queue is not None and (not isinstance(last_queue, str) or not last_queue))): return None
+                cancelled = data.get('lastCancelledBeforeAdmission') is True and last_queue is None
+                ctx.last_turn = Turn(last_id, queue_id=last_queue, error=not cancelled, cancelled=cancelled)
+            service.contexts[handle] = ctx
+            if sid: service.by_session[sid] = ctx
+            return ctx
+        except Exception:
+            return None
 
 
 def _read_frame(conn):
@@ -189,8 +196,7 @@ class Listener:
         self.loop = asyncio.get_running_loop()
         from .pan_service import bind
         self.store = StateStore(root)
-        self.service = bind(server, self.lookup, self.store.save, self.store.remove)
-        self.store.restore(self.service)
+        self.service = bind(server, self.lookup, self.store.save, self.store.remove, self.store.load)
         self.thread = None
 
     def lookup(self, name):
@@ -224,6 +230,9 @@ class Listener:
                 result = {}
             elif operation == 'release' and set(args) == {'handle'}:
                 s.release(name, args['handle'])
+                result = {}
+            elif operation == 'abandon' and set(args) == {'handle'}:
+                s.abandon(name, args['handle'])
                 result = {}
             elif operation == 'recover' and set(args) == {'handle', 'turnId'}:
                 result = s.recover(name, args['handle'], args['turnId'])
