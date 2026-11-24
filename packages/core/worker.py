@@ -356,6 +356,7 @@ class Worker:
     _steer_receipts: dict[str, asyncio.Future] = field(default_factory=dict)
     _steer_contexts: dict[str, dict] = field(default_factory=dict)
     _steer_run_id: str | None = None
+    _acp_native_turn: tuple[int, str] | None = None
     _direct_steer_pending: bool = False
 
 
@@ -3160,6 +3161,12 @@ async def _read_stdout(w: Worker):
                 continue
         if _route_steer_receipt(w, event, runtime=receipt_runtime):
             continue
+        if event.get('type') == 'pan.turn_identity' and adapter.name == 'codex':
+            turn = event.get('turn_id')
+            if (_control_runtime_matches(w.worker_id, receipt_runtime) and w.status == 'running'
+                    and not w._terminal_handled and isinstance(turn, str) and turn):
+                w._acp_native_turn = (w._execution_seq, turn)
+            continue
         if (getattr(adapter, "steer_requires_run_id", False) and not w._terminal_handled
                 and w.status == "running" and _control_runtime_matches(w.worker_id, receipt_runtime)):
             sid = (_session(w).cli_session_id if _session(w) is not None else None)
@@ -4032,6 +4039,12 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
     old_queue_revision = getattr(s, "queue_revision", 0)
     s.queue_revision = old_queue_revision + 1
     for item in items:
+        # Persist the execution which actually crossed the adapter handoff.
+        # The queue item is the durable submit identity; task sequence alone
+        # does not identify a Worker generation or execution after recovery.
+        item['executionSeq'] = w._execution_seq
+        item['workerId'] = w.worker_id
+        item['generation'] = w.generation
         _set_delivery_state(s, item, _DELIVERY_SENT)
         _clear_delivery_reservation(item)
     outcome = _sess.DurableOutcome()
@@ -10088,6 +10101,37 @@ async def send_control_message(worker_id: str, control: dict, *, _expected_runti
             outcome['status'] = 'accepted'
             return None
     return await _send_control_message_unlocked(worker_id, control, _expected_runtime=runtime, outcome=outcome)
+
+
+async def interrupt_expected_execution(session_id: str, worker_id: str, generation: int,
+                                       execution_seq: int) -> dict:
+    """Submit a Codex interrupt bound to the Pan execution and native turn.
+
+    A submitted write is not terminal confirmation. Unsupported or ambiguous
+    identities fail closed and never trigger the legacy restart fallback.
+    """
+    if (not isinstance(session_id, str) or not session_id or not isinstance(worker_id, str) or not worker_id
+            or type(generation) is not int or generation < 0 or type(execution_seq) is not int or execution_seq < 1):
+        return {'status': 'rejected', 'reason': 'invalid_identity'}
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        w = workers.get(worker_id)
+        if (w is None or w.session_id != session_id or w.generation != generation
+                or find_alive_worker_by_session(session_id) is not w or w._execution_seq != execution_seq
+                or w.status != 'running' or w._terminal_handled or not w._current_handoff_acked):
+            return {'status': 'rejected', 'reason': 'execution_changed'}
+        identity = getattr(w, '_acp_native_turn', None)
+        if (getattr(w.adapter, 'name', None) != 'codex' or not isinstance(identity, tuple)
+                or len(identity) != 2 or identity[0] != execution_seq
+                or not isinstance(identity[1], str) or not identity[1]):
+            return {'status': 'rejected', 'reason': 'native_turn_unavailable'}
+        runtime = (w, w.generation, w.process, getattr(w.process, 'stdin', None))
+        outcome = {}
+        error = await _send_control_message_unlocked(worker_id,
+            {'type': 'interrupt', 'expectedTurnId': identity[1]}, _expected_runtime=runtime, outcome=outcome)
+        if outcome.get('status') == 'accepted': return {'status': 'submitted'}
+        if outcome.get('status') == 'unknown': return {'status': 'unknown'}
+        return {'status': 'rejected', 'reason': 'control_unavailable' if error else 'execution_changed'}
 
 
 async def steer_worker(worker_id: str, text: str,

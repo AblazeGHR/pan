@@ -407,13 +407,14 @@ def test_app_server_run_turn_message_loop(monkeypatch):
         "input": [{"type": "text", "text": "hello"}],
         "effort": "low",
     })]
-    assert emitted[0]["type"] == "assistant"
-    assert emitted[0]["final"] is True
-    assert emitted[0]["item_id"] == "agent-2"
-    assert emitted[0]["turn_id"] == "turn-1"
-    assert emitted[1]["type"] == "content.part"
-    assert emitted[1]["item_id"] == "agent-1"
+    assert emitted[0] == {"type": "pan.turn_identity", "turn_id": "turn-1"}
+    assert emitted[1]["type"] == "assistant"
+    assert emitted[1]["final"] is True
+    assert emitted[1]["item_id"] == "agent-2"
     assert emitted[1]["turn_id"] == "turn-1"
+    assert emitted[2]["type"] == "content.part"
+    assert emitted[2]["item_id"] == "agent-1"
+    assert emitted[2]["turn_id"] == "turn-1"
     assert emitted[-1] == {"type": "result", "is_error": False,
                            "cancelled": False, "turn_status": "completed",
                            "result": "complete", "usage": None}
@@ -887,6 +888,25 @@ def test_app_server_turn_controls_wait_for_turn_id(monkeypatch):
     assert "interrupt_pending" not in state
     assert "steer_pending" not in state
     print("PASS: app-server early turn controls")
+
+
+def test_scoped_interrupt_checks_native_turn_at_consumption(monkeypatch):
+    from queue import Queue
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = 'thread-1'
+    requests = []
+    monkeypatch.setattr(app, '_request', lambda method, params: requests.append((method, params)))
+    controls = Queue()
+    for expected in ('old-turn', '', None):
+        controls.put({'type':'interrupt', 'expectedTurnId':expected})
+    app._drain_controls({'turn_id':'successor', 'done':False}, controls)
+    assert requests == []
+    controls.put({'type':'interrupt', 'expectedTurnId':'successor'})
+    app._drain_controls({'turn_id':'successor', 'done':True}, controls)
+    assert requests == []
+    controls.put({'type':'interrupt', 'expectedTurnId':'successor'})
+    app._drain_controls({'turn_id':'successor', 'done':False}, controls)
+    assert requests == [('turn/interrupt', {'threadId':'thread-1', 'turnId':'successor'})]
 
 
 def test_worker_native_interaction_replay_cache():

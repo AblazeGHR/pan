@@ -1185,6 +1185,11 @@ class AppServer:
                 continue
             kind = control.get("type")
             if kind == "interrupt":
+                if "expectedTurnId" in control:
+                    expected = control.get("expectedTurnId")
+                    if (not isinstance(expected, str) or not expected or state.get("done")
+                            or not isinstance(state.get("turn_id"), str) or state["turn_id"] != expected):
+                        continue
                 if not state.get("turn_id"):
                     state["interrupt_pending"] = True
                     continue
@@ -1373,6 +1378,8 @@ class AppServer:
                 else:
                     turn = (message.get("result") or {}).get("turn") or {}
                     state["turn_id"] = turn.get("id")
+                    if isinstance(state["turn_id"], str) and state["turn_id"]:
+                        _write_stdout({"type": "pan.turn_identity", "turn_id": state["turn_id"]})
                 continue
             if "method" in message:
                 self._handle_server_message(message, state)
