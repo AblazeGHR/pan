@@ -238,6 +238,7 @@ def parser():
     item.add_argument('--template', required=True)
     item.add_argument('--workspace', type=Path, required=True)
     item.add_argument('--allow-mcp', action='append', default=[], metavar='MANIFEST_ID')
+    item.add_argument('--mcp-env-stdin', action='store_true', help='Read private per-server environment JSON from stdin')
     from packages.jobs.final_cli import add_parser
     add_parser(sub)
     for name, help_text in (("start", "Start independently, honor startup.console_hidden, wait for ready"),
@@ -272,7 +273,8 @@ def main(argv=None):
     try:
         if args.command == 'acp-init':
             from packages.acp.local import initialize
-            initialize(root / 'data', args.profile, args.template, args.workspace.resolve(), args.allow_mcp)
+            mcp_env = json.load(sys.stdin) if args.mcp_env_stdin else None
+            initialize(root / 'data', args.profile, args.template, args.workspace.resolve(), args.allow_mcp, mcp_env)
             return 0
         if args.command == 'acp':
             import asyncio

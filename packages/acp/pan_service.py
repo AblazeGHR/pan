@@ -40,7 +40,7 @@ def receipt_status(session, turn_id, queue_id=None):
             'terminalKey': terminal['terminalKey'], 'resultCursor': terminal['resultCursor']}
 
 
-def bind(server, profile_lookup, save=None, remove=None, load=None):
+def bind(server, profile_lookup, save=None, remove=None, load=None, data_root=None):
     def authorize(profile, requested):
         template = server._character_manager.get_session_template(profile.template)
         if template is None or (template.adapter or 'cbc') not in {'cbc', 'claude', 'codex'}:
@@ -52,7 +52,7 @@ def bind(server, profile_lookup, save=None, remove=None, load=None):
                 raise PermissionError('MCP profile pin changed')
         return names, digest
 
-    async def create(profile, cwd, names=(), digest=''):
+    async def create(profile, cwd, names=(), digest='', secret_handle=None):
         if names:
             template = server._character_manager.get_session_template(profile.template)
             if template is None or (template.adapter or 'cbc') not in {'cbc', 'claude', 'codex'}:
@@ -79,6 +79,17 @@ def bind(server, profile_lookup, save=None, remove=None, load=None):
             result = await server.api_create_session(request)
         if not isinstance(result, dict) or result.get('error') or not result.get('id'):
             raise Unconfirmed('session creation failed or unconfirmed')
+        if secret_handle is not None:
+            if data_root is None:
+                raise Unconfirmed('private MCP transport unavailable')
+            session = server.sess.get(result['id'], load_history=False)
+            if session is None:
+                raise Unconfirmed('session unavailable')
+            session.adapter_config['_acp_secret_handle'] = secret_handle
+            session.adapter_config['_acp_secret_root'] = str(data_root)
+            session.adapter_config['_acp_secret_names'] = [name for name in names
+                if profile.mcp_env[profile.mcp_names.index(name)]]
+            server.sess.save(session)
         return result['id']
 
     async def enqueue(session_id, turn_id, text):

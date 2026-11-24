@@ -131,7 +131,10 @@ class Service:
             self.save(handle, ctx)
             if ctx.session_id is None:
                 if ctx.mcp_names:
-                    created = await self.create_session(ctx.profile, ctx.cwd, ctx.mcp_names, ctx.mcp_digest)
+                    if any(ctx.profile.mcp_env[ctx.profile.mcp_names.index(name)] for name in ctx.mcp_names):
+                        created = await self.create_session(ctx.profile, ctx.cwd, ctx.mcp_names, ctx.mcp_digest, handle)
+                    else:
+                        created = await self.create_session(ctx.profile, ctx.cwd, ctx.mcp_names, ctx.mcp_digest)
                 else:
                     created = await self.create_session(ctx.profile, ctx.cwd)
                 if not isinstance(created, str) or not created or created in self.by_session:

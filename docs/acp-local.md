@@ -57,14 +57,19 @@ a new turn. Open a new ACP session to continue.
 To authorize a stdio MCP manifest entry when creating a profile, add
 `--allow-mcp MANIFEST_ID` to `acp-init`. This pins the existing manifest's
 physical descriptor in the protected profile. A client descriptor must match
-the name, absolute command, arguments and empty environment exactly; a changed
+the name, absolute command, arguments and authorized environment exactly; a changed
 manifest is rejected, including on a later Worker startup. Commands and
 arguments must not contain secrets. Client MCP selections are currently
 limited to CBC, Claude and Codex templates; real-provider MCP startup has not
-been verified by the synthetic fixture. Nonempty environments remain unsupported:
-the existing Codex adapter serializes MCP environment values into process
-arguments, so accepting them would leak those values. Do not put credentials in
-the manifest or arguments. The isolated pinned TCK fixture authorizes an exact
+been verified by the synthetic fixture. To authorize nonempty environment values,
+pass `--mcp-env-stdin` to `acp-init` and provide a JSON object on standard input,
+such as `{"manifest_id":{"ENV_NAME":"value"}}`, from a private source. Do not
+place secret values in command arguments, manifests, shell history, or a public
+configuration file. The values are stored in the existing DPAPI-protected
+profile. A session-bound broker starts only the pinned tool descriptor without
+a shell and supplies its environment to that tool alone; profile revocation or
+removal of the protected session state stops the owned tool process tree. The
+Windows broker fails closed on other platforms. The isolated pinned TCK fixture authorizes an exact
 synthetic MCP descriptor through the ordinary profile setup and exercises
-command approval through a synthetic native provider. A TCK pass does not
-establish that nonempty MCP environments or other approval kinds are supported.
+command approval through a synthetic native provider. Other approval kinds are
+not yet projected.

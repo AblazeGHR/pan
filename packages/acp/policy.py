@@ -10,7 +10,7 @@ import re
 import hashlib
 import json
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import url2pathname
@@ -49,6 +49,7 @@ class Profile:
     roots: tuple[Path, ...]
     mcp_names: tuple[str, ...] = ()
     mcp_pins: tuple[str, ...] = ()
+    mcp_env: tuple = field(default=(), repr=False)
 
 
 def validate(name, raw):
@@ -74,14 +75,23 @@ def validate(name, raw):
         roots.append(root)
     entries = raw.get('stdioMcp', [])
     if (not isinstance(entries, list) or len(entries) > 16 or any(
-            not isinstance(x, dict) or set(x) != {'name', 'sha256'}
+            not isinstance(x, dict) or not {'name', 'sha256'} <= set(x) or set(x) - {'name', 'sha256', 'env'}
             or not isinstance(x['name'], str) or not NAME.fullmatch(x['name'])
             or not isinstance(x['sha256'], str) or not re.fullmatch(r'[0-9a-f]{64}', x['sha256']) for x in entries)):
         raise ValueError('invalid ACP MCP selection')
     names = tuple(x['name'] for x in entries)
     if len(set(names)) != len(names):
         raise ValueError('duplicate ACP MCP selection')
-    return Profile(name, raw['template'], tuple(roots), names, tuple(x['sha256'] for x in entries))
+    environments = []
+    for item in entries:
+        env = item.get('env', {})
+        if (not isinstance(env, dict) or len(env) > 64 or any(
+                not isinstance(k, str) or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,127}', k)
+                or not isinstance(v, str) or '\x00' in v or len(v) > 8192
+                for k, v in env.items()) or len({k.upper() for k in env}) != len(env)):
+            raise ValueError('invalid ACP MCP environment')
+        environments.append(tuple(sorted(env.items())))
+    return Profile(name, raw['template'], tuple(roots), names, tuple(x['sha256'] for x in entries), tuple(environments))
 
 
 def resolve_workspace(profile, cwd):
@@ -168,16 +178,15 @@ def authorize_mcp(profile, requested, resolve):
                     or row['name'] in env_dict):
                 raise ValueError('invalid MCP environment')
             env_dict[row['name']] = row['value']
-        if env_dict:
-            # Existing adapter provisioning may embed these values in argv;
-            # do not accept secrets into that transport.
-            raise ValueError('MCP environment transport unavailable')
+        expected_env = dict(profile.mcp_env[profile.mcp_names.index(name)])
+        if env_dict != expected_env:
+            raise ValueError('MCP environment not authorized')
         resolved = resolve([name])
         if not isinstance(resolved, list) or len(resolved) != 1:
             raise ValueError('MCP manifest unavailable')
         cfg = resolved[0]
         if (cfg.get('name') != name or cfg.get('command') != command or cfg.get('args', []) != args
-                or cfg.get('env', {}) != env_dict or cfg.get('url') or cfg.get('headers')
+                or cfg.get('env', {}) or cfg.get('url') or cfg.get('headers')
                 or cfg.get('transport', 'stdio') != 'stdio' or cfg.get('type', 'stdio') != 'stdio'):
             raise ValueError('MCP descriptor not authorized')
         names.append(name)

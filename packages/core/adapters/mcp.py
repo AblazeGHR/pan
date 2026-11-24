@@ -18,6 +18,7 @@ import json
 import hashlib
 import logging
 import os
+import sys
 from pathlib import Path
 from ..session import Session
 
@@ -142,6 +143,12 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
             raise ValueError('ACP MCP configuration changed; worker startup refused')
     if not servers:
         return {}
+    secret_names = s.adapter_config.get('_acp_secret_names', [])
+    if secret_names and (expected is None or not isinstance(secret_names, list)
+            or any(not isinstance(name, str) for name in secret_names)
+            or not isinstance(s.adapter_config.get('_acp_secret_handle'), str)
+            or not isinstance(s.adapter_config.get('_acp_secret_root'), str)):
+        raise ValueError('ACP private MCP binding invalid')
     mcp_servers: dict[str, dict] = {}
     for srv in servers:
         if not isinstance(srv, dict):
@@ -149,6 +156,12 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
         name = srv.get("name", "unnamed")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("MCP server descriptor requires a non-empty name")
+        if name in secret_names:
+            mcp_servers[name] = {'command':sys.executable,
+                'args':[str(_PROJECT_ROOT / 'packages' / 'acp' / 'mcp_proxy.py'),
+                        s.adapter_config['_acp_secret_root'], s.adapter_config['_acp_secret_handle'], s.id, name],
+                'type':'stdio'}
+            continue
         entry: dict = {k: srv[k] for k in _TRANSPORT_KEYS if k in srv}
         _refresh_pan_python_entry(name, entry)
         if not entry.get("command") and not entry.get("url"):

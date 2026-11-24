@@ -1,7 +1,39 @@
 """Synthetic native app-server used only by the isolated ACP integration test."""
 import json
+import atexit
+import subprocess
 import sys
+import tomllib
 from pathlib import Path
+
+
+children = []
+settings = {}
+for index, value in enumerate(sys.argv[:-1]):
+    if value == '-c':
+        parsed = tomllib.loads(sys.argv[index + 1]).get('mcp_servers', {})
+        for name, fields in parsed.items():
+            settings.setdefault(name, {}).update(fields)
+for item in settings.values():
+    if 'command' not in item:
+        continue
+    child = subprocess.Popen([item['command'], *item.get('args', [])], stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False)
+    children.append(child)
+    child.stdin.write(b'{"jsonrpc":"2.0","id":1,"method":"initialize"}\n')
+    child.stdin.flush()
+    assert json.loads(child.stdout.readline())['id'] == 1
+
+
+def cleanup():
+    for child in children:
+        if child.stdin: child.stdin.close()
+        try: child.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            child.terminate(); child.wait(timeout=3)
+
+
+atexit.register(cleanup)
 
 
 def send(value):

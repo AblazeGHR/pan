@@ -54,9 +54,12 @@ def _read_profile(root, name):
     return policy.validate(name, record['config']), credential
 
 
-def initialize(root, name, template, workspace, mcp_names=()):
+def initialize(root, name, template, workspace, mcp_names=(), mcp_env=None):
     win, secret = _windows()
     config = {'enabled': True, 'template': template, 'workspaceRoots': [str(workspace)]}
+    mcp_env = {} if mcp_env is None else mcp_env
+    if not isinstance(mcp_env, dict) or any(name not in mcp_names for name in mcp_env):
+        raise ValueError('invalid ACP MCP environment selection')
     if mcp_names:
         from packages.core.config import DEFAULT_PLUGIN_MANIFESTS
         from packages.core.manifest_loader import load_manifests
@@ -65,7 +68,8 @@ def initialize(root, name, template, workspace, mcp_names=()):
         host_config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
         manifest = load_manifests(host_config.get('plugin_manifests', DEFAULT_PLUGIN_MANIFESTS))
         catalog = Catalog(manifest)
-        config['stdioMcp'] = [{'name':item, 'sha256':policy.physical_mcp_pin(catalog, [item])}
+        config['stdioMcp'] = [{'name':item, 'sha256':policy.physical_mcp_pin(catalog, [item]),
+                               **({'env':mcp_env[item]} if item in mcp_env else {})}
                               for item in mcp_names]
     policy.validate(name, config)
     directory, path = _directory(root), _path(root, name)
@@ -112,6 +116,8 @@ class StateStore:
         data = {'principal':ctx.principal, 'template':ctx.profile.template,
                 'roots':[str(root) for root in ctx.profile.roots], 'cwd':ctx.cwd,
                 'profileMcp':list(zip(ctx.profile.mcp_names, ctx.profile.mcp_pins)),
+                'profileMcpEnv':hashlib.sha256(json.dumps(ctx.profile.mcp_env, ensure_ascii=True,
+                    separators=(',', ':')).encode()).hexdigest(),
                 'mcpNames':list(ctx.mcp_names), 'mcpDigest':ctx.mcp_digest,
                 'sessionId':ctx.session_id,
                 'turnId':turn.turn_id if turn else None,
@@ -144,7 +150,11 @@ class StateStore:
             profile = service.profile_lookup(principal)
             if (profile is None or profile.template != data['template']
                     or [str(root) for root in profile.roots] != data['roots']
-                    or [list(pair) for pair in zip(profile.mcp_names, profile.mcp_pins)] != data.get('profileMcp', [])):
+                    or [list(pair) for pair in zip(profile.mcp_names, profile.mcp_pins)] != data.get('profileMcp', [])
+                    or (data.get('profileMcpEnv') is not None and data['profileMcpEnv'] !=
+                        hashlib.sha256(json.dumps(profile.mcp_env, ensure_ascii=True,
+                            separators=(',', ':')).encode()).hexdigest())
+                    or (data.get('profileMcpEnv') is None and any(profile.mcp_env))):
                 return None
             cwd = str(policy.resolve_workspace(profile, data['cwd']))
             sid, turn_id, qid = data['sessionId'], data['turnId'], data['queueId']
@@ -216,7 +226,7 @@ class Listener:
         self.loop = asyncio.get_running_loop()
         from .pan_service import bind
         self.store = StateStore(root)
-        self.service = bind(server, self.lookup, self.store.save, self.store.remove, self.store.load)
+        self.service = bind(server, self.lookup, self.store.save, self.store.remove, self.store.load, self.root)
         self.thread = None
 
     def lookup(self, name):

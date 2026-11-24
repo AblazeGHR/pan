@@ -101,3 +101,15 @@ def test_pinned_worker_mcp_descriptor_change_fails_closed():
     rows[0]['args'] = ['changed']
     with pytest.raises(ValueError, match='configuration changed'):
         build_mcp_servers(session)
+def test_profile_private_mcp_env_validation_and_redaction(tmp_path):
+    from packages.acp.policy import validate
+    import pytest
+    base = {'enabled':True, 'template':'text', 'workspaceRoots':[str(tmp_path)],
+            'stdioMcp':[{'name':'tool', 'sha256':'a' * 64, 'env':{'FIXTURE_KEY':'synthetic-secret'}}]}
+    profile = validate('editor', base)
+    assert profile.mcp_env == ((('FIXTURE_KEY', 'synthetic-secret'),),)
+    assert 'synthetic-secret' not in repr(profile)
+    for env in ({'bad=name':'value'}, {'A':'one', 'a':'two'}, {'A':'bad\0value'}):
+        invalid = {**base, 'stdioMcp':[{**base['stdioMcp'][0], 'env':env}]}
+        with pytest.raises(ValueError):
+            validate('editor', invalid)
