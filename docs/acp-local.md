@@ -44,3 +44,7 @@ the original protected record on demand and never resubmits the prompt.
 Each connection-local context retains at most 1,024 completed turn identities;
 after that it rejects further prompts so a late cancel cannot be mistaken for
 a new turn. Open a new ACP session to continue.
+
+This text-only subset is not fully ACP v1 conformant: the v1 TCK also requires
+resource-link prompt blocks and client-supplied stdio MCP servers, which this
+profile does not accept. Permission requests are not exercised in this subset.

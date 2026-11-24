@@ -58,7 +58,7 @@ def test_v1_lifecycle_busy_cancel_and_session_isolation(tmp_path):
         await other.handle({'jsonrpc':'2.0','id':8,'method':'initialize','params':{'protocolVersion':1}})
         await other.handle({'jsonrpc':'2.0','id':9,'method':'session/prompt',
                             'params':{'sessionId':sid,'prompt':[{'type':'text','text':'foreign'}]}})
-        assert output[-1]['error']['code'] == -32602
+        assert output[-1]['error'] == {'code':-32002, 'message':'Session not found', 'data':{'sessionId':sid}}
         backend.hold.clear()
         await request(5, 'session/prompt', {'sessionId':sid, 'prompt':[{'type':'text','text':'second'}]})
         await asyncio.sleep(0)

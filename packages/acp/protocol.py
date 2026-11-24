@@ -95,6 +95,10 @@ class Protocol:
         if method == 'session/prompt':
             sid, blocks = params.get('sessionId'), params.get('prompt')
             session = self.sessions.get(sid) if isinstance(sid, str) else None
+            if session is None and isinstance(sid, str):
+                await self.send({'jsonrpc':'2.0', 'id':request_id, 'error':{'code':-32002,
+                                'message':'Session not found', 'data':{'sessionId':sid}}})
+                return
             if session is None or not isinstance(blocks, list) or not blocks or any(
                     not isinstance(block, dict) or block.get('type') != 'text'
                     or not isinstance(block.get('text'), str) for block in blocks):
