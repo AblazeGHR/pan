@@ -32,8 +32,13 @@ cancel uses the original queue item and running cancel currently requires a
 Codex native turn identity; interrupt submission is not terminal confirmation.
 The original matching terminal event is required for a completed response.
 
-Session continuation across ACP connections, attachments, approval UI and
-remote access are not implemented. The service persists protected ACP intent
+Session continuation across ACP connections, attachments and remote access
+are not implemented. Codex native command approvals in interactive permission
+mode are presented via `session/request_permission`, including the command and
+one-time allow/reject options. Unknown selections are rejected. A response is
+bound to the matching Session, Worker generation, execution, native turn and
+pending request; an unconfirmed write is not retried. Other approval kinds do
+not yet have ACP projection. The service persists protected ACP intent
 identities before side effects. After a service restart it can reconcile the
 original queue receipt to its matching persisted terminal. If the streamed
 output was interrupted, it reports an error with the matching `panTerminal`
@@ -59,6 +64,7 @@ limited to CBC, Claude and Codex templates; real-provider MCP startup has not
 been verified by the synthetic fixture. Nonempty environments remain unsupported:
 the existing Codex adapter serializes MCP environment values into process
 arguments, so accepting them would leak those values. Do not put credentials in
-the manifest or arguments. This subset is not fully ACP v1 conformant; the
-unfiltered TCK uses an unapproved MCP command, which is rejected. Permission
-requests are not exercised by the default synthetic fixture.
+the manifest or arguments. The isolated pinned TCK fixture authorizes an exact
+synthetic MCP descriptor through the ordinary profile setup and exercises
+command approval through a synthetic native provider. A TCK pass does not
+establish that nonempty MCP environments or other approval kinds are supported.
