@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import PASSWORD, login_page
 """Actual authenticated HTTP and production Chromium source/reference editing."""
 import json
 import os
@@ -24,7 +25,7 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
     out=repo/"evidence/r6i-forms"
     out.mkdir(exist_ok=True)
     log=(out/"advanced-browser-server.log").open("wb")
-    child=subprocess.Popen([sys.executable,"-m","tests.support.scheduler_management_server","--root",str(root),"--port",str(port),"--seed-time-template-target"],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+    child=subprocess.Popen([sys.executable,"-m","tests.support.scheduler_management_server","--root",str(root),"--port",str(port),"--seed-time-template-target"],env={**os.environ, "PAN_TEST_ADMIN_PASSWORD": PASSWORD}, cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
     base=f"http://127.0.0.1:{port}"
     result={"port":port,"rootOwned":True,"productionBundle":True}
     try:
@@ -36,7 +37,7 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
                     if client.get('/test/ready').status_code==200:break
                 except httpx.TransportError:pass
                 time.sleep(.1)
-            key=(root/'automation/user.key').read_text(encoding='utf-8').strip()
+            key=PASSWORD
             token=client.post('/api/automation/login',json={'key':key}).json()['token']
             client.headers['Authorization']='Bearer '+token
             assert client.get('/api/event-creators/providers').status_code==200
@@ -59,8 +60,7 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
                     page.on('pageerror',lambda error:errors.append(str(error)))
                     page.on('request',lambda request:requests.append((request.method,request.url.split(base)[-1])))
                     page.goto(base+'/react/automation?tab=events')
-                    page.get_by_label('Local user key',exact=True).fill(key)
-                    page.get_by_role('button',name='Log in',exact=True).click()
+                    login_page(page, key)
                     page.get_by_role('button',name='New Scheduler',exact=True).click()
                     page.get_by_label('Scheduler name',exact=True).fill('Browser timer')
                     config={'rules':[{'ruleId':'fraction','type':'interval','seconds':'3600.125','anchor':'2026-11-01T00:00:00.125Z','advanceMode':'grid'},{'ruleId':'dst','type':'weekly','weekday':0,'time':'01:30:00','timezone':'America/New_York','dstPolicy':'gap-skip-fold-second'}],'misfirePolicy':'skip','graceSeconds':'1.25','pausePolicy':'advance','driveLimit':{'maxEvents':17,'initialProducedCount':0}}
@@ -75,8 +75,9 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
                         response=client.post('/api/triggers',json={'definition':{'name':f'Browser subscription {index}','targetJobId':job['id'],'eventTypes':['scheduler.time.v2'],'creatorSelector':{'mode':'ids','ids':[source['id']]}},'expectedRevision':0,'expectedCreatorRevisions':{source['id']:source['revision']},'requestKey':f'sub-{index}'})
                         response.raise_for_status()
                     page.get_by_role('button',name='Refresh',exact=True).click()
+                    page.get_by_role('button',name='Browser timer',exact=True).click()
                     expect(page.get_by_role('heading',name='2 referencing subscribers',exact=True)).to_be_visible()
-                    page.get_by_role('button',name='Edit Browser timer',exact=True).click()
+                    page.get_by_role('region',name='Scheduler detail',exact=True).get_by_role('button',name='Edit Scheduler',exact=True).click()
                     expect(page.get_by_role('button',name='Save Scheduler',exact=True)).to_be_disabled()
                     expect(page.get_by_role('button',name='Delete Scheduler',exact=True)).to_be_disabled()
                     page.get_by_label('Scheduler name',exact=True).fill('Browser local edit')
@@ -107,7 +108,7 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
                         assert current['config']==config
                         assert client.get('/api/jobs/'+job['id']).json()['state']=='enabled'
                     # Reference picker writes real Creator IDs and reviewed revisions.
-                    page.get_by_role('tab',name='Trigger',exact=True).click()
+                    page.get_by_role('link',name='Trigger',exact=True).click()
                     page.get_by_role('button',name='Create Triggers',exact=True).click()
                     page.get_by_label('Name',exact=True).fill('Browser picker subscription')
                     page.get_by_label('Target canonical Job').select_option(job['id'])
@@ -119,12 +120,15 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
                     # Detaching subscriptions is explicit; source and history survive.
                     for trigger in client.get('/api/triggers?limit=100').json()['items']:
                         client.request('DELETE','/api/triggers/'+trigger['id'],json={'expectedRevision':trigger['revision'],'expectedStateRevision':trigger['stateRevision'],'requestKey':'retire-'+trigger['id']}).raise_for_status()
-                    page.get_by_role('tab',name='Event Register',exact=True).click()
+                    page.get_by_role('link',name='Event Register',exact=True).click()
                     page.get_by_role('button',name='Refresh',exact=True).click()
-                    expect(page.get_by_role('heading',name='0 referencing subscribers',exact=True)).to_be_visible()
+                    assert client.get('/api/event-creators/'+source['id']+'/references').json()['references'] == []
+                    expect(page.get_by_role('region',name='Scheduler detail').get_by_role('heading',name='2 referencing subscribers',exact=True)).to_have_count(0)
                     page.get_by_role('button',name='Edit Browser local edit',exact=True).click()
                     page.on('dialog',lambda dialog:dialog.accept())
-                    page.get_by_role('button',name='Delete Scheduler',exact=True).click()
+                    with page.expect_response(lambda response: response.request.method == 'DELETE' and '/api/event-creators/'+source['id'] in response.url) as retired:
+                        page.get_by_role('button',name='Delete Scheduler',exact=True).click()
+                    assert retired.value.ok, retired.value.text()
                     expect(page.get_by_role('article',name='Scheduler Browser local edit',exact=True)).to_have_count(0)
                     assert client.get('/api/event-creators/'+source['id']).json()['state']=='retired'
                     assert not any('scheduler/event-sources' in path for method,path in requests)

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """R6-E original-ID HTTP/MCP acceptance over owned synthetic archives only."""
 import base64
 import hashlib
@@ -63,7 +64,7 @@ def history_env(tmp_path, monkeypatch):
              'fire_at': f'2026-01-01T00:00:{i:02}'} for i in range(12)]
     (legacy / 'runs.jsonl').write_text('\n'.join(json.dumps(r) for r in runs), encoding='utf-8')
     auth = UserAuth(tmp_path / 'auth')
-    headers = {'Authorization': 'Bearer ' + auth.login(auth.key())}
+    headers = {'Authorization': 'Bearer ' + auth.login(provision(auth))}
     app = FastAPI()
     app.state.automation = SimpleNamespace(auth=auth)
     app.state.job_final_service = SimpleNamespace(root=canonical)

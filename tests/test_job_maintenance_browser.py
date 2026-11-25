@@ -13,6 +13,7 @@ import uvicorn
 from packages.core.host_server import PanServer
 
 from packages.automation.auth import UserAuth
+from tests.support.auth_credentials import provision
 from packages.core import session
 from packages.jobs.runtime_owner import OwnerFence
 from tests.test_job_final_http_service import h  # noqa: F401
@@ -36,6 +37,7 @@ def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path,
         'sourceFile': 'background_jobs/jobs/unknown.json', 'sha256': digest,
         'revision': 1, 'reasonCodes': ['corrupt_record'], 'executable': False}]}))
     auth = UserAuth(profile / 'automation')
+    password = provision(auth)
     listener = socket.socket()
     listener.bind(('127.0.0.1', 0))
     port = listener.getsockname()[1]
@@ -54,8 +56,10 @@ def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path,
             try:
                 page = browser.new_page()
                 page.goto(url + '/react/')
+                page.get_by_label('管理员密码', exact=True).fill(password)
+                page.get_by_role('button', name='登录', exact=True).click()
                 page.get_by_role('heading', name='Job Maintenance mode').wait_for()
-                page.get_by_label('Local user key').fill(auth.key())
+                page.get_by_label('Local user key').fill(password)
                 page.get_by_role('button', name='Inspect preserved data').click()
                 page.get_by_role('heading', name='old-original-identity').wait_for()
                 assert page.get_by_role('button', name='Delete source record').is_disabled()
@@ -65,7 +69,7 @@ def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path,
                     page.set_viewport_size({'width': width, 'height': 900})
                     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                     page.screenshot(path=str(tmp_path / f'maintenance-{width}.png'), full_page=True)
-                denied = page.request.post(url + '/api/jobs', data={'definition': {}, 'requestKey': 'never'})
+                denied = page.request.post(url + '/api/jobs', data={'definition': {}, 'requestKey': 'never'}, headers={'Origin': url})
                 assert denied.status == 503
                 assert denied.json()['error']['code'] == 'runtime_ownership_unverified'
                 page.route('**/api/job-maintenance/status', lambda route: route.fulfill(status=503, body='unavailable'))
@@ -147,9 +151,11 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
             try:
                 page = browser.new_page()
                 page.goto(f'http://127.0.0.1:{port}/react/automation/canonical')
+                page.get_by_label('管理员密码', exact=True).fill(provision(h.automation.auth))
+                page.get_by_role('button', name='登录', exact=True).click()
+                page.get_by_role('heading', name='登录 Pan', exact=True).wait_for(state='hidden')
+                page.goto(f'http://127.0.0.1:{port}/react/jobs')
                 page.get_by_role('button', name='Settings', exact=True).click()
-                page.get_by_label('Local user key').fill(h.automation.auth.key())
-                page.get_by_role('button', name='Log in', exact=True).click()
                 page.get_by_role('heading', name='original-history-identity').wait_for()
                 assert page.get_by_role('button', name='Delete source record').is_enabled()
                 for width in (1440, 390, 320):

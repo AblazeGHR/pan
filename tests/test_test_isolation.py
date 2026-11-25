@@ -95,7 +95,7 @@ def test_cold_http_fixture_overrides_inherited_job_roots_without_touching_decoy(
         port = reserved.getsockname()[1]
     assert port not in {8767, 8768}
     monkeypatch.setattr(real, 'PORT', port)
-    runtime = real._PanRuntime(tmp_path / 'owned-runtime')
+    runtime = real._PanRuntime(tmp_path / 'owned-runtime', authenticated=True)
     try:
         runtime.start()
         assert (runtime.data_root / 'job-runtime-owner.sqlite3').is_file()

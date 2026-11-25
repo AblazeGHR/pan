@@ -13,10 +13,23 @@ from packages.web import server
 from packages.core.adapters.codex import sessions as codex
 from test_codex_reimport_origins import origin, private_rollout
 
+_AUTH_HEADERS = {}
+
+@pytest.fixture(autouse=True)
+def owned_authentication(tmp_path, monkeypatch):
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    from types import SimpleNamespace
+    auth = UserAuth(tmp_path / 'owned-auth')
+    token = auth.login(provision(auth))
+    monkeypatch.setattr(server.app.state, 'automation', SimpleNamespace(auth=auth), raising=False)
+    monkeypatch.setitem(_AUTH_HEADERS, 'Authorization', 'Bearer ' + token)
+
+
 
 async def send(**extra):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app, raise_app_exceptions=False),
-                                 base_url="http://test") as client:
+                                 base_url="http://test", headers=_AUTH_HEADERS) as client:
         r = await client.post("/api/adapters/codex/sessions/import",
                               json={"session_id": "private-thread", **extra})
         return r.status_code, r.json() if r.status_code == 200 else r.text

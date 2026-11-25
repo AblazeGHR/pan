@@ -10,6 +10,19 @@ from packages.core import session as sess
 from packages.mcp import server as mcp
 from packages.web import server
 
+_AUTH_HEADERS = {}
+
+@pytest.fixture(autouse=True)
+def owned_http_authentication(tmp_path, monkeypatch):
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    from types import SimpleNamespace
+    auth = UserAuth(tmp_path / 'owned-auth')
+    token = auth.login(provision(auth))
+    monkeypatch.setattr(server.app.state, 'automation', SimpleNamespace(auth=auth), raising=False)
+    monkeypatch.setitem(_AUTH_HEADERS, 'Authorization', 'Bearer ' + token)
+
+
 
 @pytest.mark.parametrize("copy_settings", [True, False])
 @pytest.mark.parametrize("options,expected", [
@@ -35,7 +48,7 @@ def test_http_prompt_selection_and_persistence(monkeypatch, copy_settings, optio
     retarget = Mock(return_value={"updated": 0})
     monkeypatch.setattr(server.background_jobs, "retarget_session_jobs", retarget)
     # Real HTTP routing/JSON boundary, without starting application workers.
-    response = TestClient(server.app).post(f"/api/sessions/{a.id}/handoff", json={
+    response = TestClient(server.app, headers=_AUTH_HEADERS).post(f"/api/sessions/{a.id}/handoff", json={
         "handoffPrompt": " new brief ", "copySettings": copy_settings,
         "adapter": "codex", **options,
     })

@@ -8,7 +8,7 @@ import pytest
 import websockets
 
 from packages.remote import lan_runtime as lan
-from test_lan_access import controller, free_port
+from test_lan_access import controller, free_port, lan_auth
 
 
 async def turn():
@@ -17,7 +17,7 @@ async def turn():
 
 
 @pytest.mark.parametrize("exit_error", [False, True])
-def test_cancelled_stop_keeps_owner_until_exit_and_competing_start(monkeypatch, exit_error):
+def test_cancelled_stop_keeps_owner_until_exit_and_competing_start(monkeypatch, exit_error, lan_auth):
     async def run():
         entered, release = asyncio.Event(), asyncio.Event()
         host = lan.addresses()[0]
@@ -37,7 +37,7 @@ def test_cancelled_stop_keeps_owner_until_exit_and_competing_start(monkeypatch, 
         url = initial["urls"][0]
         async with httpx.AsyncClient(base_url=url, trust_env=False) as client:
             assert (await client.get("/api/health")).status_code == 200
-        ws = await websockets.connect(url.replace("http://", "ws://") + "/ws", origin=url, proxy=None)
+        ws = await websockets.connect(url.replace("http://", "ws://") + "/ws", origin=url, additional_headers=lan_auth, proxy=None)
         await ws.send(json.dumps({"type": "ping"}))
         assert json.loads(await ws.recv()) == {"type": "pong"}
         first_socket = ctl.socket
@@ -68,7 +68,7 @@ def test_cancelled_stop_keeps_owner_until_exit_and_competing_start(monkeypatch, 
             url = result["urls"][0]
             async with httpx.AsyncClient(base_url=url, trust_env=False) as client:
                 assert (await client.get("/api/health")).status_code == 200
-            async with websockets.connect(url.replace("http://", "ws://") + "/ws", origin=url, proxy=None) as ws:
+            async with websockets.connect(url.replace("http://", "ws://") + "/ws", origin=url, additional_headers=lan_auth, proxy=None) as ws:
                 await ws.send(json.dumps({"type": "ping"}))
                 assert json.loads(await ws.recv()) == {"type": "pong"}
         finally:

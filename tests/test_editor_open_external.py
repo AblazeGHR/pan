@@ -384,6 +384,9 @@ def test_route_maps_success_and_rejection_to_http_status(monkeypatch, tmp_path):
     )
 
     with TestClient(server.app) as client:
+        from tests.support.auth_credentials import login_client
+        assert client.get("/api/sessions").status_code == 401
+        login_client(client, server.app.state.automation.auth)
         success = client.post(
             "/api/editor/open-external",
             json={"session_id": session.id, "path": "file.txt"},

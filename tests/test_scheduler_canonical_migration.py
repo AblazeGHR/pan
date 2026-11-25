@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """R5-P2: canonical cutover, historical sources and compatibility fencing.
 
 All ownership, databases and dispatch callbacks belong to tmp_path. No server,
@@ -168,7 +169,7 @@ def test_old_http_reads_remain_available_after_canonical_owner_activation(tmp_pa
     sources.reserve(item['id'], NOW + timedelta(seconds=60))
     before = sources.path.read_bytes()
     auth = UserAuth(tmp_path / 'auth')
-    token = auth.login(auth.key())
+    token = auth.login(provision(auth))
     app = FastAPI()
     app.state.automation = SimpleNamespace(auth=auth)
     app.include_router(router)

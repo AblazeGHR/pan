@@ -1407,3 +1407,55 @@ def test_canonical_api_group_receipt_preserves_scope_bounds_and_original_identit
         server.shutdown()
         server.server_close()
         thread.join(2)
+
+
+@pytest.mark.parametrize('rollback', [False, True])
+def test_group_grant_fence_spans_commit_across_auth_instances_without_blocking_sessions(setup, rollback):
+    from concurrent.futures import ThreadPoolExecutor
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    service, _ = setup
+    peer = type(service.auth)(service.auth.path.parent)
+    token = peer.login(provision(peer))
+    before = peer.permissions_status()
+    agent = {'type': 'agent', 'id': 'bound', 'revision': before['revision']}
+    entered, release, revoking = threading.Event(), threading.Event(), threading.Event()
+    identity = 'fence-proof'
+    def group_write():
+        try:
+            with Groups(service).writer(agent, 'create') as db:
+                Groups.save(db, 'action_group', identity, {'id': identity, 'revision': 1})
+                entered.set()
+                assert release.wait(3), 'test did not release original group transaction'
+                if rollback:
+                    raise ValueError('owned rollback')
+        except ValueError:
+            assert rollback
+    def revoke():
+        revoking.set()
+        value = copy.deepcopy(before['permissions'])
+        value['action']['create'] = False
+        result = peer.change_permissions(value, before['revision'])
+        # Grant publication cannot overtake the original commit/rollback.
+        with service.transaction(readonly=True) as db:
+            row = db.execute("SELECT document FROM final_documents WHERE kind='action_group' AND id=?", (identity,)).fetchone()
+        assert bool(row) is (not rollback)
+        return result
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        writer = pool.submit(group_write)
+        try:
+            assert entered.wait(2)
+            revoker = pool.submit(revoke)
+            assert revoking.wait(2)
+            assert pool.submit(service.auth.authorized, 'Bearer ' + token).result(timeout=2)
+            assert not revoker.done()
+        finally:
+            release.set()
+        writer.result(timeout=3)
+        assert revoker.result(timeout=3)['revision'] == before['revision'] + 1
+    assert type(service.auth)(peer.path.parent).permissions_status()['permissions']['action']['create'] is False
+    with pytest.raises(fc.ContractError, match='revoked|denied'):
+        with Groups(service).writer(agent, 'create'):
+            pytest.fail('revoked actor reached the group writer')
+    # Exception paths release the same-profile fence and leave sessions usable.
+    assert peer.authorized('Bearer ' + token)

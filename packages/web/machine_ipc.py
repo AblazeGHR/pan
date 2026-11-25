@@ -53,8 +53,12 @@ def targets(body, query):
 
 def permit(caller, method, path, body, get_session):
     parsed = urlsplit(path)
+    decoded = unquote(parsed.path)
+    encoded_message = re.fullmatch(
+        r'/api/sessions/[a-zA-Z0-9_-]+/messages/pan%3[aA](?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', parsed.path)
     if (parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/')
-            or unquote(parsed.path) != parsed.path or any(p in {'.', '..'} for p in parsed.path.split('/'))):
+            or (decoded != parsed.path and not encoded_message)
+            or any(p in {'.', '..'} for p in decoded.split('/'))):
         return False
     route, query = parsed.path, parse_qs(parsed.query)
     if method not in {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'} or not isinstance(body, dict):

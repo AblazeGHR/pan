@@ -31,7 +31,7 @@ def test_report_prompt_reference_real_chain_and_browser(tmp_path):
                              str(declaration)],
         'worker': {'idle_sec': 300}, 'scheduler': {'enabled': False},
     }), encoding='utf-8')
-    runtime = _PanRuntime(data)
+    runtime = _PanRuntime(data, authenticated=True)
     recorder = None
     created = []
     body = '真实输入 中文与表情 😀🎯 ' + '尾' * 120

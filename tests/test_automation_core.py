@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Core contracts; all stores and processes are owned temporary fixtures."""
 import asyncio
 import copy
@@ -137,7 +138,7 @@ async def test_http_user_boundary_revision_token_expiry(tmp_path):
     app = FastAPI()
     app.state.automation = svc
     install(SimpleNamespace(app=app))
-    key = svc.auth.key()
+    key = provision(svc.auth)
     transport = httpx.ASGITransport(app)
     async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
         draft = {**trigger(), 'enabled': False}
@@ -155,7 +156,7 @@ async def test_http_user_boundary_revision_token_expiry(tmp_path):
         assert (await client.post('/api/automation/triggers', json={'item': draft, 'expectedRevision': 2})).status_code == 401
         assert (await client.post('/api/automation/triggers', json={'item': draft, 'expectedRevision': 1}, headers=headers)).status_code == 409
         assert (await client.delete('/api/automation/triggers/t?expectedRevision=2')).status_code == 401
-        svc.auth.sessions.clear()
+        svc.auth.logout(headers['Authorization'])
         assert svc.ledger.read()['triggers']['t']['enabled']
         assert (await client.post('/api/automation/triggers', json={'item': draft, 'expectedRevision': 2}, headers=headers)).status_code == 401
         assert (await client.post('/api/automation/events', json={'source': {'type': 'core'}})).status_code == 405  # read-only discovery, no public publisher
@@ -190,7 +191,7 @@ def test_auth_expiry_and_restart(tmp_path, monkeypatch):
     auth = UserAuth(tmp_path)
     clock = [100.0]
     monkeypatch.setattr(module.time, 'time', lambda: clock[0])
-    token = auth.login(auth.key())
+    token = auth.login(provision(auth))
     assert auth.authorized('Bearer ' + token)
     assert UserAuth(tmp_path).authorized('Bearer ' + token)
     clock[0] += 43201
@@ -347,7 +348,7 @@ async def test_run_cancel_api_revision_and_business_state(tmp_path):
     install(SimpleNamespace(app=app))
     svc.ledger.put(trigger(), 0, True)
     svc.ledger.append(dict(id='queued', recordType='triggerAdmission', event=event(), status='queued', triggerId='t', triggerRevision=1))
-    token = svc.auth.login(svc.auth.key())
+    token = svc.auth.login(provision(svc.auth))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://test') as client:
         path = '/api/automation/runs/queued/cancel'
         headers = {'Authorization': 'Bearer ' + token}

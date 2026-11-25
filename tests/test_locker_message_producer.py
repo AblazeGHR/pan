@@ -52,15 +52,18 @@ def test_mcp_transport_and_unknown_never_resends(monkeypatch):
     assert server.locker_message('create', msg())['error'] == 'local_stdio_caller_required'
     monkeypatch.setattr(server, '_terminal_transport', 'stdio')
     calls = []
-    class Broken:
-        def open(self, request, timeout):
-            calls.append(request)
-            raise TimeoutError()
-    monkeypatch.setattr(server.urllib.request, 'build_opener', lambda *args: Broken())
+    from packages.plugins import ipc
+    def broken(request):
+        calls.append(request)
+        raise TimeoutError()
+    monkeypatch.setattr(ipc, 'request', broken)
     assert server.locker_message('create', msg())['status'] == 'unknown'
     assert len(calls) == 1
     assert server.locker_message('get', message_id='first')['status'] == 'unknown'
-    assert len(calls) == 2 and calls[1].full_url.endswith('/get')
+    assert len(calls) == 2 and calls[1]['path'].endswith('/get')
+    assert all(call['operation'] == 'core_http' and call['session_id'] == 'source' for call in calls)
+    assert calls[0]['method'] == calls[1]['method'] == 'POST'
+    assert calls[1]['body'] == {'messageId': 'first'}
     for url in ['http://example.com', 'https://127.0.0.1', 'http://127.0.0.1/path', 'http://u@127.0.0.1']:
         monkeypatch.setattr(server, '_pan_api_url', url)
         assert server.locker_message('create', msg())['error'] == 'local_stdio_caller_required'

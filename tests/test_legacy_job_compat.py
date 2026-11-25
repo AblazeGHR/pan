@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Legacy Job surface over the canonical single authority (isolated HTTP)."""
 from types import SimpleNamespace
 
@@ -22,7 +23,7 @@ def job_http(tmp_path, monkeypatch):
     # Pin metadata is the only sidecar; keep it inside the isolated runtime.
     from packages.core.platform import data_paths
     monkeypatch.setattr(data_paths, 'job_root', lambda: tmp_path / 'jobs')
-    token = automation.auth.login(automation.auth.key())
+    token = automation.auth.login(provision(automation.auth))
     client = TestClient(app, raise_server_exceptions=False)
     client.headers['Authorization'] = 'Bearer ' + token
     from packages.core import session as session_store
@@ -245,7 +246,7 @@ def _cold_client(canonical_root):
     app.state.automation = automation
     final_api.install(app)
     client = TestClient(app, raise_server_exceptions=False)
-    client.headers['Authorization'] = 'Bearer ' + automation.auth.login(automation.auth.key())
+    client.headers['Authorization'] = 'Bearer ' + automation.auth.login(provision(automation.auth))
     return client, service
 
 

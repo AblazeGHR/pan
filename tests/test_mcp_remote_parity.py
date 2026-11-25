@@ -375,7 +375,7 @@ def test_remote_delayed_restart_real_http(monkeypatch, remote_gateway, tmp_path)
         port = sock.getsockname()[1]
     assert port not in {8767, 8768}
     monkeypatch.setattr(real, 'PORT', port)
-    runtime = real._PanRuntime(tmp_path / 'remote-delayed-runtime')
+    runtime = real._PanRuntime(tmp_path / 'remote-delayed-runtime', authenticated=True)
     runtime.start()
     try:
         monkeypatch.setattr('packages.mcp.server._pan_api_url', runtime.base_url)

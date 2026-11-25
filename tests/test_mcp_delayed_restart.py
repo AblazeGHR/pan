@@ -47,13 +47,16 @@ def test_real_stdio_http_lifecycle(tmp_path, monkeypatch):
         port = sock.getsockname()[1]
     assert port not in {8767, 8768}
     monkeypatch.setattr(real, 'PORT', port)
-    runtime = real._PanRuntime(tmp_path / 'runtime')
+    runtime = real._PanRuntime(tmp_path / 'runtime', authenticated=True)
     runtime.start()
     try:
+        locator = json.loads((runtime.data_root / 'core-ipc.json').read_text(encoding='utf-8'))
+        monkeypatch.setenv('PAN_PLUGIN_IPC', locator['address'])
         s = real._create(runtime, 'real-fifo-delayed-mcp')
         sid = s['id']
         monkeypatch.setattr(mcp_server, '_pan_api_url', runtime.base_url)
-        monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        monkeypatch.setenv('PAN_AGENT_SESSION_ID', sid)
+        runtime.request('PATCH', f'/api/sessions/{sid}', json={'pluginBindings': [{'plugin_id': 'pan', 'mode': 'standalone', 'enabled': True}]})
         endpoint = f'/api/sessions/{sid}/worker/delayed-restart'
         assert mcp_server.agent_restart_delayed_status(sid) == {'ok': True, 'delayedRestart': None}
         assert not mcp_server.agent_restart_delayed(sid)['ok']

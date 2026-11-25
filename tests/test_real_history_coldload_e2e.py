@@ -803,7 +803,7 @@ class _PanRuntime:
 def coldload_runtime(tmp_path, monkeypatch):
     data_root = tmp_path / "persistent-data-root"
     fixture = _seed_fixture(data_root / "sessions")
-    runtime = _PanRuntime(data_root)
+    runtime = _PanRuntime(data_root, authenticated=True)
     runtime.fixture = fixture
     # Independent-process heartbeat plus an in-process probe and agent stream
     # recorder sharing the pytest process for comparison.

@@ -24,8 +24,10 @@ try {
   const page = await context.newPage(); const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
   await page.goto(`${base}/react/locker`);
-  await page.getByLabel('Local user key', { exact: true }).fill(process.env.PAN_TEST_JOB_KEY);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await page.getByLabel('管理员密码', { exact: true }).fill(process.env.PAN_TEST_JOB_KEY);
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toHaveCount(0);
+  await page.goto(`${base}/react/locker`);
   const row = page.locator(`[data-card-id="${card.id}"]`);
   await expect(row.getByText('Awaiting response', { exact: true })).toBeVisible();
   await row.getByRole('textbox').fill('A stale draft must never be sent');
@@ -57,7 +59,7 @@ try {
   await page.screenshot({ path: `${evidence}/terminal-desktop.png`, fullPage: true });
   await page.reload();
   await expect(row.locator('.locker-status')).toHaveText('无需回答 · No answer needed');
-  await expect(page.getByRole('button', { name: 'Log in', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '登录', exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await row.scrollIntoViewIfNeeded();
   await expect(row.locator('.locker-status')).toBeVisible();

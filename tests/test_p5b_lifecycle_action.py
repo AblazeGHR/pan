@@ -51,7 +51,7 @@ def test_cli_uses_canonical_receipt_and_requires_identity_proof(tmp_path, monkey
     record = {"pid": 41, "createdAt": 12.5}
     monkeypatch.setattr(cli, "verified", lambda root: (43210, record, {}))
     seen = []
-    monkeypatch.setattr(cli, "request", lambda port, path, payload, instance: (
+    monkeypatch.setattr(cli, "request", lambda port, path, payload, instance, root=None: (
         seen.append((port, path, payload, instance)) or {"accepted": True, "effectId": "effect_1"}
     ))
     if operation == "exit":

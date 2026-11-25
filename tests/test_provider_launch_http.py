@@ -8,10 +8,10 @@ from tests import test_real_queue_http_e2e as h
 
 def test_http_spawn_restart_fixed_config_and_private_cleanup(tmp_path,monkeypatch):
     monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/provider_launch_http_server.py')
-    rt=h._PanRuntime(tmp_path/'launch-http');evidence={'port':h.PORT,'realProviderCalls':0}
+    rt=h._PanRuntime(tmp_path/'launch-http', authenticated=True);evidence={'port':h.PORT,'realProviderCalls':0}
     try:
         rt.start();evidence['serverPid']=rt.process.pid
-        key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+        key=rt.test_password
         token=rt.request('POST','/api/automation/login',json={'key':key})['token']
         headers={'Authorization':'Bearer '+token}
         state=rt.request('GET','/api/automation/quota-policy')

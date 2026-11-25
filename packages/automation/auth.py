@@ -9,6 +9,7 @@ import time
 import threading
 import json
 from functools import wraps
+from contextlib import contextmanager
 from packages.core.platform.auth_lock import auth_lock, require_private_file
 
 
@@ -18,6 +19,15 @@ def locked(fn):
         with self.lock:
             with auth_lock(self.path.with_name('auth.lock')):
                 return fn(self, *args, **kwargs)
+    return call
+
+
+def permission_write(fn):
+    @wraps(fn)
+    def call(self, *args, **kwargs):
+        # Wait for group commits without occupying the session-state lock.
+        with self.permissions_writer():
+            return fn(self, *args, **kwargs)
     return call
 
 
@@ -34,6 +44,12 @@ class UserAuth:
         self.login_failures = []
         if self.sessions_path.exists():
             self.session('', False)
+
+    @contextmanager
+    def permissions_writer(self):
+        """Cross-instance/process grant-write fence, separate from sessions."""
+        with auth_lock(self.path.with_name('permissions-write.lock')):
+            yield
 
     @staticmethod
     def _atomic_json(path, state, prefix=''):
@@ -172,6 +188,7 @@ class UserAuth:
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             raise OSError('Authorization state is invalid or unreadable') from exc
 
+    @permission_write
     @locked
     def change_permissions(self, permissions, expected_revision):
         current = self.permissions_status()

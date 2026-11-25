@@ -154,7 +154,7 @@ def test_large_cold_stream_is_bounded(client, monkeypatch):
     assert len(mcp.session_get(s.id, limit=1000)['history']) == 200
 
 
-def test_real_http_and_mcp_protocol(monkeypatch):
+def test_real_http_and_mcp_protocol(monkeypatch, tmp_path):
     import asyncio
     import socket
     import threading
@@ -197,10 +197,13 @@ def test_real_http_and_mcp_protocol(monkeypatch):
                 tools = {t.name: t for t in (await session.list_tools()).tools}
                 assert 'roles' in tools['session_get'].inputSchema['properties']
                 assert 'tool_output' in tools['session_message_get'].inputSchema['properties']
-                async def call(name, args):
+                async def call(name, args, *, allowed=True):
                     result = await session.call_tool(name, args)
                     assert not result.isError
-                    return json.loads(next(c.text for c in result.content if c.type == 'text'))
+                    value = json.loads(next(c.text for c in result.content if c.type == 'text'))
+                    if allowed:
+                        assert 'error' not in value, value
+                    return value
                 result = await call('session_get', {'session_id':s.id, 'limit':2})
                 assert len(result['history']) == 2
                 assert 'PRIVATE_THINKING' not in json.dumps(result)
@@ -212,8 +215,14 @@ def test_real_http_and_mcp_protocol(monkeypatch):
                     ('session_get', {'session_id':outsider.id}),
                     ('session_message_get', {'session_id':outsider.id, 'message_id':target}),
                 ):
-                    assert (await call(name, args))['error']['code'] == 'permission_denied'
-        asyncio.run(exercise())
+                    assert (await call(name, args, allowed=False))['error']['code'] == 'permission_denied'
+        async def trusted_exercise():
+            from tests.support.core_ipc import independent_core_bridge
+            async with independent_core_bridge(app, tmp_path / 'owned-ipc', caller=manager) as bridge:
+                monkeypatch.setenv('PAN_AGENT_SESSION_ID', manager.id)
+                monkeypatch.setenv('PAN_PLUGIN_IPC', bridge.address)
+                await exercise()
+        asyncio.run(trusted_exercise())
         print(f'Owned HTTP listener 127.0.0.1:{port}; MCP initialize/list_tools/call_tool passed')
     finally:
         http_server.should_exit = True

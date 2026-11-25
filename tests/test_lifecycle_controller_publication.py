@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Real canonical Job cancellation after controller pre-publication crash."""
 import asyncio
 import json
@@ -57,7 +58,7 @@ def test_canonical_job_cancel_after_controller_crash(tmp_path, runtime_kind, cra
     from packages.jobs.action_api import router as actions
     from packages.jobs.api import router as jobs
     final_api.install(app, actions, jobs)
-    auth = automation.auth.login(automation.auth.key())
+    auth = automation.auth.login(provision(automation.auth))
     controller = None
     controller_id = runner_id = None
     wrapper_birth = None

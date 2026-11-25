@@ -8,9 +8,10 @@ import sys
 import tempfile
 import time
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 
 import pytest
+import psutil
 
 
 @pytest.mark.parametrize('fail_seed', [False, True])
@@ -24,7 +25,8 @@ def test_p6_cold_identity_never_hides_failed_seed(tmp_path, fail_seed):
             port = listener.getsockname()[1]
         assert port not in {8767, 8768}
         env = {k: v for k, v in os.environ.items() if not k.upper().startswith('PAN_')}
-        env.update(PAN_E2E_RUNTIME=str(runtime), PAN_PORT=str(port), PYTHONPATH=str(root))
+        from tests.support.auth_credentials import PASSWORD
+        env.update(PAN_E2E_ADMIN_SECRET=PASSWORD, PAN_E2E_RUNTIME=str(runtime), PAN_PORT=str(port), PYTHONPATH=str(root))
         launcher = root / 'packages/web/e2e/action-p6-server.py'
         command = [sys.executable, str(launcher)]
         if fail_seed:
@@ -35,6 +37,9 @@ def test_p6_cold_identity_never_hides_failed_seed(tmp_path, fail_seed):
         log_path = tmp_path / 'server.log'
         with log_path.open('w', encoding='utf-8') as log:
             child = subprocess.Popen(command, cwd=root, env=env, stdout=log, stderr=log)
+            root_birth = psutil.Process(child.pid).create_time()
+            server_process = None
+            server_birth = None
             try:
                 endpoint = f'http://127.0.0.1:{port}/__e2e/identity'
                 deadline = time.monotonic() + 30
@@ -61,9 +66,23 @@ def test_p6_cold_identity_never_hides_failed_seed(tmp_path, fail_seed):
                     assert not (runtime / 'p6-seed.json').exists()
                     assert 'owned seed failure' in log_path.read_text(encoding='utf-8')
                 else:
+                    assert response.code == 401
+                    response.close()
+                    login = Request(f'http://127.0.0.1:{port}/api/automation/login',
+                        data=json.dumps({'key': env['PAN_E2E_ADMIN_SECRET']}).encode(),
+                        headers={'Content-Type': 'application/json', 'Origin': f'http://127.0.0.1:{port}'})
+                    with urlopen(login, timeout=5) as logged:
+                        token = json.load(logged)['token']
+                    endpoint = Request(endpoint, headers={'Authorization': 'Bearer ' + token})
+                    response = urlopen(endpoint, timeout=2)
                     with response:
                         identity = json.load(response)
-                    assert identity['pid'] == child.pid
+                    server_process = psutil.Process(identity['pid'])
+                    server_birth = server_process.create_time()
+                    assert psutil.Process(child.pid).create_time() == root_birth
+                    assert server_process.pid == child.pid or child.pid in {p.pid for p in server_process.parents()}
+                    assert str(launcher) in server_process.cmdline()
+                    assert Path(server_process.cwd()).resolve() == root
                     assert Path(identity['checkout']).resolve() == root
                     assert Path(identity['runtime']).resolve() == runtime
                     seed = json.loads((runtime / 'p6-seed.json').read_text(encoding='utf-8'))
@@ -72,10 +91,18 @@ def test_p6_cold_identity_never_hides_failed_seed(tmp_path, fail_seed):
                     registry = runtime / 'cooperative-actions/registry.json'
                     before = registry.read_bytes()
                     with urlopen(endpoint, timeout=2) as again:
-                        assert json.load(again)['pid'] == child.pid
+                        assert json.load(again)['pid'] == server_process.pid
+                        assert server_process.create_time() == server_birth
                     assert registry.read_bytes() == before
                 assert not (runtime / 'effects').exists()
             finally:
+                if server_process is not None:
+                    try:
+                        if server_process.create_time() == server_birth and server_process.is_running():
+                            server_process.terminate()
+                            server_process.wait(timeout=10)
+                    except psutil.NoSuchProcess:
+                        pass
                 child.terminate()
                 try:
                     child.wait(timeout=10)

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Owned cooperative Trigger receipt handoff; no invented old effects/writer."""
 import asyncio
 import os
@@ -239,7 +240,7 @@ def test_P6_TRIG_08_same_profile_joins_actual_owner_without_clobbering_activatio
     app.state.automation = automation
     final_api.install(app)
     client = TestClient(app)
-    client.headers['Authorization'] = 'Bearer ' + automation.auth.login(automation.auth.key())
+    client.headers['Authorization'] = 'Bearer ' + automation.auth.login(provision(automation.auth))
     try:
         product = next(item for item in service.actions(actor=USER)['items'] if item['id'] == 'product_session_message')
         value = definition('action', product)

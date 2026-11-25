@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Authenticated product HTTP -> canonical admission -> real worker queue.
 
 Owned temporary Sessions are paused to prove durable enqueue without launching
@@ -67,7 +68,7 @@ def h(tmp_path, monkeypatch):
         time.sleep(.01)
     assert server.started
     client = httpx.Client(base_url=f"http://127.0.0.1:{port}", trust_env=False)
-    token = automation.auth.login(automation.auth.key())
+    token = automation.auth.login(provision(automation.auth))
     client.headers["Authorization"] = "Bearer " + token
     yield SimpleNamespace(client=client, service=service, automation=automation,
                           root=tmp_path / "canonical", owned=owned, app=app)

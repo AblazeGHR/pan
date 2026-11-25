@@ -34,9 +34,10 @@ def test_real_http_mcp_fake_cli(tmp_path):
     env.update(PYTHONIOENCODING="utf-8", PAN_E2E_FAKE_CLI=str(ROOT / "tests/support/fake_stream_cli.py"),
                PAN_E2E_FAKE_LOG=str(data / "fake-cli.jsonl"), PAN_TEST_DISABLE_QUEUE_WATCHDOG="1", PAN_TEST_INBOX_NONCE=secrets.token_hex(16))
     base = f"http://127.0.0.1:{port}"
+    headers = {"Content-Type": "application/json", "Origin": base}
     def request(method, path, body=None):
         req = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None,
-                                     method=method, headers={"Content-Type": "application/json"})
+                                     method=method, headers=headers)
         with urllib.request.urlopen(req, timeout=15) as response:
             return json.load(response)
     def eventually(fn, timeout=15):
@@ -55,6 +56,15 @@ def test_real_http_mcp_fake_cli(tmp_path):
                                 "--data-root", str(data)], cwd=ROOT, env=env, stdout=log, stderr=log,
                                 **command_window_options())
     try:
+        eventually(lambda: request("GET", "/api/health"))
+        with pytest.raises(urllib.error.HTTPError) as anonymous:
+            request("GET", "/__test/inbox-identity")
+        assert anonymous.value.code == 401
+        from packages.automation.auth import UserAuth
+        from tests.support.auth_credentials import provision
+        password = provision(UserAuth(data / "automation"))
+        login = request("POST", "/api/automation/login", {"key": password})
+        headers["Authorization"] = "Bearer " + login["token"]
         ident = eventually(lambda: request("GET", "/__test/inbox-identity"))
         assert ident["port"] == port and ident["nonce"] == env["PAN_TEST_INBOX_NONCE"]
         actual = psutil.Process(ident["pid"])
@@ -82,7 +92,9 @@ def test_real_http_mcp_fake_cli(tmp_path):
         async def mcp_flow():
             from mcp import ClientSession, StdioServerParameters
             from mcp.client.stdio import stdio_client
-            menv = {**env, "PAN_API_URL": base, "PAN_AGENT_SESSION_ID": sid}
+            locator = json.loads((data / "core-ipc.json").read_text(encoding="utf-8"))
+            menv = {**env, "PAN_API_URL": base, "PAN_AGENT_SESSION_ID": sid,
+                    "PAN_PLUGIN_IPC": locator["address"]}
             params = StdioServerParameters(command=sys.executable, args=["-m", "packages.mcp.server"], cwd=str(ROOT), env=menv)
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as client:

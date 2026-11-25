@@ -105,7 +105,7 @@ def test_local_panel_build_enable_serves_immutable_react_builds_and_lifecycle(tm
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT,
                                   text=True, encoding="utf-8").strip()
-    runtime = _PanRuntime(data)
+    runtime = _PanRuntime(data, authenticated=True)
     evidence = {"sourceSha": sha, "port": PORT, "profile": "<owned temporary data root>",
                 "pluginDir": "<owned temporary example copy>", "browser": {}, "http": {}}
     page_errors: list[str] = []
@@ -127,6 +127,8 @@ def test_local_panel_build_enable_serves_immutable_react_builds_and_lifecycle(tm
             page = browser.new_page(viewport={"width": 1280, "height": 960})
             page.on("pageerror", lambda error: page_errors.append(str(error)))
             page.goto(runtime.base_url + "/react/")
+            from tests.support.auth_credentials import login_page
+            login_page(page, runtime.test_password)
             page.get_by_title("App settings", exact=True).click()
             dialog = page.get_by_role("dialog", name="App Settings")
             dialog.get_by_role("tab", name="Plugins", exact=True).click()

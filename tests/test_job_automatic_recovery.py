@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Owned canonical policy/transaction tests and actual default detached effects."""
 import asyncio
 import copy
@@ -36,7 +37,7 @@ def env(tmp_path):
     from packages.jobs.api import router as jobs
     final_api.install(app, actions, jobs)
     client = TestClient(app)
-    client.headers["Authorization"] = "Bearer " + automation.auth.login(automation.auth.key())
+    client.headers["Authorization"] = "Bearer " + automation.auth.login(provision(automation.auth))
     h = SimpleNamespace(service=service, client=client, root=service.root, tmp=tmp_path,
                         auth=automation.auth, app=app, serial=0)
     yield h

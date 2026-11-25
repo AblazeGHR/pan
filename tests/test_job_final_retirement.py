@@ -146,7 +146,7 @@ def test_old_write_refuses_an_anonymous_caller_before_answering(method, path, tm
     assert RETIRED_DETAIL not in response.text or response.status_code == 410
 
 
-def delegated_response(method, path):
+def delegated_response(method, path, headers=None):
     """Call the app as the trusted local MCP transport would."""
     import asyncio
     import httpx
@@ -158,7 +158,7 @@ def delegated_response(method, path):
 
     async def call():
         transport = httpx.ASGITransport(app=scoped)
-        async with httpx.AsyncClient(transport=transport, base_url="http://ipc") as client:
+        async with httpx.AsyncClient(transport=transport, base_url="http://ipc", headers=headers) as client:
             return await client.request(method, path, json={})
 
     return asyncio.run(call())
@@ -170,9 +170,11 @@ def delegated_response(method, path):
     ("PATCH", "/api/background-jobs/{id}"),
     ("POST", "/api/background-jobs/{id}/retry"),
 ])
-def test_trusted_caller_is_told_the_entrypoint_is_retired(method, path):
+def test_trusted_caller_is_told_the_entrypoint_is_retired(method, path, tmp_path, monkeypatch):
     """A trusted caller gets the explicit retirement, not a silent 404."""
-    response = delegated_response(method, materialise(path))
+    from tests.support.owned_http_auth import owned_bearer
+    headers = owned_bearer(app, tmp_path, monkeypatch)
+    response = delegated_response(method, materialise(path), headers)
     assert response.status_code == 410, (method, path, response.text)
     assert response.json()["detail"]["code"] == "retired"
     # The refusal is a boundary answer: no Job was created by trying.

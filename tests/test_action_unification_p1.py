@@ -1,6 +1,7 @@
 """P1 canonical Action directory and immutable version contracts."""
 
 from __future__ import annotations
+from tests.support.auth_credentials import provision
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -25,7 +26,7 @@ def action_http(tmp_path):
     service = bind(app, automation, tmp_path / "canonical")
     app.state.automation = automation
     final_api.install(app)
-    token = automation.auth.login(automation.auth.key())
+    token = automation.auth.login(provision(automation.auth))
     client = TestClient(app)
     client.headers["Authorization"] = "Bearer " + token
     try:

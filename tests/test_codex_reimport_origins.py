@@ -17,6 +17,19 @@ from packages.core.adapters.codex import sessions as codex
 from packages.core.attachment_projection import project_message_parts
 from packages.web import server
 
+_AUTH_HEADERS = {}
+
+@pytest.fixture(autouse=True)
+def owned_authentication(tmp_path, monkeypatch):
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    from types import SimpleNamespace
+    auth = UserAuth(tmp_path / 'owned-auth')
+    token = auth.login(provision(auth))
+    monkeypatch.setattr(server.app.state, 'automation', SimpleNamespace(auth=auth), raising=False)
+    monkeypatch.setitem(_AUTH_HEADERS, 'Authorization', 'Bearer ' + token)
+
+
 
 def origin(tmp_path, *, source="user", text="before\n", attachment=True):
     parts = [{"type": "text", "text": text}]
@@ -62,7 +75,7 @@ def existing(row):
 
 
 async def request(expected_status=200):
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app, raise_app_exceptions=False), base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app, raise_app_exceptions=False), base_url="http://test", headers=_AUTH_HEADERS) as client:
         response = await client.post("/api/adapters/codex/sessions/import", json={"session_id": "private-thread"})
         assert response.status_code == expected_status
         return response.json() if expected_status == 200 else response.text

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import PASSWORD, login_page
 """Owned authenticated HTTP + production Chromium native time input proof."""
 import json
 import sqlite3
@@ -24,7 +25,7 @@ def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_
     assert port not in (8767, 8768)
     with (evidence / "browser-server.log").open("wb") as log:
         child = subprocess.Popen([sys.executable, "-m", "tests.support.scheduler_management_server",
-                                  "--root", str(root), "--port", str(port), "--seed-time-template-target"], cwd=repo,
+                                  "--root", str(root), "--port", str(port), "--seed-time-template-target"], env={**os.environ, "PAN_TEST_ADMIN_PASSWORD": PASSWORD}, cwd=repo,
                                  stdout=log, stderr=subprocess.STDOUT, **command_window_options())
         try:
             base = f"http://127.0.0.1:{port}"
@@ -35,7 +36,7 @@ def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_
                         if client.get("/test/ready").status_code == 200: break
                     except httpx.TransportError: pass
                     time.sleep(.1)
-                key = (root / "automation/user.key").read_text().strip()
+                key = PASSWORD
                 token = client.post("/api/automation/login", json={"key": key}).json()["token"]
                 client.headers["Authorization"] = "Bearer " + token
                 with sync_playwright() as playwright:
@@ -49,8 +50,7 @@ def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_
                         errors = []
                         page.on("pageerror", lambda error: errors.append(str(error)))
                         page.goto(base + "/react/automation?tab=events")
-                        page.get_by_label("Local user key", exact=True).fill(key)
-                        page.get_by_role("button", name="Log in", exact=True).click()
+                        login_page(page, key)
                         page.get_by_role("button", name="New Scheduler", exact=True).click()
                         page.get_by_label("Scheduler name", exact=True).fill("Host calendar")
                         page.get_by_label("Time rule type", exact=True).select_option("daily")

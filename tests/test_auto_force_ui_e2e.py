@@ -57,6 +57,7 @@ def test_auto_force_settings_ui_real_chromium(tmp_path):
         artifacts = tmp_path / "artifacts"
         env = dict(os.environ)
         env["PAN_E2E_BASE_URL"] = runtime.base_url
+        env["PAN_E2E_ADMIN_SECRET"] = runtime.test_password
         env["PAN_E2E_ARTIFACTS"] = str(artifacts)
         env["PAN_E2E_MA_ID"] = ma["id"]
         env["PAN_E2E_TARGET_ID"] = target["id"]

@@ -15,7 +15,7 @@ from tests.test_real_queue_http_e2e import _PanRuntime, _wait_for
 
 @pytest.fixture
 def attachment_runtime(tmp_path):
-    runtime = _PanRuntime(tmp_path / "attachment-http-data")
+    runtime = _PanRuntime(tmp_path / "attachment-http-data", authenticated=True)
     runtime.start()
     try:
         yield runtime

@@ -38,6 +38,7 @@ def test_default_uses_current_interpreter_platform():
 
 
 EXPECTED_CAPABILITIES = (
+    "auth.persistence",
     "time.hostZone",
     "job.runtimeOwner",
     "terminal.native",
@@ -65,7 +66,7 @@ def test_capabilities_match_implemented_platform_backends():
         if name == "fileManager.reveal":
             continue
         assert plat.supports(name, "win32") is True, name
-        expected = name in {"processOwner", "job.runtimeOwner", "time.hostZone"}
+        expected = name in {"auth.persistence", "processOwner", "job.runtimeOwner", "time.hostZone"}
         assert plat.supports(name, "darwin") is expected, name
         assert plat.supports(name, "linux") is expected, name
 

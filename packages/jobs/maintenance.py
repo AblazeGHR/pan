@@ -69,6 +69,50 @@ def dispositions(root, *, service=None):
     return {'items': items, 'manifestState': 'loaded', 'message': 'Original data is preserved. Create a new Job to continue.'}
 
 
+def authority(state):
+    """Reuse the maintenance profile's existing administrator authority."""
+    if state['auth'] is None:
+        state['auth'] = UserAuth(state['root'] / 'automation')
+    return state['auth']
+
+
+AUTH_TRANSPORT = frozenset({('POST', '/api/automation/login'),
+                            ('GET', '/api/automation/session'),
+                            ('POST', '/api/automation/logout')})
+
+
+async def authentication_response(state, request):
+    """Fixed maintenance transport over the same configured UserAuth only."""
+    import asyncio
+    from packages.web.global_auth import set_cookie, COOKIE
+    auth = authority(state)
+    header = request.headers.get('authorization', '')
+    try:
+        if request.url.path == '/api/automation/session':
+            scheme, _, token = header.partition(' ')
+            result = await asyncio.to_thread(auth.session, token if scheme.lower() == 'bearer' else '')
+            return JSONResponse({key: result[key] for key in ('authenticated', 'expiresAt', 'sessionDays')})
+        if request.url.path == '/api/automation/login':
+            data = await request.json()
+            if not isinstance(data, dict):
+                return JSONResponse({'detail': 'Expected object'}, status_code=422)
+            token = await asyncio.to_thread(auth.login, data.get('key'))
+            response = JSONResponse({'token': token, 'expiresIn': auth.session_lifetime})
+            set_cookie(response, request, token, auth.session_days)
+            return response
+        await asyncio.to_thread(auth.logout, header)
+        response = JSONResponse({'ok': True})
+        response.delete_cookie(COOKIE, path='/', httponly=True, samesite='lax',
+                               secure=request.url.scheme == 'https' or request.scope.get('pan.auth.secure', False))
+        return response
+    except PermissionError as exc:
+        return JSONResponse({'detail': str(exc)}, status_code=401)
+    except ValueError as exc:
+        return JSONResponse({'detail': str(exc)}, status_code=429 if 'rate limit' in str(exc) else 400)
+    except OSError:
+        return JSONResponse({'detail': 'Session storage unavailable'}, status_code=503)
+
+
 def install(app):
     class MaintenanceBoundary:
         def __init__(self, app):
@@ -77,6 +121,12 @@ def install(app):
         async def __call__(self, scope, receive, send):
             state = getattr(scope.get('app', app).state, 'job_maintenance', None)
             path = scope.get('path', '')
+            if (state and scope['type'] == 'http'
+                    and (scope.get('method'), path) in AUTH_TRANSPORT):
+                response = await authentication_response(state, Request(scope, receive=receive))
+                await response(scope, receive, send)
+                return
+
             if state and scope['type'] == 'websocket':
                 await send({'type': 'websocket.close', 'code': 1013,
                             'reason': 'runtime_ownership_unverified'})
@@ -101,9 +151,7 @@ def install(app):
         return {'mode': 'active', 'root': service.owner.root, 'auth': service.auth, 'service': service}
 
     def auth(state):
-        if state['auth'] is None:
-            state['auth'] = UserAuth(state['root'] / 'automation')
-        return state['auth']
+        return authority(state)
 
     def authorized(request):
         state = current(request)

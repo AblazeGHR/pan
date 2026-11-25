@@ -41,6 +41,7 @@ def test_long_caller_path_concurrent_bridges_roundtrip_and_cleanup(tmp_path):
     asyncio.run(run())
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='UnixEndpoint requires POSIX 0700; Windows uses named pipes')
 def test_long_temp_root_uses_short_private_endpoint(monkeypatch, tmp_path):
     from packages.core.platform import plugin_ipc
     host_temp = plugin_ipc.tempfile.gettempdir()
@@ -61,6 +62,7 @@ def test_long_temp_root_uses_short_private_endpoint(monkeypatch, tmp_path):
         endpoint.close()
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='UnixEndpoint requires POSIX 0700; Windows uses named pipes')
 def test_listener_failure_cleans_only_its_endpoint(monkeypatch, tmp_path):
     from packages.core.platform import plugin_ipc
     endpoints = []
@@ -81,6 +83,7 @@ def test_listener_failure_cleans_only_its_endpoint(monkeypatch, tmp_path):
     assert not Path(endpoints[0].address).parent.exists()
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='UnixEndpoint requires POSIX 0700; Windows uses named pipes')
 def test_private_endpoint_refuses_recursive_cleanup_of_unknown_entries():
     from packages.core.platform.plugin_ipc import UnixEndpoint
     endpoint = UnixEndpoint()
@@ -106,3 +109,17 @@ def test_start_exception_restores_environment_and_retires_bridge(monkeypatch, tm
     asyncio.run(run())
     assert os.environ[ipc.ENV] == 'previous-owned-endpoint'
     runtime.close.assert_awaited_once()
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows rejection of POSIX-only directory permissions')
+def test_windows_refuses_unenforceable_unix_directory_permissions(monkeypatch, tmp_path):
+    from packages.core.platform import plugin_ipc
+    # A short, owned allocation reaches the actual mode check. Do not fake
+    # POSIX permissions or claim a Unix transport succeeds on Windows.
+    original = plugin_ipc.tempfile.mkdtemp
+    monkeypatch.setattr(plugin_ipc.tempfile, 'gettempdir', lambda: str(tmp_path))
+    monkeypatch.setattr(plugin_ipc.tempfile, 'mkdtemp',
+        lambda **kwargs: original(**{**kwargs, 'dir': str(tmp_path)}))
+    with pytest.raises(OSError, match='cannot enforce same-user access'):
+        plugin_ipc.UnixEndpoint()
+    assert list(tmp_path.iterdir()) == []

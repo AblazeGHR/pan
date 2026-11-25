@@ -75,7 +75,7 @@ def test_fixture_uses_explicit_utf8_under_non_utf8_windows_pipe():
 def _make_runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(base, "FAKE_CLI", FAKE_CLI)
     monkeypatch.setattr(base, "PORT", _free_port())
-    return base._PanRuntime(tmp_path / "data-root")
+    return base._PanRuntime(tmp_path / "data-root", authenticated=True)
 
 
 @pytest.fixture(scope="module")

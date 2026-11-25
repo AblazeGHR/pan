@@ -25,7 +25,7 @@ def test_real_stdio_http_context(tmp_path, monkeypatch):
     nonce = secrets.token_hex(24)
     monkeypatch.setenv('PAN_TEST_CONTEXT_NONCE', nonce)
     monkeypatch.setenv('PAN_TEST_DISABLE_QUEUE_WATCHDOG', '1')
-    rt = h._PanRuntime(tmp_path / 'profile/data')
+    rt = h._PanRuntime(tmp_path / 'profile/data', authenticated=True)
     rt.data_root.mkdir(parents=True)
     (rt.data_root / 'config.json').write_text(json.dumps({'memory': {'enabled': False},
         'plugin_manifests': [str(ROOT/'manifest.json'), str(ROOT/'packages/mcp/manifest.json')]}), encoding='utf-8')
@@ -37,7 +37,7 @@ def test_real_stdio_http_context(tmp_path, monkeypatch):
         assert Path(proof['identity']['sessions']).parent == rt.data_root
         def create(name):
             workdir = rt.data_root / 'workdirs' / name; workdir.mkdir(parents=True)
-            result = rt.request('POST', '/api/sessions', json={'name': name, 'adapter': 'cbc', 'mcpServers': [], 'workdir': str(workdir)})
+            result = rt.request('POST', '/api/sessions', json={'name': name, 'adapter': 'cbc', 'mcpServers': ['pan'], 'workdir': str(workdir)})
             assert result.get('id'), result
             rt.request('PATCH', f"/api/sessions/{result['id']}/queue/paused", json={'paused': True})
             return result['id']
@@ -52,7 +52,8 @@ def test_real_stdio_http_context(tmp_path, monkeypatch):
         document = {'messageId': 'ordinary', 'role': 'assistant', 'content': 'Locker reply', 'ts': '2026-10-25T00:00:00Z'}
         async def invoke(sid, name, arguments):
             params = StdioServerParameters(command=sys.executable, args=['-m', 'packages.mcp.server'], cwd=str(ROOT),
-                env={**os.environ, 'PAN_API_URL': rt.base_url, 'PAN_AGENT_SESSION_ID': sid})
+                env={**os.environ, 'PAN_API_URL': rt.base_url, 'PAN_AGENT_SESSION_ID': sid,
+                     'PAN_PLUGIN_IPC': json.loads((rt.data_root / 'core-ipc.json').read_text(encoding='utf-8'))['address']})
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as client:
                     await client.initialize()
@@ -68,7 +69,7 @@ def test_real_stdio_http_context(tmp_path, monkeypatch):
         history(child, [{'role': 'user', 'content': 'Later user'}])
         assert asyncio.run(invoke(ma, 'interaction_card', args))['card'] == card
         assert asyncio.run(invoke(child, 'locker_message', message_args))['message'] == message
-        key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
+        key = rt.test_password
         auth = {'Authorization': 'Bearer ' + rt.request('POST', '/api/automation/login', json={'key': key})['token']}
         assert card in rt.request('GET', '/api/user-inbox', headers=auth)['cards']
         assert message in rt.request('GET', '/api/user-locker-messages', headers=auth)['messages']

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """WP06a HTTP boundary tests; service probes do not prove backend CRUD/effects."""
 import asyncio
 from collections import Counter
@@ -57,7 +58,7 @@ def harness(tmp_path, *, trusted=False):
     service = ServiceProbe()
     app.state.job_final_service = service
     api.install(app)
-    token = auth.login(auth.key())
+    token = auth.login(provision(auth))
     async def transport(scope, receive, send):
         if trusted:
             scope[authorization._SCOPE_KEY] = authorization._MARKER

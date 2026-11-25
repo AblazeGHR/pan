@@ -88,7 +88,7 @@ try {
   await expect(page.getByTestId('notification-source-newError').getByRole('checkbox', { name: 'Enabled', exact: true })).toBeChecked();
   await page.getByRole('dialog', { name: 'App Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
   const emit = () => context.request.post(base + '/__test/notification/emit', {
-    headers: { 'x-notification-fixture': process.env.PAN_TEST_NOTIFICATION_NONCE },
+    headers: { Origin: base, 'x-notification-fixture': process.env.PAN_TEST_NOTIFICATION_NONCE },
     data: { owner, kind: 'error', id: 90 },
   });
   expect((await emit()).status()).toBe(200);

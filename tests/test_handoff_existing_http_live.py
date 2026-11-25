@@ -23,6 +23,7 @@ def test_live_existing_running_cli_receives_brief_once(tmp_path):
         stdout=log, stderr=subprocess.STDOUT,
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     identity = None
+    auth_headers = {'Content-Type': 'application/json'}
     def wait_for(check):
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
@@ -37,7 +38,7 @@ def test_live_existing_running_cli_receives_brief_once(tmp_path):
     def call(method, path, data=None):
         request = Request(f"http://127.0.0.1:{identity['port']}" + path,
             method=method, data=json.dumps(data).encode() if data is not None else None,
-            headers={'Content-Type': 'application/json'})
+            headers=auth_headers)
         with urlopen(request, timeout=5) as response:
             return json.load(response)
     try:
@@ -45,6 +46,11 @@ def test_live_existing_running_cli_receives_brief_once(tmp_path):
         identity = json.loads((runtime / 'identity.json').read_text(encoding='utf-8'))
         assert identity['pid'] == proc.pid and identity['port'] not in (8767, 8768)
         assert Path(identity['runtime']) == runtime
+        from packages.automation.auth import UserAuth
+        from tests.support.auth_credentials import provision
+        auth_headers['Origin'] = f"http://127.0.0.1:{identity['port']}"
+        token = call('POST', '/api/automation/login', {'key': provision(UserAuth(runtime / 'automation'))})['token']
+        auth_headers['Authorization'] = 'Bearer ' + token
         wait_for(lambda: call('GET', '/__handoff/identity') == identity)
         a, b = identity['source'], identity['target']
         spawned = call('POST', '/api/spawn', {'sessionId': b})

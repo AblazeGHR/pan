@@ -40,6 +40,9 @@ def _start(root):
         port = listener.getsockname()[1]
     assert port not in (8767, 8768)
     root.mkdir(parents=True, exist_ok=True)
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    fixture_password = provision(UserAuth(root / "automation"))
     log = (OUT / "server.log").open("wb")
     child = subprocess.Popen(
         [sys.executable, "-m", "tests.support.scheduler_management_server",
@@ -50,8 +53,8 @@ def _start(root):
     client = httpx.Client(base_url=f"http://127.0.0.1:{port}", trust_env=False, timeout=15)
     try:
         _ready(child, client)
-        key = (root / "automation/user.key").read_text(encoding="utf8").strip()
-        token = client.post("/api/automation/login", json={"key": key}).json()["token"]
+        key = fixture_password
+        token = client.post("/api/automation/login", json={"key": key}, headers={"Origin": str(client.base_url).rstrip("/")}).json()["token"]
         client.headers["Authorization"] = "Bearer " + token
         return child, log, client, f"http://127.0.0.1:{port}", key
     except BaseException:
@@ -161,8 +164,10 @@ def _touch_targets(page, aria, minimum):
 
 
 def _login(page, key):
-    page.get_by_label("Local user key", exact=True).fill(key)
-    page.get_by_role("button", name="Log in", exact=True).click()
+    page.get_by_label("管理员密码", exact=True).fill(key)
+    page.get_by_role("button", name="登录", exact=True).click()
+    page.get_by_role("heading", name="登录 Pan", exact=True).wait_for(state="hidden")
+    page.goto(page.url.split("/react/")[0] + "/react/automation?tab=trigger")
 
 
 def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
@@ -184,11 +189,11 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(url + "/react/automation/canonical")
-                expect(page.get_by_role("heading", name="Jobs", exact=True)).to_be_visible()
+                expect(page.get_by_role("heading", name="登录 Pan", exact=True)).to_be_visible()
                 assert page.evaluate("async () => (await fetch('/api/jobs')).status") == 401
-                page.get_by_role("button", name="New Job", exact=True).click()
-                expect(page.get_by_label("Local user key", exact=True)).to_be_visible()
-                expect(page.get_by_role("button", name="Log in", exact=True)).to_be_visible()
+                expect(page.get_by_label("管理员密码", exact=True)).to_be_visible()
+                expect(page.get_by_role("button", name="登录", exact=True)).to_be_visible()
+                expect(page.get_by_role("button", name="New Job", exact=True)).to_have_count(0)
                 page.screenshot(path=str(OUT / "unauthorized-canonical-1440.png"), full_page=True)
                 assert errors == []
                 page.close()
@@ -198,10 +203,10 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                     errors, dialogs = [], []
                     page.on("pageerror", lambda error: errors.append(str(error)))
                     page.on("dialog", lambda dialog: (dialogs.append(dialog.message), dialog.accept()))
-                    page.goto(url + "/react/automation")
+                    page.goto(url + "/react/automation?tab=trigger")
                     _login(page, key)
                     expect(page.get_by_role("heading", name="Automation", exact=True)).to_be_visible()
-                    expect(page.get_by_role("link", name="Open Jobs", exact=True)).to_be_visible()
+                    expect(page.get_by_role("link", name="Jobs", exact=True)).to_be_visible()
                     assert page.get_by_role("article", name="Jobs Nightly session digest", exact=True).count() == 0
                     page.wait_for_timeout(200)
                     _no_overflow(page, "Automation management")
@@ -209,11 +214,12 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                     page.screenshot(path=str(OUT / f"automation-jobs-{width}.png"), full_page=True)
 
                     if width == 1440:
-                        # Keyboard tabs: arrows move selection and content together.
-                        page.get_by_role("tab", name="Job", exact=True).focus()
-                        page.keyboard.press("ArrowRight")
-                        expect(page.get_by_role("tab", name="Trigger", exact=True)).to_have_attribute(
-                            "aria-selected", "true")
+                        # Current page navigation remains keyboard accessible.
+                        navigation = page.get_by_role("navigation", name="Automation pages")
+                        navigation.get_by_role("link", name="Jobs", exact=True).focus()
+                        page.keyboard.press("Tab")
+                        expect(navigation.get_by_role("link", name="Trigger", exact=True)).to_be_focused()
+                        expect(navigation.get_by_role("link", name="Trigger", exact=True)).to_have_attribute("aria-current", "page")
                         expect(page.get_by_role("heading", name="Triggers", exact=True)).to_be_visible()
 
                         # Trigger detail form opens with the canonical target selector.
@@ -237,13 +243,13 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                         page.goto(url + "/react/automation?tab=events")
 
                         # Event Register list/detail and retained raw rule detail.
-                        page.get_by_role("tab", name="Event Register", exact=True).click()
+                        page.get_by_role("navigation", name="Automation pages").get_by_role("link", name="Event Register", exact=True).click()
                         expect(page.get_by_role("article", name="Scheduler Weekday morning tick", exact=True)).to_be_visible()
-                        expect(page.get_by_role("button", name="Morning digest subscription", exact=True)).to_be_visible()
                         page.get_by_role("button", name="Edit Weekday morning tick", exact=True).click()
                         expect(page.get_by_label("Scheduler name", exact=True)).to_have_value("Weekday morning tick")
                         expect(page.get_by_label("Scheduler impact", exact=True).get_by_text(
                             "1 referencing subscribers", exact=True)).to_be_visible()
+                        expect(page.get_by_label("Scheduler impact", exact=True).get_by_text("Morning digest subscription", exact=False)).to_be_visible()
                         page.screenshot(path=str(OUT / "automation-event-editor-1440.png"), full_page=True)
                         page.get_by_role("button", name="Close Scheduler editor", exact=True).click()
                         page.screenshot(path=str(OUT / "automation-events-1440.png"), full_page=True)
@@ -256,7 +262,7 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                         _touch_targets(page, "Jobs management", 36)
                         page.screenshot(path=str(OUT / "jobs-directory-1440.png"), full_page=True)
                         page.get_by_role("button", name="Job Templates", exact=True).click()
-                        expect(page.get_by_text("No records JobTemplates.", exact=True)).to_be_visible()
+                        expect(page.get_by_text("No Job templates yet", exact=True)).to_be_visible()
                         page.screenshot(path=str(OUT / "jobs-empty-templates-1440.png"), full_page=True)
                         page.get_by_role("button", name="All Jobs", exact=True).click()
                         page.get_by_test_id("jobs-list-scroll").get_by_text("Nightly session digest", exact=True).click()
@@ -278,7 +284,7 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                         page.get_by_role("form", name="Run operation").get_by_role("button", name="Back", exact=True).click()
                         expect(page.get_by_role("form", name="Run operation", exact=True)).to_have_count(0)
                     else:
-                        page.get_by_role("tab", name="Event Register", exact=True).click()
+                        page.get_by_role("navigation", name="Automation pages").get_by_role("link", name="Event Register", exact=True).click()
                         expect(page.get_by_role("article", name="Scheduler Weekday morning tick", exact=True)).to_be_visible()
                         _no_overflow(page, "Automation management")
                         page.screenshot(path=str(OUT / f"automation-events-{width}.png"), full_page=True)
@@ -294,9 +300,10 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                 # Real transport error after all requests succeeded: stop the owned server,
                 # then ask the loaded production page to refresh its canonical list.
                 page = browser.new_page(viewport={"width": 1440, "height": 1000})
-                page.goto(url + "/react/automation")
+                page.goto(url + "/react/automation?tab=trigger")
                 _login(page, key)
                 page.get_by_role("link", name="Jobs", exact=True).click()
+                page.get_by_text("Sort and refresh", exact=True).click()
                 expect(page.get_by_role("button", name="Refresh", exact=True)).to_be_enabled()
                 child.terminate()
                 child.wait(timeout=15)

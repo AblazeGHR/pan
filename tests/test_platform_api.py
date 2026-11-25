@@ -21,6 +21,7 @@ import packages.web.server as srv
 from packages.core import platform as platform_layer
 
 CAPABILITY_KEYS = {
+    "auth.persistence",
     "time.hostZone",
     "job.runtimeOwner",
     "terminal.native",
@@ -35,24 +36,39 @@ CAPABILITY_KEYS = {
 }
 
 
+_AUTH_HEADERS = {}
+
+@pytest.fixture(autouse=True)
+def owned_administrator(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    auth = UserAuth(tmp_path / 'automation')
+    token = auth.login(provision(auth))
+    monkeypatch.setattr(srv.app.state, 'automation', SimpleNamespace(auth=auth), raising=False)
+    monkeypatch.setattr(__import__(__name__, fromlist=['_AUTH_HEADERS']), '_AUTH_HEADERS',
+                        {'Authorization': 'Bearer ' + token})
+
+
 def _client():
     return httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=srv.app), base_url="http://isolated",
+        transport=httpx.ASGITransport(app=srv.app), base_url="http://isolated", headers=_AUTH_HEADERS,
     )
 
 
 def _unsupported(monkeypatch):
     """把平台层钉在“只支持 Windows 能力集之外的平台”。"""
+    actual_supports = platform_layer.supports
     monkeypatch.setattr(platform_layer, "is_windows", lambda value=None: False)
     monkeypatch.setattr(
-        platform_layer, "supports", lambda name, platform=None: False,
+        platform_layer, "supports", lambda name, platform=None: actual_supports(name, platform) if name == "auth.persistence" else False,
     )
 
 
 def test_platform_endpoint_is_read_only_and_minimal():
     async def run():
         async with _client() as client:
-            # 不带任何 key / cookie / 实例身份头：与其它只读 summary 同级。
+            # Authenticated read-only projection; public denial is checked separately.
             response = await client.get("/api/platform")
         assert response.status_code == 200, response.text
         return response.json()
@@ -157,3 +173,10 @@ def test_terminal_api_marks_non_windows_as_unsupported(monkeypatch):
         remote.check_ready()
     assert rejected_remote.value.status_code == 503
     assert rejected_remote.value.code == "terminal-disabled"
+
+
+def test_platform_projection_rejects_missing_administrator():
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            assert (await client.get('/api/platform')).status_code == 401
+    asyncio.run(run())

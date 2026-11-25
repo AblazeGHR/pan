@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Owned HTTP assembly of the canonical runtime; never a product executor."""
 import argparse
 from contextlib import asynccontextmanager
@@ -114,7 +115,7 @@ def app_for(root):
         time_ref = {'type': time_provider.provider_type, 'id': time_provider.provider_id,
                     'generation': time_provider.generation, 'releaseDigest': time_provider.release_digest}
         assert service.creators.registry.get(time_ref) is time_provider
-        return {'ready': True, 'token': automation.auth.login(automation.auth.key()),
+        return {'ready': True, 'token': automation.auth.login(provision(automation.auth)),
                 'environment': environment, 'actions': actions, 'actionRefs': refs,
                 'timeProvider': {'ref': time_ref, 'health': time_provider.health()},
                 'bindings': {'sameService': automation.final_jobs is app.state.job_final_service is service,

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import PASSWORD, login_page
 """Owned authenticated production React: all ordinary edits through forms."""
 import json
 import os
@@ -25,7 +26,7 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
     root = tmp_path / 'owned-profile'
     log = (out/'browser-server.log').open('wb')
     child = subprocess.Popen([sys.executable,'-m','tests.support.scheduler_management_server',
-        '--root',str(root),'--port',str(port),'--seed-time-template-target'],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+        '--root',str(root),'--port',str(port),'--seed-time-template-target'],env={**os.environ, "PAN_TEST_ADMIN_PASSWORD": PASSWORD}, cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
     base = f'http://127.0.0.1:{port}'
     result = {'port':port,'ownedRoot':True,'productionBundle':True}
     try:
@@ -36,7 +37,7 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                     if client.get('/test/ready').status_code == 200: break
                 except httpx.TransportError: pass
                 time.sleep(.1)
-            key = (root/'automation/user.key').read_text(encoding='utf-8').strip()
+            key = PASSWORD
             token = client.post('/api/automation/login',json={'key':key}).json()['token']
             client.headers['Authorization'] = 'Bearer '+token
             result['actionReferenceMetadataPresent'] = 'references' in client.get('/api/jobs/actions').json()
@@ -62,8 +63,7 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                     page.on('request',lambda r:requests.append((r.method,r.url.split(base)[-1])))
                     page.on('dialog',lambda dialog:dialog.accept())
                     page.goto(base+'/react/automation?tab=job')
-                    page.get_by_label('Local user key',exact=True).fill(key)
-                    page.get_by_role('button',name='Log in',exact=True).click()
+                    login_page(page, key)
                     if create_job_with_form:
                         page.get_by_role('link',name='Jobs',exact=True).click()
                         page.get_by_role('button',name='New Job',exact=True).click()
@@ -124,7 +124,7 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                         response.raise_for_status()
                         job = response.json()['result']['object']
                         client.post('/api/jobs/'+job['id']+'/operations',json={'operation':'enable','parameters':{},'expectedRevision':job['configRevision'],'expectedStateRevision':job['stateRevision'],'requestKey':'enable-source-only-job-fixture'}).raise_for_status()
-                    page.get_by_role('tab',name='Event Register',exact=True).click()
+                    page.get_by_role('link',name='Event Register',exact=True).click()
                     def source_form(name, kind):
                         page.get_by_role('button',name='New Scheduler',exact=True).click()
                         page.get_by_label('Scheduler name',exact=True).fill(name)
@@ -177,7 +177,7 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                     assert len(set(stable_rules))==2
                     # Two independently created subscriptions select the same Creator ID.
                     def subscription(name):
-                        page.get_by_role('tab',name='Trigger',exact=True).click()
+                        page.get_by_role('link',name='Trigger',exact=True).click()
                         page.get_by_role('button',name='Create Triggers',exact=True).click()
                         page.get_by_label('Name',exact=True).fill(name)
                         page.get_by_label('Target canonical Job',exact=True).select_option(job['id'])
@@ -199,10 +199,11 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                             updated_trigger.get('target', {}).get('jobId')) == job['id']
                     refs = client.get('/api/event-creators/'+interval['id']+'/references').json()
                     assert len(refs['references'])==2
-                    page.get_by_role('tab',name='Event Register',exact=True).click()
+                    page.get_by_role('link',name='Event Register',exact=True).click()
                     page.get_by_role('button',name='Refresh',exact=True).click()
-                    expect(page.get_by_role('article',name='Scheduler Form interval',exact=True).get_by_role('heading',name='2 referencing subscribers')).to_be_visible()
-                    page.get_by_role('button',name='Edit Form interval',exact=True).click()
+                    page.get_by_role('button',name='Form interval',exact=True).click()
+                    expect(page.get_by_role('region',name='Scheduler detail',exact=True).get_by_role('heading',name='2 referencing subscribers')).to_be_visible()
+                    page.get_by_role('region',name='Scheduler detail',exact=True).get_by_role('button',name='Edit Scheduler',exact=True).click()
                     page.get_by_label('Interval seconds',exact=True).fill('0.250000000000000001')
                     expect(page.get_by_role('button',name='Save Scheduler',exact=True)).to_be_disabled()
                     page.get_by_label('I reviewed the affected subscribers.').check()

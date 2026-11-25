@@ -15,7 +15,7 @@ def test_shared_kind_exclusions_browser_and_background(tmp_path, monkeypatch):
     nonce = secrets.token_hex(24)
     monkeypatch.setenv('PAN_TEST_NOTIFICATION_NONCE', nonce)
     monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/notification_http_server.py')
-    rt = h._PanRuntime(tmp_path / 'data')
+    rt = h._PanRuntime(tmp_path / 'data', authenticated=True)
     rt.data_root.mkdir()
     (rt.data_root / 'config.json').write_text(json.dumps({'memory': {'enabled': False}}), encoding='utf-8')
     OUT.mkdir(parents=True, exist_ok=True)
@@ -26,7 +26,7 @@ def test_shared_kind_exclusions_browser_and_background(tmp_path, monkeypatch):
         evidence['ownedPidBirths'] = [[pid, born] for pid, born, _ in rt._owned_processes]
         identity = rt.request('GET', '/__test/job-inbox-identity')
         assert Path(identity['sessions']).parent == rt.data_root
-        key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
+        key = rt.test_password
         token = rt.request('POST', '/api/automation/login', json={'key': key})['token']
         auth = {'Authorization': 'Bearer ' + token}
         owner = rt.request('POST', '/api/sessions', json={'name': 'notification-kind-owned', 'adapter': 'cbc', 'model': 'deepseek-v4-flash', 'mcpServers': []})

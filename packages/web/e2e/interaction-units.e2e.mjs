@@ -19,7 +19,7 @@ try {
   const headers = { Authorization: `Bearer ${token}` };
   const create = async (key, card) => (await mcp({ operation: 'create', recipient_id: 'test-user', request_key: key, card })).card;
   const read = async card => (await (await context.request.get(`${base}/api/user-inbox/${card.id}`, { headers })).json()).card;
-  const prepared = await (await context.request.post(`${base}/__test/interaction-action`)).json();
+  const prepared = await (await context.request.post(`${base}/__test/interaction-action`, { headers })).json();
   const bindingCapabilities = await mcp({ operation: 'capabilities' });
   const supportedSessionProducts = ['product_session_message', 'product_session_broadcast', 'product_session_message_v2', 'product_session_broadcast_v2', 'product_assign_v2'];
   const sessionBindings = bindingCapabilities.actions.filter(a => supportedSessionProducts.includes(a.actionRef.id));
@@ -28,7 +28,7 @@ try {
   const runtimeBindings = bindingCapabilities.actions.filter(a => ['product_assign_runtime_v1', 'product_session_message_runtime_v1', 'product_session_broadcast_runtime_v1'].includes(a.actionRef.id));
   expect(runtimeBindings).toHaveLength(3);
   expect(runtimeBindings.every(a => !a.bindable && a.reason.includes('deliveryRuntime'))).toBe(true);
-  expect((await context.request.patch(`${base}/api/sessions/${owner}/queue/paused`, { data: { paused: true } })).ok()).toBe(true);
+  expect((await context.request.patch(`${base}/api/sessions/${owner}/queue/paused`, { headers, data: { paused: true } })).ok()).toBe(true);
   const sessionUnitCards = [];
   for (const binding of sessionBindings) {
     const args = binding.operation === 'session-broadcast' ? { sessionIds: [owner], text: `fixed ${binding.actionRef.id}` } : { sessionId: owner, text: `fixed ${binding.actionRef.id}` };
@@ -37,12 +37,14 @@ try {
     ] }));
   }
   for (const binding of runtimeBindings) {
+    const beforeRefusal = await mcp({ operation: 'list_pending' });
     const args = binding.operation === 'session-broadcast' ? { sessionIds: [owner], text: 'runtime' } : { sessionId: owner, text: 'runtime' };
     const refused = await mcp({ operation: 'create', recipient_id: 'test-user', request_key: `refused-${binding.actionRef.id}`, card: {
       schemaVersion: 3, title: 'Refuse before selection', units: [{ id: 'q', prompt: 'Runtime', type: 'single_choice', choices: [{ id: 'go', label: 'Runtime', actionRef: binding.actionRef, arguments: args }] }],
     } });
-    expect(refused.status).toBe('rejected');
+    expect(refused.ok, JSON.stringify(refused)).toBe(false);
     expect(refused.error.message).toContain('deliveryRuntime');
+    expect(await mcp({ operation: 'list_pending' })).toEqual(beforeRefusal);
   }
   const card = await create('units-browser', { schemaVersion: 3, title: 'Unified card', units: [
     { id: 'text', prompt: 'Describe result', type: 'text' },
@@ -53,8 +55,10 @@ try {
   const page = await context.newPage(); const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
   await page.goto(`${base}/react/locker`);
-  await page.getByLabel('Local user key', { exact: true }).fill(process.env.PAN_TEST_JOB_KEY);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await page.getByLabel('管理员密码', { exact: true }).fill(process.env.PAN_TEST_JOB_KEY);
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toHaveCount(0);
+  await page.goto(`${base}/react/locker`);
   const row = page.locator(`[data-card-id="${card.id}"]`);
   for (const sessionCard of sessionUnitCards) {
     const sessionRow = page.locator(`[data-card-id="${sessionCard.id}"]`);

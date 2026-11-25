@@ -30,6 +30,10 @@ from packages.web import server
 server.DATA_DIR = runtime / 'data'
 server.WORKDIRS_DIR = runtime / 'workdirs'
 server.ATTACHMENTS_DIR = runtime / 'attachments'
+from packages.automation.service import Service
+# This owned fixture intentionally omits production lifespan/provider startup,
+# but the real global login still needs its profile's auth service.
+server.app.state.automation = Service(runtime / 'automation', worker, server.broadcast)
 a = session.create('source-A', adapter='cbc', original_prompt='A metadata only', workdir=str(runtime))
 b = session.create('existing-B', adapter='cbc', original_prompt='B original', handoff_prompt='B prior brief',
     cli_session_id='fake-existing-B', workdir=str(runtime),

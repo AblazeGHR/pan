@@ -55,9 +55,9 @@ def test_production_blank_name_uses_server_default_and_current_job_editor(h, tmp
             try:
                 page = browser.new_page()
                 page.goto(f"http://127.0.0.1:{port}/react/automation/canonical")
+                from tests.support.auth_credentials import login_page, provision
+                login_page(page, provision(h.automation.auth))
                 page.get_by_role("button", name="Settings", exact=True).click()
-                page.get_by_label("Local user key", exact=True).fill(h.automation.auth.key())
-                page.get_by_role("button", name="Log in", exact=True).click()
                 expect(page.get_by_role("button", name="Log out", exact=True)).to_be_visible()
                 page.get_by_role("button", name="All Jobs", exact=True).click()
                 page.get_by_role("button", name="New Job", exact=True).click()

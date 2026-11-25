@@ -12,7 +12,7 @@ def test_history_terminal_production_browser(tmp_path, monkeypatch):
     assert base.PORT not in {8767, 8768}, "Use scripts/run_tests_isolated.py"
     monkeypatch.setattr(base, "FAKE_CLI", Path(__file__).parent / "support/history_terminal_fake_cli.py")
     monkeypatch.setattr(base, "SERVER_LAUNCHER", Path(__file__).parent / "support/automation_http_server.py")
-    rt = base._PanRuntime(tmp_path / "owned-history-profile")
+    rt = base._PanRuntime(tmp_path / "owned-history-profile", authenticated=True)
     rt.data_root.mkdir()
     (rt.data_root / "config.json").write_text(json.dumps({"plugin_manifests": [],
         "scheduler": {"enabled": False}, "memory": {"enabled": False}}), encoding="utf-8")
@@ -21,8 +21,7 @@ def test_history_terminal_production_browser(tmp_path, monkeypatch):
     evidence = {"port": base.PORT, "ownedProfile": "<tmp>/owned-history-profile"}
     try:
         rt.start()
-        env = {**os.environ, "PAN_TEST_HISTORY_KEY": (
-            rt.data_root / "automation/user.key").read_text(encoding="utf-8")}
+        env = {**os.environ, "PAN_TEST_HISTORY_KEY": rt.test_password}
         result = subprocess.run(["node", "packages/web/e2e/history-terminal-live.mjs", rt.base_url, str(out)],
             cwd=base.ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=150,
             **command_window_options())
@@ -37,7 +36,7 @@ def test_history_terminal_production_browser(tmp_path, monkeypatch):
         rt.stop()
         # Reopen the actual JSONL, with no live Worker or runtime marker.
         rt.start()
-        key = (rt.data_root / "automation/user.key").read_text(encoding="utf-8")
+        key = rt.test_password
         token = rt.request("POST", "/api/automation/login", json={"key": key})["token"]
         browser = json.loads((out / "browser.json").read_text(encoding="utf-8"))
         history = rt.request("GET", f"/api/sessions/{browser['sessionId']}/history?limit=500",

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Original business output through real default canonical process execution."""
 import asyncio
 import base64
@@ -57,7 +58,7 @@ def live(tmp_path):
     thread.start()
     wait(lambda: server.started, bool)
     client = httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=10,
-        headers={"Authorization": "Bearer " + automation.auth.login(automation.auth.key())})
+        headers={"Authorization": "Bearer " + automation.auth.login(provision(automation.auth))})
     item = SimpleNamespace(service=service, client=client, auth=automation.auth, tmp=tmp_path, root=service.root,
                            port=port, app=app, checks={})
     try:

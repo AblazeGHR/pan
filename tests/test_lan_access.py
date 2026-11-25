@@ -15,6 +15,12 @@ from packages.core import session as sess, worker
 from packages.web import server, terminal_api, terminal_ws
 
 
+@pytest.fixture
+def lan_auth(tmp_path, monkeypatch):
+    from tests.support.owned_http_auth import owned_bearer
+    return owned_bearer(server.app, tmp_path, monkeypatch)
+
+
 def free_port(host):
     with socket.socket() as sock:
         sock.bind((host, 0))
@@ -130,7 +136,7 @@ def test_all_interfaces_preserves_local_process_boundary(monkeypatch):
     asyncio.run(run())
 
 
-def test_real_lan_http_ws_and_private_boundaries(monkeypatch):
+def test_real_lan_http_ws_and_private_boundaries(monkeypatch, lan_auth):
     async def run():
         host = lan.addresses()[0]
         ctl, _ = controller(monkeypatch, host, free_port(host))
@@ -143,7 +149,7 @@ def test_real_lan_http_ws_and_private_boundaries(monkeypatch):
         assert started["running"], started
         url = started["urls"][0]
         try:
-            async with httpx.AsyncClient(base_url=url, trust_env=False) as client:
+            async with httpx.AsyncClient(base_url=url, trust_env=False, headers=lan_auth) as client:
                 assert (await client.get("/api/health")).json()["status"] == "ok"
                 assert (await client.get("/api/health", headers={"Host": "evil.example"})).status_code == 403
                 assert (await client.get("/api/health", headers={"Origin": "http://evil.example"})).status_code == 403
@@ -159,7 +165,7 @@ def test_real_lan_http_ws_and_private_boundaries(monkeypatch):
                 assert ctl.status()["running"]
                 assert (await client.post("/api/readonly", json={"managerId": "fake", "sessionId": chat.id, "readonlySession": False})).status_code == 403
             ws_url = url.replace("http://", "ws://") + "/ws"
-            async with websockets.connect(ws_url, origin=url, proxy=None) as ws:
+            async with websockets.connect(ws_url, origin=url, additional_headers=lan_auth, proxy=None) as ws:
                 await ws.send(json.dumps({"type": "ping"}))
                 assert json.loads(await ws.recv()) == {"type": "pong"}
                 await ws.send(json.dumps({"type": "user_inject", "sessionId": chat.id,
@@ -243,13 +249,13 @@ def test_management_requires_local_primary_origin(monkeypatch):
         assert exc.value.status_code == 403
 
 
-def test_local_lan_http_handlers(monkeypatch):
+def test_local_lan_http_handlers(monkeypatch, lan_auth):
     async def run():
         host = lan.addresses()[0]
         ctl, raw = controller(monkeypatch, host, free_port(host))
         primary_url = f"http://127.0.0.1:{free_port('127.0.0.1')}"
         transport = httpx.ASGITransport(app=server.app, client=("127.0.0.1", 23456))
-        async with httpx.AsyncClient(transport=transport, base_url=primary_url) as client:
+        async with httpx.AsyncClient(transport=transport, base_url=primary_url, headers=lan_auth) as client:
             assert not (await client.get("/api/remote/lan")).json()["running"]
             assert (await client.put("/api/remote/lan", content="{broken", headers={"Origin": primary_url})).status_code == 422
             invalid = await client.put("/api/remote/lan", json={"port": 0})
@@ -266,7 +272,7 @@ def test_local_lan_http_handlers(monkeypatch):
     asyncio.run(run())
 
 
-def test_real_lan_terminal_rest_and_ws(monkeypatch):
+def test_real_lan_terminal_rest_and_ws(monkeypatch, lan_auth):
     # Reuse the existing terminal protocol fake: no provider/native user data.
     from test_terminal_ws import FakeService
     async def run():
@@ -281,13 +287,13 @@ def test_real_lan_terminal_rest_and_ws(monkeypatch):
         assert started["running"], started
         url = started["urls"][0]
         try:
-            async with httpx.AsyncClient(base_url=url, trust_env=False) as client:
+            async with httpx.AsyncClient(base_url=url, trust_env=False, headers=lan_auth) as client:
                 # Exact insecure browser GET shape: no Origin/Fetch Metadata.
                 response = await client.get("/api/terminals/term_1")
                 assert response.status_code == 200, response.text
                 assert response.json()["ok"] is True
             ws_url = url.replace("http://", "ws://") + "/ws/terminal/term_1"
-            async with websockets.connect(ws_url, origin=url, proxy=None) as ws:
+            async with websockets.connect(ws_url, origin=url, additional_headers=lan_auth, proxy=None) as ws:
                 hello = json.loads(await asyncio.wait_for(ws.recv(), 3))
                 assert hello["type"] == "hello" and hello["role"] == "observer"
             calls = len(runtime.service.calls)

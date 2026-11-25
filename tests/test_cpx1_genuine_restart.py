@@ -40,6 +40,10 @@ def test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner(t
               'mcp_remote': {'enabled': False}, 'memory': {'enabled': False},
               'session_lifecycle': {'exitStrategy': 'ask', 'startupPreference': 'ask'}}
     (root / 'config.json').write_text(json.dumps(config), encoding='utf-8')
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    auth = UserAuth(root / 'data/automation')
+    token = auth.login(provision(auth))
     env = {k: v for k, v in os.environ.items() if not k.upper().startswith('PAN_') and k.upper() != 'PYTHONPATH'}
     env.update({'PYTHONPATH': str(root), 'PAN_PORT': str(port)})
     # The owned child reproduces the CI console's restrictive encoding; the
@@ -53,6 +57,7 @@ def test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner(t
     observed = {'sourceSha': source, 'portAllowed': True, 'childOutputEncoding': 'cp1252:strict'}
 
     def request(method, route, **kwargs):
+        kwargs['headers'] = {'Authorization': 'Bearer ' + token, **kwargs.get('headers', {})}
         with httpx.Client(base_url=base, timeout=2, trust_env=False) as client:
             response = client.request(method, route, **kwargs)
             response.raise_for_status()

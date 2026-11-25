@@ -30,7 +30,7 @@ try {
   expect(navigation?.status(), 'production React entry status').toBe(200);
   const fixture = { 'x-notification-fixture': process.env.PAN_TEST_NOTIFICATION_NONCE };
   const emit = async (id, errorKind, code) => {
-    const response = await context.request.post(base + '/__test/notification/emit', { headers: fixture,
+    const response = await context.request.post(base + '/__test/notification/emit', { headers: { ...fixture, Origin: base },
       data: { owner, kind: 'error', id, errorKind, ...(code ? { code } : {}) } });
     expect(response.status()).toBe(200);
     return (await response.json()).id;

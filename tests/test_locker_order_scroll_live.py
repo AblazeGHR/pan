@@ -21,7 +21,7 @@ def test_locker_order_scroll_live(tmp_path, monkeypatch):
     nonce = secrets.token_hex(24)
     monkeypatch.setenv('PAN_TEST_LOCKER_NONCE', nonce)
     monkeypatch.setenv('PAN_TEST_DISABLE_QUEUE_WATCHDOG', '1')
-    rt = h._PanRuntime(tmp_path/'profile/data')
+    rt = h._PanRuntime(tmp_path/'profile/data', authenticated=True)
     rt.data_root.mkdir(parents=True)
     (rt.data_root/'config.json').write_text(json.dumps({'memory': {'enabled': False}, 'plugin_manifests': [str(ROOT/'manifest.json'), str(ROOT/'packages/mcp/manifest.json')]}), encoding='utf-8')
     OUT.mkdir(parents=True, exist_ok=True)
@@ -30,7 +30,7 @@ def test_locker_order_scroll_live(tmp_path, monkeypatch):
         rt.start()
         proof['identity'] = rt.request('GET', '/__test/job-inbox-identity')
         assert str(rt.data_root) == str(Path(proof['identity']['sessions']).parent)
-        key = (rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+        key = rt.test_password
         source = rt.request('POST', '/api/sessions', json={'name': 'Scroll-source', 'adapter': 'cbc', 'mcpServers': [], 'workdir': str(tmp_path)})
         assert source.get('id'), source
         rt.request('PATCH', f"/api/sessions/{source['id']}/queue/paused", json={'paused': True})

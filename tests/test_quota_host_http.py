@@ -45,7 +45,7 @@ from tests.test_quota_host import limits, stamp
 def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path,monkeypatch):
     assert real_http.PORT not in (8767,8768)
     monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
-    rt=real_http._PanRuntime(tmp_path/'host-http');rt.data_root.mkdir()
+    rt=real_http._PanRuntime(tmp_path/'host-http', authenticated=True);rt.data_root.mkdir()
     now=float(int(time.time()))
     profile=CodexProfile(rt.data_root/'fixture-codex','native-fixture','native-fixture','fixture-profile')
     store=CodexQuotaStore(profile,root=rt.data_root/'quota-fixture')
@@ -53,7 +53,7 @@ def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path
     before=store.path.read_bytes();evidence={'port':real_http.PORT,'profile':str(rt.data_root),'realProviderCalls':0,'realEffects':0}
     try:
         rt.start();evidence['serverPid']=rt.process.pid
-        key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+        key=rt.test_password
         token=rt.request('POST','/api/automation/login',json={'key':key})['token']
         url=rt.base_url+'/api/automation/quota-policy';headers={'Authorization':'Bearer '+token}
         with httpx.Client(timeout=10,trust_env=False) as client:

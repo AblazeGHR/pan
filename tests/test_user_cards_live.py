@@ -19,7 +19,7 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
     assert port not in {8767,8768}
     monkeypatch.setattr(h,'PORT',port)
     monkeypatch.setattr(h,'SERVER_LAUNCHER',root/'tests/support/job_inbox_http_server.py')
-    rt=h._PanRuntime(tmp_path/'data'); authenticate_user_requests(rt)
+    rt=h._PanRuntime(tmp_path/'data', authenticated=True); authenticate_user_requests(rt)
     rt.data_root.mkdir()
     (rt.data_root/'config.json').write_text(json.dumps({'memory':{'enabled':False},'plugin_manifests':[
         str(root/'manifest.json'),str(root/'packages/mcp/manifest.json')]}),encoding='utf-8')
@@ -28,7 +28,7 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
         rt.start()
         evidence['identity']=rt.request('GET','/__test/job-inbox-identity')
         assert Path(evidence['identity']['sessions']).parent==rt.data_root
-        key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+        key=rt.test_password
         def login():
             return {'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
         auth=login()

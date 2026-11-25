@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """R6-A successor negative controls: deleted leaves, preserved evidence/reads."""
 import asyncio
 import hashlib
@@ -161,7 +162,7 @@ def test_isolated_job_host_startup_http_and_shutdown_keep_legacy_retired(tmp_pat
     with TestClient(app) as client:
         service = observed["service"]
         auth = observed["automation"].auth
-        client.headers["Authorization"] = "Bearer " + auth.login(auth.key())
+        client.headers["Authorization"] = "Bearer " + auth.login(provision(auth))
         assert client.get("/api/jobs").json()["items"] == []
         assert client.get("/api/triggers").json()["items"] == []
         assert observed["owner"].status()["state"] == "active"

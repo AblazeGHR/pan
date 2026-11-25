@@ -16,7 +16,7 @@ OUT=Path('audit/terminal-report/http')
 def test_native_terminal_report_survives_http_mcp_handoff_and_cold_reload(tmp_path,monkeypatch):
     assert base.PORT not in {8767,8768}, 'Use run_tests_isolated.py'
     monkeypatch.setattr(base,'FAKE_CLI',FAKE_CLI)
-    rt=base._PanRuntime(tmp_path/'data');rt.data_root.mkdir()
+    rt=base._PanRuntime(tmp_path/'data', authenticated=True);rt.data_root.mkdir()
     (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':False},
         'memory':{'enabled':False},'worker':{'idle_sec':300}}),encoding='utf-8')
     OUT.mkdir(parents=True,exist_ok=True)

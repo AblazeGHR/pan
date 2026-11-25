@@ -60,8 +60,9 @@ class _Events:
         "worker.spawned", "worker.restarted", "worker.status",
     ]
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, *, headers=None, origin=None):
         self.url = url
+        self.headers, self.origin = headers, origin
         self.events: list[dict] = []
         self.ready = threading.Event()
         self.stop_requested = threading.Event()
@@ -74,7 +75,7 @@ class _Events:
 
     def _run(self):
         try:
-            with ws_connect(self.url, open_timeout=10, close_timeout=2) as ws:
+            with ws_connect(self.url, open_timeout=10, close_timeout=2, additional_headers=self.headers, origin=self.origin) as ws:
                 ws.send(json.dumps({"type": "subscribe", "eventTypes": self.EVENT_TYPES}))
                 while not self.stop_requested.is_set():
                     try:
@@ -133,6 +134,7 @@ class _Events:
 class _Runtime:
     def __init__(self, data_root: Path, *, steer: bool):
         self.data_root = data_root
+        self.auth_headers = {}
         self.steer = steer
         self.port = _free_port()
         self.log_path = data_root / "fake-cli.jsonl"
@@ -190,6 +192,13 @@ class _Runtime:
             except psutil.Error:
                 continue
         self.pids.extend(pid for pid, _, _ in self._owned)
+        from packages.automation.auth import UserAuth
+        from tests.support.auth_credentials import provision
+        self.test_password = provision(UserAuth(self.data_root / 'automation'))
+        token = self.request('POST', '/api/automation/login', json={'key': self.test_password},
+                             headers={'Origin': self.base_url})['token']
+        self.auth_headers = {'Authorization': 'Bearer ' + token}
+
 
     def _health_ok(self) -> bool:
         try:
@@ -246,6 +255,7 @@ class _Runtime:
         self._owned.clear()
 
     def request(self, method: str, path: str, **kwargs) -> dict:
+        kwargs["headers"] = {**self.auth_headers, **kwargs.get("headers", {})}
         with httpx.Client(base_url=self.base_url, timeout=20,
                           trust_env=False, verify=False) as client:
             response = client.request(method, path, **kwargs)
@@ -290,7 +300,7 @@ def make_runtime(tmp_path):
 
 
 def _events(runtime: _Runtime) -> _Events:
-    recorder = _Events(runtime.base_url.replace("http", "ws", 1) + "/ws/agent")
+    recorder = _Events(runtime.base_url.replace("http", "ws", 1) + "/ws/agent", headers=runtime.auth_headers, origin=runtime.base_url)
     recorder.start()
     return recorder
 

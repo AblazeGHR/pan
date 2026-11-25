@@ -11,7 +11,15 @@ from packages.core import session
 from packages.jobs.runtime_owner import OwnerFence
 
 
-def test_unknown_legacy_lease_starts_only_maintenance_web(tmp_path, monkeypatch):
+@pytest.fixture
+def administrator():
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    auth = UserAuth(session.SESSION_DIR.parent / 'automation')
+    return {'Authorization': 'Bearer ' + auth.login(provision(auth))}
+
+
+def test_unknown_legacy_lease_starts_only_maintenance_web(tmp_path, monkeypatch, administrator):
     from packages.web import server
     profile = session.SESSION_DIR.parent
     owner = OwnerFence(profile)
@@ -27,7 +35,7 @@ def test_unknown_legacy_lease_starts_only_maintenance_web(tmp_path, monkeypatch)
         yield
 
     monkeypatch.setattr(server, '_owned_lifespan', forbidden)
-    with TestClient(server.app) as client:
+    with TestClient(server.app, headers=administrator) as client:
         state = client.get('/api/job-maintenance/status')
         assert state.status_code == 200
         assert state.json()['mode'] == 'maintenance'
@@ -37,12 +45,19 @@ def test_unknown_legacy_lease_starts_only_maintenance_web(tmp_path, monkeypatch)
         denied = client.post('/api/jobs', json={'definition': {}, 'requestKey': 'never'})
         assert denied.status_code == 503
         assert denied.json()['error']['code'] == 'runtime_ownership_unverified'
-        assert client.get('/api/job-maintenance/records').status_code == 401
+        assert client.get('/api/job-maintenance/records', headers={'Authorization': ''}).status_code == 401
+        assert client.get('/api/job-maintenance/records', headers={'Authorization': 'Bearer incorrect'}).status_code == 401
+        assert client.get('/api/job-maintenance/records').status_code == 200
+        from packages.jobs.maintenance import authority
+        maintenance = server.app.state.job_maintenance
+        assert authority(maintenance) is maintenance['auth']
+        assert authority(maintenance).path.parent == profile / 'automation'
         assert client.post('/api/sessions', json={}).status_code == 503
         with pytest.raises(WebSocketDisconnect) as closed:
             with client.websocket_connect('/ws'):
                 pytest.fail('maintenance must not attach an effectful websocket')
         assert closed.value.code == 1013
+    assert server.app.state.job_maintenance is None
     assert calls == []
     assert hashlib.sha256(owner.path.read_bytes()).hexdigest() == before
 
@@ -61,14 +76,14 @@ def test_non_ownership_failure_is_not_hidden(tmp_path, monkeypatch):
             pass
 
 
-def test_existing_runtime_lock_is_not_taken_over(tmp_path):
+def test_existing_runtime_lock_is_not_taken_over(tmp_path, administrator):
     from packages.web import server
     owner = OwnerFence(session.SESSION_DIR.parent)
     owner.claim(0)
     owner.set_state('active')
     before = owner.status()
     try:
-        with TestClient(server.app) as client:
+        with TestClient(server.app, headers=administrator) as client:
             assert client.get('/api/job-maintenance/status').json()['error']['reason'] == 'owner_busy'
             assert client.post('/api/jobs', json={}).status_code == 503
         assert owner.status() == before
@@ -78,7 +93,7 @@ def test_existing_runtime_lock_is_not_taken_over(tmp_path):
         owner.release()
 
 
-def test_disposition_manifest_is_nonexecuting_and_deletion_stays_blocked(tmp_path, monkeypatch):
+def test_disposition_manifest_is_nonexecuting_and_deletion_stays_blocked(tmp_path, monkeypatch, administrator):
     from packages.web import server
     from packages.automation.auth import UserAuth
     profile = session.SESSION_DIR.parent
@@ -95,9 +110,8 @@ def test_disposition_manifest_is_nonexecuting_and_deletion_stays_blocked(tmp_pat
         'sourceFile': 'background_jobs/jobs/old-job.json', 'sha256': digest,
         'revision': 1, 'reasonCodes': ['uncertain_effect'], 'executable': False}]}))
     auth = UserAuth(profile / 'automation')
-    with TestClient(server.app) as client:
-        token = client.post('/api/job-maintenance/login', json={'key': auth.key()}).json()['token']
-        headers = {'Authorization': 'Bearer ' + token}
+    with TestClient(server.app, headers=administrator) as client:
+        headers = administrator
         rows = client.get('/api/job-maintenance/records', headers=headers).json()
         assert rows['items'][0]['originalId'] == 'old-job'
         assert rows['items'][0]['executable'] is False
@@ -122,3 +136,34 @@ def test_invalid_manifest_fails_closed_without_touching_source(tmp_path, change)
         'records': [row, row] if change == 'duplicate' else [row]}))
     with pytest.raises(ValueError):
         dispositions(tmp_path)
+
+
+def test_maintenance_real_auth_transport_preserves_login_and_revocation(tmp_path):
+    from packages.web import server
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    profile = session.SESSION_DIR.parent
+    auth = UserAuth(profile / 'automation')
+    password = provision(auth)
+    owner = OwnerFence(profile)
+    with owner.transaction() as db:
+        db.execute("INSERT INTO legacy_leases VALUES('unknown-owner')")
+    with TestClient(server.app) as client:
+        assert client.get('/api/job-maintenance/status').status_code == 401
+        assert not client.get('/api/automation/session').json()['authenticated']
+        assert client.post('/api/automation/login', json={'key': password},
+                           headers={'Origin': 'http://attacker.test'}).status_code == 403
+        bad = client.post('/api/automation/login', json={'key': 'incorrect'}, headers={'Origin': 'http://testserver'})
+        assert bad.status_code == 401
+        logged = client.post('/api/automation/login', json={'key': password}, headers={'Origin': 'http://testserver'})
+        assert logged.status_code == 200
+        assert 'HttpOnly' in logged.headers['set-cookie']
+        token = logged.json()['token']
+        assert client.get('/api/automation/session').json()['authenticated']
+        assert client.get('/api/job-maintenance/status').status_code == 200
+        assert client.post('/api/sessions', json={}, headers={'Origin': 'http://testserver'}).status_code == 503
+        assert client.post('/api/automation/logout', headers={'Origin': 'http://attacker.test'}).status_code == 403
+        assert client.post('/api/automation/logout', headers={'Origin': 'http://testserver'}).status_code == 200
+        assert not client.get('/api/automation/session').json()['authenticated']
+        assert client.get('/api/job-maintenance/status', headers={'Authorization': 'Bearer ' + token}).status_code == 401
+    assert server.app.state.job_maintenance is None

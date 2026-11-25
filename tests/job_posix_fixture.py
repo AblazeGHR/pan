@@ -4,6 +4,7 @@ No fake process, tree, kill, cleanup proof, or successful terminal receipt.
 The test launcher runs the production canonical runner in an owned subprocess.
 """
 from __future__ import annotations
+from tests.support.auth_credentials import provision
 
 import asyncio
 import json
@@ -247,7 +248,7 @@ def canonical(owned):
     thread.start()
     wait_for(lambda: server.started, bool)
     client = httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=10,
-        headers={"Authorization": "Bearer " + automation.auth.login(automation.auth.key())})
+        headers={"Authorization": "Bearer " + automation.auth.login(provision(automation.auth))})
     state = SimpleNamespace(service=service, client=client, release_receipt=threading.Event(), dispatch=None,
                             dispatch_errors=[], owned=owned)
     try:

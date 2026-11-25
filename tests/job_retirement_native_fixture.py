@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Owned retirement-only fixture with the default product executor and releases."""
 import asyncio
 from types import SimpleNamespace
@@ -28,7 +29,7 @@ def h(tmp_path, monkeypatch):
     api.install(app, action_router, facade_router)
     action = next(row for row in service.actions(actor={'type': 'user', 'id': 'local'})['items']
                   if row['id'] == 'product_session_message')
-    token = automation.auth.login(automation.auth.key())
+    token = automation.auth.login(provision(automation.auth))
     client = TestClient(app, headers={'Authorization': 'Bearer ' + token})
     try:
         yield SimpleNamespace(app=app, automation=automation, service=service,

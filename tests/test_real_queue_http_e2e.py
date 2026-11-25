@@ -68,8 +68,9 @@ class _EventRecorder:
         "worker.result",
     ]
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, *, headers=None, origin=None):
         self.url = url
+        self.headers, self.origin = headers, origin
         self.events: list[dict] = []
         self.ready = threading.Event()
         self.stop_requested = threading.Event()
@@ -82,7 +83,7 @@ class _EventRecorder:
 
     def _run(self):
         try:
-            with ws_connect(self.url, open_timeout=10, close_timeout=2) as ws:
+            with ws_connect(self.url, open_timeout=10, close_timeout=2, additional_headers=self.headers, origin=self.origin) as ws:
                 ws.send(json.dumps({
                     "type": "subscribe",
                     "eventTypes": self.EVENT_TYPES,
@@ -128,8 +129,10 @@ class _EventRecorder:
 class _PanRuntime:
     """Own exactly the isolated Pan process(es) used by one test."""
 
-    def __init__(self, data_root: Path):
+    def __init__(self, data_root: Path, *, authenticated=False):
         self.data_root = data_root
+        self.authenticated = authenticated
+        self.auth_headers = {}
         self.log_path = data_root / "fake-cli.jsonl"
         self.gates = {
             "hold-A": data_root / "release-A",
@@ -195,6 +198,13 @@ class _PanRuntime:
             log.close()
         self._capture_owned_processes()
         self._ready = True
+        if self.authenticated:
+            from packages.automation.auth import UserAuth
+            from tests.support.auth_credentials import provision
+            self.test_password = provision(UserAuth(self.data_root / 'automation'))
+            token = self.request('POST', '/api/automation/login', json={'key': self.test_password},
+                                 headers={'Origin': self.base_url})['token']
+            self.auth_headers = {'Authorization': 'Bearer ' + token}
 
     def _capture_owned_processes(self):
         if self.process is None:
@@ -238,7 +248,7 @@ class _PanRuntime:
         if self._ready and process is not None and process.poll() is None:
             try:
                 response = httpx.post(self.base_url + '/__test/stop-owned-runtime',
-                                      timeout=.5, trust_env=False)
+                                      headers=self.auth_headers, timeout=.5, trust_env=False)
                 if response.is_success:
                     process.wait(timeout=15)
             except (httpx.HTTPError, subprocess.TimeoutExpired):
@@ -281,6 +291,9 @@ class _PanRuntime:
         _wait_for(lambda: _port_is_free(PORT), timeout=5, label="isolated port release")
 
     def request(self, method: str, path: str, **kwargs) -> dict:
+        kwargs["headers"] = {**self.auth_headers, **kwargs.get("headers", {})}
+        if method.upper() == 'POST' and path == '/api/automation/login':
+            kwargs['headers'].setdefault('Origin', self.base_url)
         with httpx.Client(
             base_url=self.base_url, timeout=15, trust_env=False, verify=False,
         ) as client:
@@ -312,9 +325,9 @@ class _PanRuntime:
 
 @pytest.fixture
 def isolated_runtime(tmp_path):
-    runtime = _PanRuntime(tmp_path / "persistent-data-root")
+    runtime = _PanRuntime(tmp_path / "persistent-data-root", authenticated=True)
     runtime.start()
-    recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent")
+    recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent", headers=runtime.auth_headers, origin=runtime.base_url)
     recorder.start()
     try:
         yield runtime, recorder
@@ -669,6 +682,8 @@ def test_real_self_queue_original_item_restart_and_receipt(isolated_runtime, mon
     chosen = _enqueue(runtime, sid, "chosen original", "own-chosen")["item"]["queueItemId"]
     hidden = _enqueue(runtime, sid, "hidden original", "own-hidden")["item"]["queueItemId"]
     runtime.request("PATCH", f"/api/sessions/{sid}/queue/{hidden}/lock", json={"locked": True})
+    locator = json.loads((runtime.data_root / "core-ipc.json").read_text(encoding="utf-8"))
+    monkeypatch.setenv("PAN_PLUGIN_IPC", locator["address"])
     monkeypatch.setenv("PAN_AGENT_SESSION_ID", sid)
     monkeypatch.setattr(mcp_server, "_pan_api_url", runtime.base_url)
     monkeypatch.setattr(mcp_server, "_terminal_transport", "stdio")
@@ -761,7 +776,7 @@ def test_real_http_locked_enqueue_is_not_handed_off_before_unlock(isolated_runti
 @pytest.mark.timeout(120)
 def test_real_http_report_and_bell_toggles_persist_across_restart(tmp_path):
     """Selected-Session shortcut toggles reuse the card APIs and survive a restart."""
-    runtime = _PanRuntime(tmp_path / "shortcut-toggle-data")
+    runtime = _PanRuntime(tmp_path / "shortcut-toggle-data", authenticated=True)
     runtime.start()
     try:
         manager = _create(runtime, "shortcut-manager")

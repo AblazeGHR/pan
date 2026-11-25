@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Legacy configuration and synchronous return contracts over one canonical host."""
 import asyncio
 import copy
@@ -42,7 +43,7 @@ def h(json_task):
     else:
         app.include_router(api.router)
     return SimpleNamespace(app=app, service=service, source=source, root=root,
-        mapping=mapping, token=service.auth.login(service.auth.key()))
+        mapping=mapping, token=service.auth.login(provision(service.auth)))
 
 
 def client(h, tcp):

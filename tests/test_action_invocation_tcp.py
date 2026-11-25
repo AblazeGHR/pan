@@ -58,8 +58,10 @@ class OwnedPan:
         try:
             until(lambda: httpx.get(self.url + "/api/health", trust_env=False, timeout=.5).status_code == 200,
                   timeout=30)
-            key = (self.root / "automation/user.key").read_text(encoding="utf-8").strip()
-            response = httpx.post(self.url + "/api/automation/login", json={"key": key}, trust_env=False)
+            from packages.automation.auth import UserAuth
+            from tests.support.auth_credentials import provision
+            key = provision(UserAuth(self.root / "automation"))
+            response = httpx.post(self.url + "/api/automation/login", json={"key": key}, headers={"Origin": self.url}, trust_env=False)
             assert response.status_code == 200, response.text
             self.headers = {"Authorization": "Bearer " + response.json()["token"]}
         except BaseException:

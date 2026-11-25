@@ -7,11 +7,13 @@ import httpx
 class CanonicalProcessHTTP:
     def __init__(self, runtime):
         self.runtime = runtime
-        key = (runtime.data_root / 'automation/user.key').read_text(encoding='utf8').strip()
+        from packages.automation.auth import UserAuth
+        from tests.support.auth_credentials import provision
+        key = provision(UserAuth(runtime.data_root / 'automation'))
         self.token = self.request('POST', '/api/automation/login', {'key': key}, authenticated=False)['token']
 
     def request(self, method, path, body=None, *, authenticated=True):
-        headers = {'Authorization': 'Bearer ' + self.token} if authenticated else {}
+        headers = {'Authorization': 'Bearer ' + self.token} if authenticated else {'Origin': self.runtime.base_url}
         with httpx.Client(base_url=self.runtime.base_url, timeout=20, trust_env=False, verify=False) as client:
             response = client.request(method, path, json=body, headers=headers)
         assert response.status_code in {200, 201, 202}, (method, path, response.status_code, response.text)

@@ -68,6 +68,8 @@ def test_production_chromium_behavior_settings(runtime, tmp_path):
         try:
             page = browser.new_page(viewport={"width": 1440, "height": 960})
             page.goto(runtime.base_url + "/react/", wait_until="networkidle")
+            from tests.support.auth_credentials import login_page
+            login_page(page, runtime.test_password)
             page.get_by_title("App settings", exact=True).click()
             page.get_by_role("tab", name="Behavior", exact=True).click()
             toggle = page.get_by_test_id("illegal-queue-behavior-section").get_by_role("switch")
@@ -89,6 +91,7 @@ def test_production_chromium_behavior_settings(runtime, tmp_path):
             expect(lock).not_to_be_checked()
             other = browser.new_page(viewport={"width": 1440, "height": 960})
             other.goto(runtime.base_url + "/react/", wait_until="networkidle")
+            login_page(other, runtime.test_password)
             other.get_by_title("App settings", exact=True).click()
             other.get_by_role("tab", name="Behavior", exact=True).click()
             other_toggle = other.get_by_test_id("illegal-queue-behavior-section").get_by_role("switch")

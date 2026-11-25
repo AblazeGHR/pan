@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Owned production-bundle/canonical HTTP fixture; no deployed profile/provider."""
 import argparse
 from contextlib import asynccontextmanager
@@ -31,7 +32,7 @@ def app_for(root, *, seed_time_template_target=False, time_test_host_zone=None):
     app = FastAPI()
     automation = Service(root / "automation", SimpleNamespace(workers={}), None)
     automation.auth = CanonicalUserAuth(root / "automation")
-    automation.auth.key()
+    provision(automation.auth)
     final = bind(app, automation, root / "canonical")
     if time_test_host_zone:
         # Owned fixture only: exercise DST without changing the OS timezone.

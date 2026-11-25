@@ -19,7 +19,7 @@ def runtime(tmp_path, monkeypatch):
         port = sock.getsockname()[1]
     assert port not in {8767, 8768}
     monkeypatch.setattr(real, "PORT", port)
-    instance = _PanRuntime(tmp_path / "runtime")
+    instance = _PanRuntime(tmp_path / "runtime", authenticated=True)
     instance.start()
     try:
         yield instance
@@ -191,7 +191,7 @@ def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
         port = sock.getsockname()[1]
     assert port not in {8767, 8768}
     monkeypatch.setattr(real, "PORT", port)
-    instance = _PanRuntime(tmp_path / "host-exit")
+    instance = _PanRuntime(tmp_path / "host-exit", authenticated=True)
     if method in {"q-config", "q-triple"}:
         instance.data_root.mkdir(parents=True)
         (instance.data_root / "config.json").write_text(

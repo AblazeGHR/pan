@@ -161,6 +161,9 @@ def test_browser_behavior_wake_setting_and_separate_action(runtime, tmp_path):
         try:
             page = browser.new_page(viewport={"width": 1440, "height": 960})
             page.goto(runtime.base_url + "/react/", wait_until="networkidle")
+            page.get_by_label('管理员密码', exact=True).fill(runtime.test_password)
+            page.get_by_role('button', name='登录', exact=True).click()
+            page.get_by_role('heading', name='登录 Pan', exact=True).wait_for(state='hidden')
             page.get_by_title("App settings", exact=True).click()
             page.get_by_role("tab", name="Behavior", exact=True).click()
             field = page.get_by_role("textbox", name="Wake message", exact=True)

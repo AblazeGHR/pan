@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Original scheduled runtime broadcast through the UI auth assembly."""
 import asyncio
 from types import SimpleNamespace
@@ -28,7 +29,7 @@ def test_runtime_legacy_broadcast_cookie_assembly(tmp_path, auth_mode):
             info = client.get('/test/ready').json()
             client.headers['Authorization'] = 'Bearer ' + info['token']
         else:
-            login = client.post('/api/automation/login', json={'key': automation.auth.key()})
+            login = client.post('/api/automation/login', json={'key': provision(automation.auth)})
             assert login.status_code == 200
             assert 'pan_automation_session' in client.cookies
             client.headers['Origin'] = str(client.base_url).rstrip('/')

@@ -20,6 +20,8 @@ def test_browser_illegal_dot_recovers_on_successor_idle_without_reload(runtime, 
             frames = []
             page.on("websocket", lambda socket: socket.on("framereceived", lambda frame: frames.append(frame)))
             page.goto(runtime.base_url + "/react/", wait_until="networkidle")
+            from tests.support.auth_credentials import login_page
+            login_page(page, runtime.test_password)
             card = page.locator(f'[data-session-card-id="{sid}"]')
             expect(card).to_be_visible()
             card.click()
@@ -57,6 +59,8 @@ def test_browser_illegal_lock_icon_and_manual_unlock(runtime, tmp_path):
         try:
             page = browser.new_page(viewport={"width": 1440, "height": 960})
             page.goto(runtime.base_url + "/react/", wait_until="networkidle")
+            from tests.support.auth_credentials import login_page
+            login_page(page, runtime.test_password)
             page.locator(f'[data-session-card-id="{sid}"]').click()
             page.locator("#send-queue-button").click()
             lock = page.get_by_role("button", name="Unlock queued message 1", exact=True)

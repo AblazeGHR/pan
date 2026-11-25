@@ -21,6 +21,11 @@ const context = await browser.newContext({
   deviceScaleFactor: 1,
 });
 
+const login = await context.request.post(baseURL + '/api/automation/login', {
+  headers: { Origin: baseURL }, data: { key: process.env.PAN_E2E_ADMIN_SECRET },
+});
+assert.equal(login.status(), 200);
+
 async function readSwitches(page) {
   const section = page.getByTestId('auto-force-send-section');
   await section.waitFor({ state: 'visible' });

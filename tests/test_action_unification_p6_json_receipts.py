@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Original receipt reconciliation and shell transfer with owned processes."""
 import asyncio
 import copy
@@ -297,7 +298,7 @@ def h(shell_task):
     app.state.job_final_service = service
     app.state.automation = SimpleNamespace(auth=service.auth)
     app.include_router(api.router)
-    token = service.auth.login(service.auth.key())
+    token = service.auth.login(provision(service.auth))
     return SimpleNamespace(app=app, service=service, source=source, root=root, token=token,
                            counter=counter, gate=gate)
 

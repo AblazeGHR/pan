@@ -37,15 +37,17 @@ def h(tmp_path, monkeypatch):
 
     monkeypatch.setattr(server, "_PROJECT_DIR", tmp_path)
     monkeypatch.setattr(server, "_canonical_lifecycle_handoff", forbidden)
-    return SimpleNamespace(app=delegated)
+    from tests.support.owned_http_auth import owned_bearer
+    headers = owned_bearer(server.app, tmp_path, monkeypatch)
+    return SimpleNamespace(app=delegated, headers=headers)
 
 
-def test_tcp_removed_addresses_refuse_without_writing(tcp, tmp_path):
+def test_tcp_removed_addresses_refuse_without_writing(tcp, tmp_path, h):
     before = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
     with httpx.Client(base_url=tcp) as client:
         for method, path, status in WRITES:
             response = client.request(method, path, json={"operation": "restart"},
-                                      headers={"x-pan-expected-pid": "stale"})
+                                      headers={**h.headers, "x-pan-expected-pid": "stale"})
             assert response.status_code == status, response.text
     assert {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
 
@@ -55,18 +57,18 @@ def test_stdin_console_submits_fixed_lifecycle_operation(monkeypatch):
     from packages.core import console_exit
     requests = []
 
-    def respond(request, **kwargs):
-        requests.append(request)
-        return io.BytesIO(b'{"ok": true, "accepted": true}')
+    def respond(root, method, path, body):
+        requests.append((root, method, path, body))
+        return {'ok': True, 'accepted': True}
 
-    monkeypatch.setattr(console_exit, "urlopen", respond)
+    monkeypatch.setattr('packages.core.local_transport.request', respond)
     monkeypatch.setattr(console_exit.threading.Thread, "start", lambda self: None)
     console = console_exit.start_console_exit(43210, lambda: "offline",
                                               stream=SimpleNamespace(isatty=lambda: True))
     assert console.submit({"options": {"preserveRunningIllegal": True}})["accepted"]
     assert len(requests) == 1
-    assert requests[0].full_url == "http://127.0.0.1:43210/api/system-actions/main-lifecycle"
-    assert json.loads(requests[0].data) == {"operation": "exit", "options": {"preserveRunningIllegal": True}}
+    assert requests[0][:3] == (None, 'POST', '/api/system-actions/main-lifecycle')
+    assert requests[0][3] == {"operation": "exit", "options": {"preserveRunningIllegal": True}}
 
 
 def test_managed_console_submits_fixed_lifecycle_operation(monkeypatch):
@@ -125,6 +127,8 @@ def test_old_http_writes_have_no_store_run_lease_or_process_effect(tmp_path, mon
     from packages.jobs.independent_executor import ExecutionStore
     from packages.scheduler.creators import CreatorStore
     from packages.jobs.runtime_owner import OwnerFence
+    from tests.support.owned_http_auth import owned_bearer
+    headers = owned_bearer(server.app, tmp_path, monkeypatch)
 
     def forbidden(*args, **kwargs):
         pytest.fail("retired HTTP write reached a store, lease or lifecycle effect")
@@ -141,7 +145,7 @@ def test_old_http_writes_have_no_store_run_lease_or_process_effect(tmp_path, mon
         await server.app(scope, receive, send)
 
     async def call():
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=scoped), base_url="http://ipc") as client:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=scoped), base_url="http://ipc", headers=headers) as client:
             return await client.request(method, path, json=payload)
 
     before = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}

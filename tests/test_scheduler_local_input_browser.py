@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import PASSWORD, login_page
 """Real authenticated browser: local once/anchor use the Pan zone, not Tokyo."""
 import json
 import os
@@ -24,7 +25,7 @@ def test_local_once_gap_fold_override_and_anchor_are_resolved_by_pan(tmp_path):
     with (evidence / "local-browser-server.log").open("wb") as log:
         child = subprocess.Popen([sys.executable, "-m", "tests.support.scheduler_management_server",
             "--root", str(root), "--port", str(port), "--time-test-host-zone", "America/New_York"],
-            cwd=repo, stdout=log, stderr=subprocess.STDOUT, **command_window_options())
+            env={**os.environ, "PAN_TEST_ADMIN_PASSWORD": PASSWORD}, cwd=repo, stdout=log, stderr=subprocess.STDOUT, **command_window_options())
         try:
             base = f"http://127.0.0.1:{port}"
             with httpx.Client(base_url=base, timeout=10) as client:
@@ -34,7 +35,7 @@ def test_local_once_gap_fold_override_and_anchor_are_resolved_by_pan(tmp_path):
                         if client.get("/test/ready").status_code == 200: break
                     except httpx.TransportError: pass
                     time.sleep(.1)
-                key = (root / "automation/user.key").read_text().strip()
+                key = PASSWORD
                 token = client.post("/api/automation/login", json={"key": key}).json()["token"]
                 client.headers["Authorization"] = "Bearer " + token
                 def sources(): return client.get("/api/event-creators").json()["items"]
@@ -51,8 +52,7 @@ def test_local_once_gap_fold_override_and_anchor_are_resolved_by_pan(tmp_path):
                         page.on("pageerror", lambda error: errors.append(str(error)))
                         page.goto(base + "/react/automation?tab=events")
                         assert page.evaluate("Intl.DateTimeFormat().resolvedOptions().timeZone") == "Asia/Tokyo"
-                        page.get_by_label("Local user key", exact=True).fill(key)
-                        page.get_by_role("button", name="Log in", exact=True).click()
+                        login_page(page, key)
                         def new(name, kind="once"):
                             page.get_by_role("button", name="New Scheduler", exact=True).click()
                             page.get_by_label("Scheduler name", exact=True).fill(name)

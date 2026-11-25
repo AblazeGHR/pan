@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """R6-C historical HTTP reads and retained R5 refusals, with owned data only.
 
 Old CRUD/dispatch positives no longer describe the public contract. Calendar,
@@ -31,7 +32,7 @@ def scheduler_env(tmp_path, monkeypatch):
                              'text': 'old task', 'schedule': {
                                  'kind': 'interval', 'intervalSec': 60}})
     auth = UserAuth(tmp_path / 'auth')
-    token = auth.login(auth.key())
+    token = auth.login(provision(auth))
     app = FastAPI()
     app.state.automation = SimpleNamespace(auth=auth)
     app.include_router(api.router)

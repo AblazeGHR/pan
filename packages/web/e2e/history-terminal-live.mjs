@@ -13,6 +13,7 @@ const evidence = { productionBundle: true, fakeCLI: true, authenticated: false }
 let page;
 try {
   const login = await context.request.post(base + '/api/automation/login', {
+    headers: { Origin: base },
     data: { key: process.env.PAN_TEST_HISTORY_KEY },
   });
   assert.equal(login.status(), 200);

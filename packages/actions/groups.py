@@ -36,10 +36,10 @@ class Groups:
 
     @contextmanager
     def writer(self, actor, capability):
-        # Join the original owner-fenced transaction, then serialize the grant
-        # check and configuration write with UserAuth permission changes. Take
-        # this lock after the DB writer to avoid reversing existing lock order.
-        with self.service.transaction() as db, self.service.auth.lock:
+        # Serialize grant revision check through the actual DB commit. Permission
+        # changes never acquire this DB writer, so fence -> DB -> brief auth read
+        # has no reverse DB/fence order. Session verification uses its own lock.
+        with self.service.auth.permissions_writer(), self.service.transaction() as db:
             self.service._permit(actor, 'action', capability, execution=True)
             yield db
 

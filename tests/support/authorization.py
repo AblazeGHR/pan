@@ -40,8 +40,10 @@ def authenticate_user_requests(runtime):
         if user_surface(path) and 'headers' not in kwargs:
             pid=runtime.process.pid if runtime.process else None
             if cached.get('pid')!=pid:
-                key=(runtime.data_root/'automation/user.key').read_text(encoding='utf-8')
-                token=original('POST','/api/automation/login',json={'key':key})['token']
+                from packages.automation.auth import UserAuth
+                from tests.support.auth_credentials import provision
+                key=provision(UserAuth(runtime.data_root/'automation'))
+                token=original('POST','/api/automation/login',json={'key':key},headers={'Origin':runtime.base_url})['token']
                 cached.update(pid=pid,headers={'Authorization':'Bearer '+token})
             kwargs['headers']=cached['headers']
         return original(method,path,**kwargs)

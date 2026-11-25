@@ -74,9 +74,9 @@ def _stop_owned(runtime, recorder, session_id):
                          if os.environ.get("PAN_TEST_DELAYED_BROWSER_SCRIPT") else ["http"])
 def test_locked_queue_delayed_restart(tmp_path, entry):
     browser_script = os.environ.get("PAN_TEST_DELAYED_BROWSER_SCRIPT")
-    runtime = _PanRuntime(tmp_path / "runtime")
+    runtime = _PanRuntime(tmp_path / "runtime", authenticated=True)
     runtime.start()
-    recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent")
+    recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent", headers=runtime.auth_headers, origin=runtime.base_url)
     recorder.EVENT_TYPES = [*recorder.EVENT_TYPES, "worker.delayed_restart"]
     recorder.start()
     try:
@@ -140,9 +140,9 @@ def test_locked_queue_delayed_restart(tmp_path, entry):
 
 @pytest.mark.parametrize("order", ["plugin-first", "manual-first", "idle", "offline"])
 def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, order):
-    runtime = _PanRuntime(tmp_path / "runtime")
+    runtime = _PanRuntime(tmp_path / "runtime", authenticated=True)
     runtime.start()
-    recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent")
+    recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent", headers=runtime.auth_headers, origin=runtime.base_url)
     recorder.start()
     try:
         s = _create(runtime, "real-fifo-plugin-" + order)

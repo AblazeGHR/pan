@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 from tests.support.legacy_action_source import LegacySource
 """P3 Group fixed releases, atomic reference updates and canonical invocation."""
 import asyncio
@@ -243,7 +244,7 @@ def test_http_cas_authorization_explicit_publish_and_history(action_http, monkey
     assert client.put('/api/action-groups/tools', json={**payload, 'requestKey': 'stale'}).status_code == 409
     client.headers.pop('Authorization')
     assert client.get('/api/action-groups').status_code == 401
-    client.headers['Authorization'] = 'Bearer ' + service.auth.login(service.auth.key())
+    client.headers['Authorization'] = 'Bearer ' + service.auth.login(provision(service.auth))
     from packages.core import session
     monkeypatch.setattr(session, 'list_all', lambda **kwargs: [])
     response = client.post('/api/action-groups/tools/build', json={'expectedRevision': 1, 'requestKey': 'http-build'})

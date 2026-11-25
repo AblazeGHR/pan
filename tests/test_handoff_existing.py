@@ -11,6 +11,19 @@ from packages.core import session as sess, worker
 from packages.mcp import server as mcp
 from packages.web import server
 
+_AUTH_HEADERS = {}
+
+@pytest.fixture(autouse=True)
+def owned_http_authentication(tmp_path, monkeypatch):
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    from types import SimpleNamespace
+    auth = UserAuth(tmp_path / 'owned-auth')
+    token = auth.login(provision(auth))
+    monkeypatch.setattr(server.app.state, 'automation', SimpleNamespace(auth=auth), raising=False)
+    monkeypatch.setitem(_AUTH_HEADERS, 'Authorization', 'Bearer ' + token)
+
+
 
 @pytest.fixture(autouse=True)
 def no_provider_processes(monkeypatch):
@@ -208,7 +221,7 @@ def test_http_existing_wiring_and_original_receipt(monkeypatch):
     a, b = pair()
     monkeypatch.setattr(server, 'broadcast', AsyncMock())
     monkeypatch.setattr(server.background_jobs, 'retarget_session_jobs', Mock(return_value={'errors': []}))
-    client = TestClient(server.app)
+    client = TestClient(server.app, headers=_AUTH_HEADERS)
     body = {'handoffPrompt': 'new brief', 'targetSessionId': b.id}
     first = client.post(f'/api/sessions/{a.id}/handoff', json=body).json()
     assert first['ok'] and first['session']['id'] == b.id, first
@@ -221,7 +234,7 @@ def test_http_existing_wiring_and_original_receipt(monkeypatch):
 def test_http_ambiguous_existing_settings_do_not_modify_or_create(monkeypatch):
     a, b = pair()
     before = copy.deepcopy([a.to_dict(), b.to_dict()])
-    client = TestClient(server.app)
+    client = TestClient(server.app, headers=_AUTH_HEADERS)
     for extra in ({'copySettings': None}, {'copySettings': 'false'}, {'targetSessionId': None},
                   {'copySettings': True}, {'unexpected': 'value'}):
         result = client.post(f'/api/sessions/{a.id}/handoff', json={

@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Owned quota successor: canonical stores + actual loopback TCP + cold reopen."""
 import asyncio
 import copy
@@ -71,7 +72,7 @@ def owned_tcp(root, adapter=None, dispatch=True, policy_clock=None):
     try:
         wait(lambda: server.started)
         with httpx.Client(base_url=f'http://127.0.0.1:{port}', trust_env=False, timeout=10) as client:
-            token = client.post('/api/automation/login', json={'key': automation.auth.key()}).json()['token']
+            token = client.post('/api/automation/login', json={'key': provision(automation.auth)}).json()['token']
             client.headers['Authorization'] = 'Bearer ' + token
             yield SimpleNamespace(client=client, service=service, policy=policy, port=port, loop=server_loop)
     finally:
@@ -482,7 +483,7 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
     launcher=Path('evidence/quota-native/production_http_server.py').resolve()
     monkeypatch.setattr(real_http,'PORT',port)
     monkeypatch.setattr(real_http,'SERVER_LAUNCHER',launcher)
-    rt=real_http._PanRuntime(tmp_path/'owned-production-quota')
+    rt=real_http._PanRuntime(tmp_path/'owned-production-quota', authenticated=True)
     rt.data_root.mkdir()
     (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],
         'scheduler':{'enabled':True}}),encoding='utf-8')
@@ -546,13 +547,13 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
 
     try:
         started()
-        with httpx.Client(base_url=rt.base_url,timeout=15,trust_env=False) as client:
-            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+        with httpx.Client(base_url=rt.base_url,timeout=15,trust_env=False,headers={'Origin':rt.base_url}) as client:
+            key=rt.test_password
             token=client.post('/api/automation/login',json={'key':key}).json()['token']
             client.cookies.clear()
             headers={'Authorization':'Bearer '+token}
             invalid={'Authorization':'Bearer invalid'}
-            state=client.get(URL).json()
+            state=client.get(URL,headers=headers).json()
             assert state['mode']=='manual' and state['adapter']=='unavailable'
             body={'disabledAccountIds':['owned-disabled-account'],'expectedRevision':state['revision']}
             assert client.put(URL+'/disabled-accounts',json=body).status_code==401
@@ -560,17 +561,17 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
             assert client.put(URL+'/disabled-accounts',json={**body,'expectedRevision':True},headers=headers).status_code==400
             assert client.put(URL+'/disabled-accounts',json=body,headers=headers).status_code==200
             assert client.put(URL+'/disabled-accounts',json=body,headers=headers).status_code==409
-            state=client.get(URL).json()
+            state=client.get(URL,headers=headers).json()
             config={'mode':'automatic','maSessionId':'owned-ma','expectedRevision':state['revision']}
             assert client.put(URL,json=config,headers=invalid).status_code==401
             assert client.put(URL,json=config,headers=headers).status_code==200
             assert client.put(URL,json=config,headers=headers).status_code==409
-            state=client.get(URL).json()
+            state=client.get(URL,headers=headers).json()
             request={'kind':'monitor95','expectedRevision':state['revision']}
             rejected=client.post(URL+'/query-jobs',json=request,headers=headers)
             assert rejected.status_code==409 and 'account unknown' in rejected.text
             assert client.get('/api/jobs',headers=headers).json()['items']==[]
-            state=client.get(URL).json()
+            state=client.get(URL,headers=headers).json()
             request={'kind':'once','expectedRevision':state['revision']}
             assert client.post(URL+'/query-jobs',json=request,headers=invalid).status_code==401
             assert client.post(URL+'/query-jobs',json={**request,'expectedRevision':0},headers=headers).status_code==409
@@ -624,7 +625,7 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
             # Reuse the original token, Job and Run identity after full lifespan
             # and OS process replacement; no admission/execution probe endpoint.
             for _ in range(4):
-                restored=client.get(URL).json()
+                restored=client.get(URL,headers=headers).json()
                 assert restored['mode']=='automatic' and restored['adapter']=='unavailable'
                 assert restored['disabledAccountIds']==['owned-disabled-account']
                 assert restored['accountConfigRevision']==1 and not restored['commands']
@@ -639,7 +640,7 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
             assert Store(rt.data_root/'automation').read()==policy
             refused=client.post('/api/job-runs/'+rid+'/operations',json=retry,headers=headers)
             assert refused.status_code==409 and refused.json()['error']['code']=='reconciliation_required'
-            state=client.get(URL).json()
+            state=client.get(URL,headers=headers).json()
             manual={'mode':'manual','maSessionId':'owned-ma','expectedRevision':state['revision']}
             assert client.put(URL,json=manual,headers=invalid).status_code==401
             assert client.put(URL,json=manual,headers=headers).status_code==200
@@ -653,7 +654,7 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
             assert not rt.fake_records()
             assert client.get('/api/automation/session', headers=headers).json()['authenticated'] is True
             disabled_url = URL + '/disabled-accounts'
-            protected = {'disabledAccountIds': [], 'expectedRevision': client.get(URL).json()['revision']}
+            protected = {'disabledAccountIds': [], 'expectedRevision': client.get(URL,headers=headers).json()['revision']}
             with httpx.Client(base_url=rt.base_url, timeout=10, trust_env=False) as anonymous:
                 assert anonymous.put(disabled_url, json=protected).status_code == 401
             assert client.post('/api/automation/logout', headers=headers).json() == {'ok': True}

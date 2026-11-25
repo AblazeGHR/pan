@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import PASSWORD, login_page
 """Production React, two clients, external canonical commit -> native WS refresh."""
 import json
 import os
@@ -20,7 +21,7 @@ def test_two_production_pages_refresh_external_commit_and_logout_stays_empty(tmp
     assert port not in {8767, 8768}
     with (tmp_path / 'host.log').open('wb') as log:
         child = subprocess.Popen([sys.executable, '-m', 'tests.support.scheduler_management_server',
-            '--root', str(root), '--port', str(port), '--seed-time-template-target'], cwd=repo,
+            '--root', str(root), '--port', str(port), '--seed-time-template-target'], env={**os.environ, "PAN_TEST_ADMIN_PASSWORD": PASSWORD}, cwd=repo,
             stdout=log, stderr=subprocess.STDOUT, **command_window_options())
         try:
             url = f'http://127.0.0.1:{port}'
@@ -31,7 +32,7 @@ def test_two_production_pages_refresh_external_commit_and_logout_stays_empty(tmp
                         if client.get('/test/ready').status_code == 200: break
                     except httpx.TransportError: pass
                     time.sleep(.1)
-                key = (root / 'automation/user.key').read_text(encoding='utf8').strip()
+                key = PASSWORD
                 client.headers['Authorization'] = 'Bearer ' + client.post('/api/automation/login', json={'key':key}).json()['token']
                 with sync_playwright() as pw:
                     browser = pw.chromium.launch(headless=True)
@@ -42,9 +43,7 @@ def test_two_production_pages_refresh_external_commit_and_logout_stays_empty(tmp
                             page.on('pageerror', lambda e: errors.append(str(e)))
                             page.on('websocket', lambda ws: ws.on('framereceived', lambda frame: frames.append(frame)))
                             page.goto(url + '/react/automation/canonical')
-                            page.get_by_role('button', name='Settings', exact=True).click()
-                            page.get_by_label('Local user key', exact=True).fill(key)
-                            page.get_by_role('button', name='Log in', exact=True).click()
+                            login_page(page, key)
                             page.get_by_role('button', name='All Jobs', exact=True).click()
                             expect(page.get_by_role('button', name='New Job', exact=True)).to_be_visible()
                         from packages.jobs.final_service import object_ref, definition
@@ -66,8 +65,8 @@ def test_two_production_pages_refresh_external_commit_and_logout_stays_empty(tmp
                             expect(page.get_by_text('Remote edit',exact=True)).to_be_visible()
                         pages[0].get_by_role('button',name='Settings',exact=True).click()
                         pages[0].get_by_role('button',name='Log out',exact=True).click()
-                        expect(pages[0].get_by_text('Sign in required',exact=True)).to_be_visible()
-                        pages[0].get_by_role('button',name='All Jobs',exact=True).click()
+                        expect(pages[0].get_by_role('heading',name='登录 Pan',exact=True)).to_be_visible()
+                        pages[0].goto(url + '/react/jobs')
                         expect(pages[0].get_by_text('Remote edit',exact=True)).to_have_count(0)
                         cfg=definition('job',job);cfg['name']='After logout'
                         response=client.put('/api/jobs/'+job['id'],json={'definition':cfg,'expectedRevision':job['configRevision'],'requestKey':'browser-external-after-logout'})

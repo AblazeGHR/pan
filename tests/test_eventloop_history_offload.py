@@ -12,6 +12,7 @@ real cold-read burst) lives in ``tests/test_real_history_coldload_e2e.py``.
 """
 
 from __future__ import annotations
+from tests.support.auth_credentials import provision
 
 import asyncio
 import json
@@ -32,7 +33,7 @@ def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch
     from types import SimpleNamespace
     from packages.automation.auth import UserAuth
     auth = UserAuth(tmp_path / 'auth')
-    token = auth.login(auth.key())
+    token = auth.login(provision(auth))
     async def io(fn, *args):
         return await asyncio.to_thread(fn, *args)
     monkeypatch.setattr(server.app.state, 'automation', SimpleNamespace(auth=auth, engine=SimpleNamespace(io=io)), raising=False)
@@ -59,6 +60,7 @@ def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch
             await never.wait()
 
         async def send(message):
+            assert asyncio.current_task() is owner, 'HTTP policies relayed response in another task'
             messages.append(message)
 
         stack = endpoint
@@ -67,10 +69,17 @@ def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch
         await stack({'type': 'http', 'method': 'GET', 'path': '/api/sessions',
                      'query_string': b'', 'headers': headers, 'http_version': '1.1',
                      'scheme': 'http', 'server': ('test', 80)}, receive, send)
+        if credential in {'anonymous', 'invalid-cookie'}:
+            assert seen == [], 'Unauthorized request reached protected endpoint'
+            assert messages[0]['status'] == 401
+            assert dict(messages[0]['headers'])[b'cache-control'] == b'no-store'
+            assert json.loads(messages[1]['body']) == {'detail': 'User login required'}
+            return
         assert seen == [owner], 'HTTP policies created task/stream relay objects'
+        assert messages[0]['status'] == 200
         assert [(m.get('body'), m.get('more_body')) for m in messages[1:]] == [
             (b'first', True), (b'last', False)]
-        assert dict(messages[0]['headers'])[b'cache-control'] == b'no-cache, no-store, must-revalidate'
+        assert dict(messages[0]['headers'])[b'cache-control'] == b'no-store'
 
     asyncio.run(run())
 

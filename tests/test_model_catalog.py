@@ -150,7 +150,7 @@ def test_hook_failure_safe_downgrade_and_no_secret_text(client, monkeypatch):
     assert 'SECRET' not in json.dumps(result)
 
 
-def test_real_http_mcp_protocol_is_credential_free(monkeypatch, record_property):
+def test_real_http_mcp_protocol_is_credential_free(monkeypatch, record_property, tmp_path):
     import os
     import socket
     import threading
@@ -183,10 +183,17 @@ def test_real_http_mcp_protocol_is_credential_free(monkeypatch, record_property)
                 result = await protocol.call_tool('model_catalog',{'adapter':'cached'})
                 assert not result.isError
                 value = json.loads(next(c.text for c in result.content if c.type=='text'))
+                assert 'error' not in value, value
                 assert value['adapters'][0]['models'][0]['effort']['value'] == ['low']
                 assert value['adapters'][0]['capabilities']['nativeSteer']['value'] is None
                 assert value['availability'] == 'metadata_only_not_provider_verified'
-        asyncio.run(exercise())
+        async def trusted_exercise():
+            from tests.support.core_ipc import independent_core_bridge
+            async with independent_core_bridge(app, tmp_path / 'owned-ipc', caller=None) as bridge:
+                monkeypatch.setenv('PAN_AGENT_SESSION_ID', 'caller')
+                monkeypatch.setenv('PAN_PLUGIN_IPC', bridge.address)
+                await exercise()
+        asyncio.run(trusted_exercise())
     finally:
         http.should_exit=True
         thread.join(5)

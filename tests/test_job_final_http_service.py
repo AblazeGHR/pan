@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """WP06a real TestClient + durable service + WP02/WP04/WP05 integration."""
 import asyncio
 import copy
@@ -66,7 +67,7 @@ def h(tmp_path):
     value.update(system=False, retry={"idempotent": True, "sameKeySupported": True, "requiresProof": False})
     action = service.publish_action("test_message", value)
     client = TestClient(app)
-    token = automation.auth.login(automation.auth.key())
+    token = automation.auth.login(provision(automation.auth))
     client.headers["Authorization"] = "Bearer " + token
     result = SimpleNamespace(app=app, automation=automation, service=service, provider=provider,
         client=client, root=tmp_path / "canonical", action=object_ref("action", action), token=token)

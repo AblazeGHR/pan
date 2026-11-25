@@ -112,6 +112,12 @@ class GlobalAuthMiddleware:
                 and not same_origin(connection)):
             return await reject(403, 'Login requires a same-origin Origin')
         try:
+            maintenance = getattr(self.server.state, 'job_maintenance', None)
+            if (maintenance and maintenance.get('mode') == 'maintenance'
+                    and maintenance.get('error', {}).get('code') == 'runtime_ownership_unverified'):
+                from packages.jobs.maintenance import authority
+                auth = authority(maintenance)
+
             if token and auth is not None:
                 state = await asyncio.to_thread(auth.session, token, False)
             valid = state is not None and state['authenticated']

@@ -111,7 +111,9 @@ def test_small_response_stays_plain_and_other_routes_are_not_compressed():
     assert issubclass(NetworkJSONResponse, JSONResponse)
 
 
-def test_real_summary_revalidates_current_preview_status_and_membership(monkeypatch):
+def test_real_summary_revalidates_current_preview_status_and_membership(monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    headers = owned_bearer(server.app, tmp_path, monkeypatch)
     from packages.core import session as sess
     from types import SimpleNamespace
     target = sess.create("conditional-summary", adapter="codex")
@@ -119,12 +121,12 @@ def test_real_summary_revalidates_current_preview_status_and_membership(monkeypa
     monkeypatch.setattr(server.worker, "find_alive_workers_by_session", lambda: active)
 
     async def run():
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url="http://test") as client:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url="http://test", headers=headers) as client:
             first = await client.get("/api/sessions?summary=1")
             assert first.status_code == 200
-            assert first.headers["cache-control"] == "private, no-cache"
+            assert first.headers["cache-control"] == "no-store"
             full = await client.get("/api/sessions")
-            assert full.headers["cache-control"] == "no-cache, no-store, must-revalidate"
+            assert full.headers["cache-control"] == "no-store"
             assert "etag" not in full.headers
             etag = first.headers["etag"]
             same = await client.get("/api/sessions?summary=1", headers={"If-None-Match": etag})
@@ -159,11 +161,13 @@ def test_real_summary_revalidates_current_preview_status_and_membership(monkeypa
             assert deleted.status_code == 200
             assert deleted.json() == {"sessions": []}
             detail = await client.get(f"/api/sessions/{target.id}?view=metadata")
-            assert detail.headers["cache-control"] == "no-cache, no-store, must-revalidate"
+            assert detail.headers["cache-control"] == "no-store"
     asyncio.run(run())
 
 
-def test_real_history_compression_preserves_window_and_never_revalidates_summary():
+def test_real_history_compression_preserves_window_and_never_revalidates_summary(monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    headers = owned_bearer(server.app, tmp_path, monkeypatch)
     from packages.core import session as sess
     target = sess.create("compressed-history", adapter="codex", history=[
         {"role": "assistant", "content": f"row {i}: " + "正文和代码片段\n" * 300}
@@ -171,7 +175,7 @@ def test_real_history_compression_preserves_window_and_never_revalidates_summary
     ])
 
     async def run():
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url="http://test") as client:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url="http://test", headers=headers) as client:
             url = f"/api/sessions/{target.id}/history?before=40&limit=20&summary=1"
             plain = await client.get(url, headers={"Accept-Encoding": "identity"})
             compressed = await client.get(url, headers={"Accept-Encoding": "gzip", "If-None-Match": "*"})
@@ -182,7 +186,7 @@ def test_real_history_compression_preserves_window_and_never_revalidates_summary
             assert len(page["history"]) == 20
             assert compressed.headers["content-encoding"] == "gzip"
             assert int(compressed.headers["content-length"]) < len(plain.content) / 10
-            assert compressed.headers["cache-control"] == "no-cache, no-store, must-revalidate"
+            assert compressed.headers["cache-control"] == "no-store"
             assert "etag" not in compressed.headers
             sess.append_history(target, {"role": "assistant", "content": "new tail"})
             sess.save(target)

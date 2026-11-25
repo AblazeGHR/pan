@@ -38,12 +38,17 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
         PAN_TEST_INBOX_NONCE=secrets.token_hex(16),PAN_E2E_FAKE_CLI=str(ROOT/'tests/support/fake_stream_cli.py'),
         PAN_E2E_FAKE_LOG=str(data/'fake-cli.jsonl'),PAN_TEST_DISABLE_QUEUE_WATCHDOG='1')
     base=f'http://127.0.0.1:{port}'
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    auth = UserAuth(data / 'automation')
+    password = provision(auth)
+    user_token = auth.login(password)
     def call(method,path,body=None,*,user=False,caller=None):
         headers={'Content-Type':'application/json'}
         if caller:
             headers['X-Pan-Queue-Caller']=caller
-        if user:
-            headers['Authorization']='Bearer '+env['PAN_TEST_INTERACTION_TOKEN']
+        if user or not path.startswith('/api/user-'):
+            headers['Authorization']='Bearer '+user_token
         request=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,method=method,headers=headers)
         with urllib.request.urlopen(request,timeout=15) as response:
             return json.load(response)
@@ -65,17 +70,19 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
         assert 'tests.support.interaction_card_http_server' in ' '.join(actual.cmdline())
         assert any(c.status=='LISTEN' and c.laddr.port==port for c in actual.net_connections(kind='tcp'))
         assert all(Path(p).is_relative_to(data) for p in ident['roots'].values())
+        env['PAN_PLUGIN_IPC'] = json.loads((data/'core-ipc.json').read_text(encoding='utf-8'))['address']
         ports=call('GET','/__test/interaction-identity')
         assert Path(ports['cardPath']).is_relative_to(data) and Path(ports['receiptPath']).is_relative_to(data)
         assert ports['auth']==ports['trigger']=='synthetic-test-only'
-        owner=call('POST','/api/sessions',{'name':'interaction-owner','adapter':'cbc','workdir':str(data/'workdirs/owner'),'mcpEnabled':False})
+        owner=call('POST','/api/sessions',{'name':'interaction-owner','adapter':'cbc','workdir':str(data/'workdirs/owner'),'mcpServers':['pan']})
         assert 'id' in owner,owner
         assert call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})['ok']
         async def mcp_create():
             from mcp import ClientSession,StdioServerParameters
             from mcp.client.stdio import stdio_client
             params=StdioServerParameters(command=sys.executable,args=['-m','packages.mcp.server'],cwd=str(ROOT),
-                env={**env,'PAN_API_URL':base,'PAN_AGENT_SESSION_ID':owner['id']})
+                env={**env,'PAN_API_URL':base,'PAN_AGENT_SESSION_ID':owner['id'],
+                     'PAN_PLUGIN_IPC':json.loads((data/'core-ipc.json').read_text(encoding='utf-8'))['address']})
             async with stdio_client(params) as (read,write):
                 async with ClientSession(read,write) as client:
                     await client.initialize()
@@ -110,8 +117,8 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
         (tmp_path/'interaction-evidence.json').write_text(json.dumps(artifact,indent=2),encoding='utf-8')
         if units:
             result=subprocess.run(['node',str(ROOT/'packages/web/e2e/interaction-units.e2e.mjs'),base,
-                env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser'),sys.executable],
-                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': (data/'automation/user.key').read_text(encoding='utf-8').strip()},
+                user_token,owner['id'],str(tmp_path/'browser'),sys.executable],
+                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': password},
                 capture_output=True,text=True,encoding='utf-8',timeout=150)
             (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
             assert result.returncode==0,result.stdout+'\n'+result.stderr
@@ -157,8 +164,8 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
             (tmp_path/'browser/browser.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
         if no_answer:
             result=subprocess.run(['node',str(ROOT/'packages/web/e2e/card-no-answer.e2e.mjs'),base,
-                env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser'),sys.executable],
-                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': (data/'automation/user.key').read_text(encoding='utf-8').strip()},
+                user_token,owner['id'],str(tmp_path/'browser'),sys.executable],
+                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': password},
                 capture_output=True,text=True,encoding='utf-8',timeout=100)
             (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
             assert result.returncode==0,result.stdout+'\n'+result.stderr
@@ -198,8 +205,8 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
                 'terminalPreserved':True,'pendingExcluded':True,'userDeleted':True},indent=2),encoding='utf-8')
         if browser:
             result=subprocess.run(['node',str(ROOT/'packages/web/e2e/locker-panel.e2e.mjs'),base,
-                env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser')],
-                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': (data/'automation/user.key').read_text(encoding='utf-8').strip()},
+                user_token,owner['id'],str(tmp_path/'browser')],
+                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': password},
                 capture_output=True,text=True,encoding='utf-8',timeout=90)
             (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
             assert result.returncode==0,result.stdout+'\n'+result.stderr

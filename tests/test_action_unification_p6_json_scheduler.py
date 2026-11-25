@@ -1,3 +1,4 @@
+from tests.support.auth_credentials import provision
 """Owned cooperative JSON task -> canonical clock/admission, never old writer."""
 import asyncio
 import copy
@@ -247,7 +248,7 @@ def http_json(json_task):
     app.state.job_final_service = service
     app.state.automation = SimpleNamespace(auth=service.auth)
     app.include_router(api.router)
-    token = service.auth.login(service.auth.key())
+    token = service.auth.login(provision(service.auth))
     return SimpleNamespace(app=app, service=service, source=source, mapping=mapping, root=root,
                            token=token, provider=provider)
 
