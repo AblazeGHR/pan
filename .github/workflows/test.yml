@@ -292,13 +292,17 @@ jobs:
             evidence/cp-x1-ubuntu-browser/
             .tmp/p6-ui-*/evidence.json
             .tmp/p6-ui-*/server.log
+            packages/web/test-results/p6-ui-*/evidence.json
+            packages/web/test-results/p6-ui-*/server.log
             artifacts/notification-error-exclusions/http/
             artifacts/history-terminal/http/
           if-no-files-found: warn
 
   platform-fast:
     name: platform-fast (${{ matrix.os }}, Python 3.12)
-    timeout-minutes: 25
+    # Windows import/collection/fast took 724s; canonical contracts still ran
+    # at the old 25-minute job deadline. Preserve both complete contract layers.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

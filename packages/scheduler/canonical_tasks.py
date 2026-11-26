@@ -55,6 +55,12 @@ def create(service, payload, *, actor, request_key):
                     number += 1
                 prepared['name'] = 'job-' + str(number)
             source = _legacy_store().prepare_task(prepared, root=service.owner.root / 'background_jobs')
+            # Fresh legacy planning returns host-local naive cursor strings.
+            # Freeze that instant before the canonical cron mapper applies the
+            # rule's timezone; a different zone must not reinterpret the cursor.
+            for row in (source, *source['schedule']):
+                if row.get('nextFireAt') is not None:
+                    row['nextFireAt'] = datetime.fromisoformat(row['nextFireAt']).astimezone().isoformat()
             mapped_by = mapping(service, db, source)
             mapped = JsonTaskHandoff(service)._map(db, source, mapped_by, definition_only=True)
             ids = install_graph(service, db, source, mapped, actor, operation_id,

@@ -139,6 +139,11 @@ try {
   assert.ok(duplicateBody.requestKey);
   evidence.checks.push('canonical duplicate preserves both commands, timeout and a fresh requestKey');
 
+  // The lifecycle receipt updates the old panel before onOpenCopy remounts
+  // the copied identity. Wait for that final identity, then open its editor.
+  const duplicateReceipt = await duplicated.json();
+  const copiedId = duplicateReceipt.result.object.id;
+  await expect(page.getByRole('heading', { name: `Owned browser copy · ${copiedId}`, exact: true })).toBeVisible();
   const draftButton = page.getByRole('button', { name: '编辑为新草稿版本' });
   if (await draftButton.count()) await draftButton.click();
   else await page.getByRole('button', { name: 'Edit as a new draft version' }).click();

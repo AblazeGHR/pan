@@ -31,6 +31,7 @@ def test_proxy_requires_durable_ack_and_preserves_unknown(monkeypatch, case, ope
         app.native_admission_timeout = .05 if case in {"ack-lost", "late-ack"} else 2
         events, sent, replies, futures = [], [], [], []
         ack = {}
+        reservations = {}
         if case == "replace-failed":
             def fail(*_):
                 raise OSError("injected replace failure")
@@ -45,7 +46,7 @@ def test_proxy_requires_durable_ack_and_preserves_unknown(monkeypatch, case, ope
                 ack.update(requestId=event["requestId"], ok=False)
             except RuntimeError as exc:
                 assert case in {"ack-lost", "late-ack"} and "retired" in str(exc)
-                assert app._native_admission.state == "cancelled" and sent == []
+                assert reservations[event["requestId"]].state == "cancelled" and sent == []
                 ack.update(requestId=event["requestId"], ok=False)
             if case == "owner-switch":
                 app.control_owner.switch("pan", 1)
@@ -57,6 +58,7 @@ def test_proxy_requires_durable_ack_and_preserves_unknown(monkeypatch, case, ope
             events.append(event)
             if event["type"] == "pan.native_turn_admission":
                 assert sent == []
+                reservations[event["requestId"]] = app._native_admission
                 futures.append(asyncio.run_coroutine_threadsafe(admit(event), loop))
             elif event["type"] == "pan.native_turn_not_forwarded":
                 futures.append(asyncio.run_coroutine_threadsafe(worker._retire_native_admission(w, runtime, event), loop))

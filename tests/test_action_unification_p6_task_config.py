@@ -837,3 +837,30 @@ def test_P6_CONFIG_20_mixed_edit_preserves_live_task_lifecycle(h):
         'entry_misfire_policy': 'skip', 'text': 'edit while paused'}, actor=USER,
         request_key='edit-while-paused', expected_revision=3)
     assert project(h.service, tid, actor=USER)['task']['paused']
+
+
+@pytest.mark.parametrize('clock_zone', ['+00:00', '+08:00'])
+def test_fresh_cron_creation_preserves_host_local_cursor_in_other_zone(h, monkeypatch, clock_zone):
+    """Fresh planner cursors are host-local, even when cron has another zone."""
+    from packages.jobs import cron
+    from packages.scheduler.providers import TimeProvider, legacy_schedule_plan
+    from datetime import datetime
+    provider = TimeProvider()
+    # Fixed offsets exercise the actual timezone conversion without requiring
+    # the optional OS IANA database in the legacy cron helper.
+    monkeypatch.setattr(cron, '_resolve_tz', lambda name: provider.zone(name))
+    payload = {'name':'Owned cross-zone cron', 'target_session_id':h.source['targetSessionId'],
+        'text':'Do not execute', 'enabled':False, 'action':{'api':'assign'},
+        'schedule':[{'kind':'cron','cron':'0 9 * * *','timezone':clock_zone}]}
+    receipt = canonical_tasks.create(h.service,payload,actor=USER,request_key='zone-'+clock_zone)
+    with h.service.transaction(readonly=True) as db:
+        _, binding = resolve(h.service,db,receipt['result']['jobId'])
+    source = binding['source']
+    entry = source['schedule'][0]
+    expected = datetime.fromisoformat(entry['nextFireAt']).astimezone().timestamp()
+    _, occurrence = legacy_schedule_plan({'name':source['name'],'enabled':True,
+        'schedule':{k:v for k,v in entry.items() if k in {'kind','cron','timezone'}},
+        'nextFireAt':entry['nextFireAt'],'misfirePolicy':source['misfirePolicy'],'graceSec':entry.get('graceSec',0)},
+        timezone_name=clock_zone,rule_id=entry['id'])
+    assert datetime.fromisoformat(occurrence['at'].replace('Z','+00:00')).timestamp() == expected
+    assert not h.service.final.runs(receipt['result']['jobId'])

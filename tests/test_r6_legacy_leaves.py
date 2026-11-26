@@ -140,6 +140,9 @@ def test_isolated_job_host_startup_http_and_shutdown_keep_legacy_retired(tmp_pat
     profile = tmp_path
     from packages.core import session as session_store
     monkeypatch.setattr(session_store, 'SESSION_DIR', profile / 'sessions')
+    # Explicit roots must agree even when a CI launcher inherited overrides.
+    monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(profile / 'background_jobs'))
+    monkeypatch.setenv('PAN_SCHEDULER_DIR', str(profile / 'background_jobs'))
     observed = {}
 
     @asynccontextmanager
