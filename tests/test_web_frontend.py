@@ -20,9 +20,12 @@ def test_root_redirects_to_react_when_dist_exists(monkeypatch):
     assert response.headers["location"] == "/react/"
 
 
-def test_missing_react_dist_is_actionable_and_never_falls_back(monkeypatch):
+def test_missing_react_dist_is_actionable_and_never_falls_back(monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     monkeypatch.setattr(server, "REACT_DIST_EXISTS", False)
-    with TestClient(server.app) as client:
+    with TestClient(server.app, headers=owned_headers) as client:
         root = client.get("/")
         react = client.get("/react/")
         vanilla = client.get("/vanilla")

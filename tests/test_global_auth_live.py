@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import secrets
+import shutil
 import socket
 
 import httpx
@@ -174,7 +175,7 @@ def test_owned_production_http_ws_stdio_and_job(tmp_path, monkeypatch):
         def browser(phase):
             env = {k: v for k, v in os.environ.items() if not k.startswith('PAN_')}
             env['PAN_TEST_AUTH_PASSWORD'] = PASSWORD
-            result = subprocess.run(['D:/software/nodeJs/node.exe', str(h.ROOT / 'packages/web/e2e/global-auth-live.mjs'),
+            result = subprocess.run([shutil.which('node') or 'node', str(h.ROOT / 'packages/web/e2e/global-auth-live.mjs'),
                 runtime.base_url, str((OUT / 'browser').resolve()), phase], cwd=h.ROOT / 'packages/web',
                 env=env, capture_output=True, text=True, encoding='utf-8', timeout=90, **command_window_options())
             (OUT / f'browser-{phase}.log').write_text(result.stdout + result.stderr, encoding='utf-8')

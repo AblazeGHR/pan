@@ -382,9 +382,31 @@ def test_remote_delayed_restart_real_http(monkeypatch, remote_gateway, tmp_path)
         session = real._create(runtime, 'remote-delayed-offline')
         sid = session['id']
         url, token = remote_gateway
-        status = _payload(_mcp_call(url, token, 'agent_restart_delayed_status', {'session_id': sid}))
+        # An Access-authenticated remote client has no bound local Session.
+        # Keep its refusal separate from the real bound stdio lifecycle proof.
+        monkeypatch.setattr('packages.mcp.server._terminal_transport','streamable-http')
+        for name in ('agent_restart_delayed_status','agent_restart_delayed'):
+            denied = _payload(_mcp_call(url,token,name,{'session_id':sid}))
+            assert denied['ok'] is False and denied['error']['code'] == 'bound_stdio_required', denied
+        runtime.request('PATCH',f'/api/sessions/{sid}',json={'pluginBindings':[
+            {'plugin_id':'pan','mode':'standalone','enabled':True}]})
+        async def bound_stdio():
+            from mcp import ClientSession, StdioServerParameters
+            from mcp.client.stdio import stdio_client
+            locator=json.loads((runtime.data_root/'core-ipc.json').read_text(encoding='utf-8'))
+            params=StdioServerParameters(command=sys.executable,args=['-m','packages.mcp.server'],cwd=str(ROOT),
+                env={**os.environ,'PAN_AGENT_SESSION_ID':sid,'PAN_PLUGIN_IPC':locator['address']})
+            async with stdio_client(params) as streams:
+                async with ClientSession(*streams) as client:
+                    await client.initialize()
+                    rows=[]
+                    for name in ('agent_restart_delayed_status','agent_restart_delayed'):
+                        result=await client.call_tool(name,{'session_id':sid})
+                        assert not result.isError
+                        rows.append(_payload(result))
+                    return rows
+        status,rejected=asyncio.run(bound_stdio())
         assert status == {'ok': True, 'delayedRestart': None}
-        rejected = _payload(_mcp_call(url, token, 'agent_restart_delayed', {'session_id': sid}))
         assert rejected['ok'] is False and 'No live Worker' in rejected['error']
         assert runtime.request('GET', f'/api/sessions/{sid}/worker/delayed-restart')['delayedRestart'] is None
         assert not [row for row in runtime.fake_records() if row.get('cwd') == session['workdir']]

@@ -26,8 +26,10 @@ const refresh=async()=>{
 };
 try {
   await page.goto(base+'/react/locker');
-  await page.getByLabel('Local user key',{exact:true}).fill(process.env.PAN_TEST_JOB_KEY);
-  await page.getByRole('button',{name:'Log in',exact:true}).click();
+  await page.getByLabel('管理员密码',{exact:true}).fill(process.env.PAN_TEST_JOB_KEY);
+  await page.getByRole('button',{name:'登录',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'登录 Pan',exact:true})).toHaveCount(0);
+  await page.goto(base+'/react/locker');
   await expect(rows).toHaveCount(f.ids.length);
   await expect.poll(async()=>timeline.locator(`[data-locker-entry="${f.ids[0]}"]`).evaluate(n=>Math.abs(n.getBoundingClientRect().top-n.parentElement.getBoundingClientRect().top))).toBeLessThan(3);
   expect(await rows.evaluateAll(ns=>ns.map(n=>n.dataset.cardId||n.dataset.lockerMessageId))).toEqual(f.ids);
@@ -90,7 +92,7 @@ try {
   await page.screenshot({path:out+'/scroll-prepend-anchor.png'});
   const before=await geometry();
   const newId='late-arrival';
-  const result=await page.request.post(base+'/__test/locker/accept',{headers:{'x-locker-fixture':f.nonce},data:{
+  const result=await page.request.post(base+'/__test/locker/accept',{headers:{'x-locker-fixture':f.nonce,Origin:base},data:{
     sourceSessionId:f.source,recipientId:'user',message:{messageId:newId,role:'assistant',content:'New arrival must not pull the reader',ts:new Date().toISOString()}
   }});
   expect(result.ok()).toBe(true);

@@ -62,12 +62,15 @@ def _task_worker(s):
     return w
 
 
-def test_http_health_and_readers_respond_while_ack_waits_for_disk(target, monkeypatch):
+def test_http_health_and_readers_respond_while_ack_waits_for_disk(target, monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     entered, release = _block_commit(monkeypatch, target)
 
     async def scenario():
         transport = httpx.ASGITransport(app=server.app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://diagnostic") as client:
+        async with httpx.AsyncClient(transport=transport, base_url="http://diagnostic", headers=owned_headers) as client:
             ack = asyncio.create_task(client.post(
                 f"/api/sessions/{target.id}/unread-done/ack", json={"observed": 2}))
             assert await asyncio.to_thread(entered.wait, 2)
@@ -226,7 +229,10 @@ def test_warm_ack_cannot_resurrect_a_session_deleted_after_lookup(target, monkey
     assert target.id not in sess._cache
 
 
-def test_warm_ack_finishes_while_unrelated_store_read_is_blocked(target, monkeypatch):
+def test_warm_ack_finishes_while_unrelated_store_read_is_blocked(target, monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     entered, release = threading.Event(), threading.Event()
 
     def blocked_read():
@@ -244,7 +250,7 @@ def test_warm_ack_finishes_while_unrelated_store_read_is_blocked(target, monkeyp
         assert await asyncio.to_thread(entered.wait, 2)
         try:
             transport = httpx.ASGITransport(app=server.app)
-            async with httpx.AsyncClient(transport=transport, base_url="http://diagnostic") as client:
+            async with httpx.AsyncClient(transport=transport, base_url="http://diagnostic", headers=owned_headers) as client:
                 response = await asyncio.wait_for(client.post(
                     f"/api/sessions/{target.id}/unread-done/ack", json={"observed": 2}), 1)
                 assert response.json()["unreadDoneCount"] == 0

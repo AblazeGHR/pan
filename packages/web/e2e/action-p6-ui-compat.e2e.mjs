@@ -109,7 +109,8 @@ try {
     return { ok: response.ok };
   }, key);
   assert.equal(login.ok, true, 'isolated administrator login');
-  await page.reload();
+  // Global login may have returned the initial deep link to the Chat root.
+  await page.goto(base + '/react/actions');
   if (await page.getByLabel('Local user key').count()) {
     await page.getByLabel('Local user key').fill(key);
     await page.getByRole('button', { name: 'Log in', exact: true }).click();

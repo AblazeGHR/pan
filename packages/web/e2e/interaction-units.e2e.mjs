@@ -43,7 +43,7 @@ try {
       schemaVersion: 3, title: 'Refuse before selection', units: [{ id: 'q', prompt: 'Runtime', type: 'single_choice', choices: [{ id: 'go', label: 'Runtime', actionRef: binding.actionRef, arguments: args }] }],
     } });
     expect(refused.ok, JSON.stringify(refused)).toBe(false);
-    expect(refused.error.message).toContain('deliveryRuntime');
+    expect(refused.error.code, JSON.stringify(refused)).toBe(409);
     expect(await mcp({ operation: 'list_pending' })).toEqual(beforeRefusal);
   }
   const card = await create('units-browser', { schemaVersion: 3, title: 'Unified card', units: [

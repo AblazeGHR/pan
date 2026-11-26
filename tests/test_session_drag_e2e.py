@@ -37,6 +37,8 @@ def test_order_and_claim_real_http_ws_e2e():
 
     ids: list[str] = []
     with TestClient(srv.app) as client:
+        from tests.support.auth_credentials import login_client
+        login_client(client, srv.app.state.automation.auth)
         # ── 读取真实 sessions：先通过 POST /api/sessions 创建三个 ──
         for name in ("ses_a", "ses_b", "ses_c"):
             r = client.post("/api/sessions", json={"name": name})
@@ -52,7 +54,7 @@ def test_order_and_claim_real_http_ws_e2e():
         assert [s["id"] for s in got] == [a, b, c], got
 
         # ── 拖 A 到 B/C 之间 → POST /api/sessions/order：C,A,B ──
-        with client.websocket_connect("/ws") as ws:
+        with client.websocket_connect("/ws", headers=dict(client.headers)) as ws:
             time.sleep(0.15)  # let the server-side handler register this client
             r = client.post("/api/sessions/order", json={"sessionIds": [c, a, b]})
             assert r.status_code == 200
@@ -106,6 +108,8 @@ def test_invalid_order_bodies_are_rejected_http():
     from fastapi.testclient import TestClient
 
     with TestClient(srv.app) as client:
+        from tests.support.auth_credentials import login_client
+        login_client(client, srv.app.state.automation.auth)
         r = client.post("/api/sessions", json={"name": "only_one"})
         sid = r.json()["id"]
         for body in ({}, {"sessionIds": sid}, {"sessionIds": [1, 2]},

@@ -286,7 +286,13 @@ def test_http_own_identity_gate_rejects_body_session_override(monkeypatch):
     async def run():
         s,_,_,_ = setup()
         monkeypatch.setattr(worker,"create_worker",AsyncMock(return_value=object()))
-        transport = httpx.ASGITransport(app=server.app,client=("127.0.0.1",12345))
+        # The public app refuses unauthenticated header impersonation first.
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app),base_url="http://local") as public:
+            assert (await public.post('/api/self-queue/report-status',headers={'X-Pan-Queue-Caller':s.id},json={})).status_code == 401
+        from fastapi import FastAPI
+        app = FastAPI()
+        app.add_api_route('/api/self-queue/{operation}',server.api_self_queue,methods=['POST'])
+        transport = httpx.ASGITransport(app=app,client=("127.0.0.1",12345))
         async with httpx.AsyncClient(transport=transport,base_url="http://local") as client:
             headers={"X-Pan-Queue-Caller":s.id}
             for op in ("report-status","report-consume"):
@@ -310,7 +316,7 @@ def test_mcp_remote_or_unbound_callers_never_borrow_identity(monkeypatch,tool):
     assert tool() == {"ok":False,"error":"caller_unavailable"}
 
 
-def test_real_http_mcp_report_handoff_metadata_only(monkeypatch,record_property):
+def test_real_http_mcp_report_handoff_metadata_only(monkeypatch,record_property,tmp_path):
     import os
     import socket
     import threading
@@ -350,7 +356,12 @@ def test_real_http_mcp_report_handoff_metadata_only(monkeypatch,record_property)
                 assert_private(result)
                 assert await call("report_consume",{"item_id":"a"}) == result
                 assert stdin.write.call_count==1
-        asyncio.run(exercise())
+        async def trusted_exercise():
+            from tests.support.core_ipc import independent_core_bridge
+            async with independent_core_bridge(app,tmp_path/'owned-ipc',caller=s) as bridge:
+                monkeypatch.setenv('PAN_PLUGIN_IPC',bridge.address)
+                await exercise()
+        asyncio.run(trusted_exercise())
     finally:
         http.should_exit=True;thread.join(5);sock.close()
         assert not thread.is_alive()

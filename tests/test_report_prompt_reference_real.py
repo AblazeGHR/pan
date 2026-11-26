@@ -50,7 +50,7 @@ def test_report_prompt_reference_real_chain_and_browser(tmp_path):
     try:
         runtime.start()
         evidence['pidIdentities'] = list(runtime._owned_processes)
-        recorder = _EventRecorder(runtime.base_url.replace('http', 'ws', 1) + '/ws/agent')
+        recorder = _EventRecorder(runtime.base_url.replace('http', 'ws', 1) + '/ws/agent', headers=runtime.auth_headers, origin=runtime.base_url)
         recorder.start()
         sources = req('GET', '/api/plugins/message-sources')['sources']
         # Declarations may enable answer reports; prompt summaries never inherit.
@@ -64,6 +64,8 @@ def test_report_prompt_reference_real_chain_and_browser(tmp_path):
             page_errors = []
             page.on('pageerror', lambda error: page_errors.append(str(error)))
             page.goto(runtime.base_url + '/react/')
+            from tests.support.auth_credentials import login_page
+            login_page(page, runtime.test_password)
             page.get_by_title('App settings', exact=True).click()
             page.get_by_role('tab', name='Behavior', exact=True).click()
             summary = page.get_by_role('region', name='Prompt summary', exact=True)

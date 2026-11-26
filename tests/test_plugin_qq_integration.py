@@ -58,14 +58,35 @@ def upstream(monkeypatch):
 
 
 @pytest.mark.parametrize("mode", ["standalone", "pan_native", "gateway"])
-def test_all_seven_qq_tools_keep_legacy_wire_contract(mode, upstream, tmp_path):
+def test_all_seven_qq_tools_keep_legacy_wire_contract(mode, upstream, tmp_path, monkeypatch):
     async def run():
         manifest = load_manifests(["manifest.json", "packages/mcp/manifest.json"])
         catalog = Catalog(manifest)
         binding = {"plugin_id": "qq", "enabled": True, "mode": mode}
         session = sess.Session(id="ses_qq_fixture", name="QQ fixture", adapter_config={"plugin_bindings": [binding]})
         runtime = Runtime(lambda: manifest, lambda sid: session if sid == session.id else None)
+        # bind/unbind now cross the private Core IPC gate. The upstream is
+        # still the owned wire recorder, reached through the real permit layer.
+        from fastapi import FastAPI, Request
+        from packages.web.machine_ipc import bind
+        import httpx
+        app = FastAPI()
+        async def upstream_core(request: Request):
+            async with httpx.AsyncClient(trust_env=False) as client:
+                result = await client.post(os.environ['PAN_API_URL'] + request.url.path,
+                                           json=await request.json())
+                result.raise_for_status()
+                return result.json()
+        for route in ('/api/qq/subscribe','/api/qq/unsubscribe'):
+            app.add_api_route(route,upstream_core,methods=['POST'])
+        bind(runtime,app,lambda sid: session if sid == session.id else None)
+        denied = await runtime.handle({'operation':'core_http','session_id':session.id,
+            'method':'POST','path':'/api/qq/subscribe','body':{'sessionId':session.id}})
+        assert denied['ok'] is False and denied['error']['code'] == 403
+        assert upstream == []
+        session.adapter_config['plugin_bindings'].append({'plugin_id':'pan','mode':'standalone','enabled':True})
         bridge = Bridge(runtime, tmp_path)
+        monkeypatch.setenv('PAN_PLUGIN_IPC', bridge.address)
         physical = catalog.compile([binding])[0]
         from packages.core.adapters.mcp import build_mcp_servers
         session.adapter_config["mcp_servers"] = [physical]
@@ -96,8 +117,10 @@ def test_all_seven_qq_tools_keep_legacy_wire_contract(mode, upstream, tmp_path):
                     await call("read_conversation", {"target_id": "123456", "bot_uin": "999999"})
                     await call("list_contacts", {})
                     await call("read_inbox", {"target_id": "123456", "bot_uin": "999999", "consume": True})
-                    await call("bind", {"target_type": "user", "target_id": "123456", "bot_uin": "999999"})
-                    await call("unbind", {"target_type": "user", "target_id": "123456", "bot_uin": "999999"})
+                    bound = await call("bind", {"target_type": "user", "target_id": "123456", "bot_uin": "999999"})
+                    assert not bound.get("error"), bound
+                    unbound = await call("unbind", {"target_type": "user", "target_id": "123456", "bot_uin": "999999"})
+                    assert not unbound.get("error"), unbound
             assert [path for _, path, _ in upstream] == ["/api/qq/send", "/api/qq/send_file", "/api/qq/history",
                 "/api/qq/recent_contacts", "/api/qq/inbox", "/api/qq/subscribe", "/api/qq/unsubscribe"]
             assert upstream[0][2] == {**common, "text": "isolated fixture"}

@@ -138,6 +138,8 @@ def test_isolated_job_host_startup_http_and_shutdown_keep_legacy_retired(tmp_pat
     # Exercise the production owner wrapper and real canonical/Automation
     # startup. OS/network/plugin services are outside this isolated Job smoke.
     profile = tmp_path
+    from packages.core import session as session_store
+    monkeypatch.setattr(session_store, 'SESSION_DIR', profile / 'sessions')
     observed = {}
 
     @asynccontextmanager

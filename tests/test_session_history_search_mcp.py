@@ -196,7 +196,7 @@ def test_replacement_refreshes_both_projections_and_expires_cursor(client, raw_f
     assert len(search(s, tool_output='include_output')['hits']) == 4
 
 
-def test_real_http_and_mcp_protocol(monkeypatch, record_property):
+def test_real_http_and_mcp_protocol(monkeypatch, record_property, tmp_path):
     import os
     import socket
     import threading
@@ -248,9 +248,21 @@ def test_real_http_and_mcp_protocol(monkeypatch, record_property):
                 assert (await call(query='OUTPUT_ONLY'))['hits'] == []
                 assert len((await call(query='OUTPUT_ONLY', tool_output='include_output'))['hits']) == 1
                 assert (await call(session_id=other.id))['error']['code'] == 'permission_denied'
-                assert (await call(limit=1, cursor=first['nextCursor'], tool_output='include_output'))['detail']['code'] == 'history_search_cursor_expired'
+                expired = await call(limit=1, cursor=first['nextCursor'], tool_output='include_output')
+                assert expired['ok'] is False and expired['error']['code'] == 409, expired
+                # The direct handler retains its precise cursor error while IPC
+                # deliberately exposes the sanitized rejection envelope.
+                with TestClient(app) as direct:
+                    response = direct.get('/api/history/search', params={'sessionId':s.id,'query':'needle','limit':1,'cursor':first['nextCursor'],'toolOutput':'include_output'})
+                    assert response.status_code == 409
+                    assert response.json()['detail']['code'] == 'history_search_cursor_expired'
                 assert len((await call(roles=['thinking']))['hits']) == 1
-        asyncio.run(exercise())
+        async def trusted_exercise():
+            from tests.support.core_ipc import independent_core_bridge
+            async with independent_core_bridge(app, tmp_path / 'owned-ipc', caller=manager) as bridge:
+                monkeypatch.setenv('PAN_PLUGIN_IPC', bridge.address)
+                await exercise()
+        asyncio.run(trusted_exercise())
     finally:
         http_server.should_exit = True
         thread.join(5)

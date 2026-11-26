@@ -214,7 +214,10 @@ def test_old_client_message_id_remains_idempotent_after_receipt_ledger_eviction(
     _cleanup()
 
 
-def test_websocket_offline_user_input_is_acknowledged_once(monkeypatch):
+def test_websocket_offline_user_input_is_acknowledged_once(monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     """Dashboard input uses the durable session route even without a worker."""
     from fastapi.testclient import TestClient
     import packages.web.server as server
@@ -232,8 +235,8 @@ def test_websocket_offline_user_input_is_acknowledged_once(monkeypatch):
 
     monkeypatch.setattr(worker, "create_worker", fake_create)
 
-    with TestClient(server.app) as client:
-        with client.websocket_connect("/ws") as ws:
+    with TestClient(server.app, headers=owned_headers) as client:
+        with client.websocket_connect("/ws", headers=owned_headers) as ws:
             payload = {
                 "type": "user_inject", "sessionId": s.id,
                 "text": "offline dashboard input", "clientMessageId": "browser-ws-1",

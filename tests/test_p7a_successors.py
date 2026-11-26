@@ -110,6 +110,13 @@ def test_legacy_locker_choice_never_reenters_retired_execution(tmp_path, monkeyp
             frozen_binding = copy.deepcopy(card['trustedChoices'])
             svc.started = False
             host = claim(svc, tmp_path / 'canonical')
+            # lookup_event delegates legacy receipts to the Trigger adapter.
+            # Inject at that actual original-ID query boundary.
+            lookup = adapter.trigger.lookup
+            async def original(eid):
+                assert eid == calls[0]
+                return await lookup(eid) if receipt_present else None
+            adapter.trigger.lookup = original
             await svc.start()
             with pytest.raises(InteractionError, match='canonical graph unavailable'):
                 create(svc, store, {**request, 'requestKey': 'new-after-cutover'})
@@ -118,11 +125,6 @@ def test_legacy_locker_choice_never_reenters_retired_execution(tmp_path, monkeyp
                 svc.ledger.put({**trigger('selected'), 'enabled': False}, 1, True)
             async def forbidden(*args):
                 pytest.fail('Unknown must never reauthorize or submit')
-            lookup = adapter.lookup
-            async def original(eid):
-                assert eid == calls[0]
-                return await lookup(eid) if receipt_present else None
-            adapter.lookup = original
             adapter.authorize = adapter.accept = forbidden
             monkeypatch.setattr(svc.events, 'append', lambda *a, **k: pytest.fail('No second Event'))
             if deleted:

@@ -65,11 +65,16 @@ class Pan:
             reservation.bind(('127.0.0.1', 0))
             self.port = reservation.getsockname()[1]
         self.base = f'http://127.0.0.1:{self.port}'
+        assert self.port not in {8767,8768}
+        from packages.automation.auth import UserAuth
+        from tests.support.auth_credentials import provision
+        auth = UserAuth(root / 'automation')
+        self.auth_headers = {'Authorization':'Bearer '+auth.login(provision(auth))}
         self.env = dict(os.environ, PYTHONPATH=str(REPO), PAN_PORT=str(self.port),
                         PAN_HOST='127.0.0.1', PAN_TERMINALS_DIR=str(root / 'terminals'),
                         PAN_BACKGROUND_JOBS_DIR=str(root / 'jobs'), PAN_SCHEDULER_DIR=str(root / 'scheduler'),
                         PAN_AGENT_SESSION_ID='', PYTHONIOENCODING='utf-8')
-        self.client = httpx.Client(base_url=self.base, headers={'Origin': self.base}, trust_env=False,
+        self.client = httpx.Client(base_url=self.base, headers={'Origin': self.base, **self.auth_headers}, trust_env=False,
                                    timeout=30)
         self.process = None
         self.log = None
@@ -97,7 +102,7 @@ class Pan:
         self.log.close()
 
     def command(self, tid, text):
-        with connect(f'ws://127.0.0.1:{self.port}/ws/terminal/{tid}?cursor=0', origin=self.base) as ws:
+        with connect(f'ws://127.0.0.1:{self.port}/ws/terminal/{tid}?cursor=0', origin=self.base, additional_headers=self.auth_headers) as ws:
             ws.send(json.dumps({'v': 1, 'type': 'command', 'terminal_id': tid, 'op': 'claim'}))
             generation = None
             for _ in range(60):

@@ -315,13 +315,16 @@ def test_failed_config_write_changes_nothing(policy_env, tmp_config, monkeypatch
     assert not any(e.get("type") == "settings.uiUpdated" for e in policy_env)
 
 
-def test_settings_put_over_http_api(policy_env, tmp_config, monkeypatch):
+def test_settings_put_over_http_api(policy_env, tmp_config, monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     s = _make_session("policy-put-http", generation=5, read=2)
     monkeypatch.setattr(sess, "list_all", lambda **kw: [s])
 
     async def scenario():
         transport = httpx.ASGITransport(app=server.app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://diag") as client:
+        async with httpx.AsyncClient(transport=transport, base_url="http://diag", headers=owned_headers) as client:
             r = await client.put("/api/settings/ui", json={
                 "notifications": {"unreadRecording": ["pinned"]}})
             assert r.status_code == 200
@@ -795,14 +798,17 @@ def test_reapply_reports_failed_sessions(policy_env, tmp_config, monkeypatch):
 
 
 def test_override_does_not_block_global_scope_e2e_via_http(
-        policy_env, tmp_config, monkeypatch):
+        policy_env, tmp_config, monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     _write_config(tmp_config, {"notifications": {"unreadRecording": ["none"]}})
     unread_policy.refresh_unread_recording()
     s = _make_session("policy-http-actions", generation=0, read=0)
 
     async def scenario():
         transport = httpx.ASGITransport(app=server.app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://diag") as client:
+        async with httpx.AsyncClient(transport=transport, base_url="http://diag", headers=owned_headers) as client:
             enable = await client.post(
                 f"/api/sessions/{s.id}/unread-action",
                 json={"action": "enable-tracking", "expectedExcluded": True})

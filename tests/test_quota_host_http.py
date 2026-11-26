@@ -57,7 +57,7 @@ def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path
         token=rt.request('POST','/api/automation/login',json={'key':key})['token']
         url=rt.base_url+'/api/automation/quota-policy';headers={'Authorization':'Bearer '+token}
         with httpx.Client(timeout=10,trust_env=False) as client:
-            state=client.get(url).json()
+            state=client.get(url,headers=headers).json()
             assert state['host']=={'enabled':False,'sessionRoles':{}} and state['adapter']=='unavailable'
             assert not (rt.data_root/'host-cli.jsonl').exists()
             body={'enabled':True,'sessionRoles':{'explicit-target':'ta'},'expectedRevision':state['revision']}
@@ -67,16 +67,16 @@ def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path
                 assert client.put(url+'/host',json=bad,headers=headers).status_code==400
             assert client.put(url+'/host',json=body,headers=headers).status_code==200
             assert client.put(url+'/host',json=body,headers=headers).status_code==409
-            state=client.get(url).json()
+            state=client.get(url,headers=headers).json()
             assert client.put(url,json={'mode':'automatic','maSessionId':'fixture-ma','expectedRevision':state['revision']},headers=headers).status_code==200
-            state=client.get(url).json()
+            state=client.get(url,headers=headers).json()
             job=client.post(url+'/query-jobs',json={'kind':'once','expectedRevision':state['revision']},headers=headers)
             assert job.status_code==200,job.text
             def done():
-                value=client.get(url).json()
+                value=client.get(url,headers=headers).json()
                 return value if value.get('hostObservation') else None
             state=real_http._wait_for(done,label='host read-only projection')
-            state=real_http._wait_for(lambda: (v if (v:=client.get(url).json())['quota']['status']=='known' else None),label='provider quota persisted')
+            state=real_http._wait_for(lambda: (v if (v:=client.get(url,headers=headers).json())['quota']['status']=='known' else None),label='provider quota persisted')
             assert state['adapter']=='host-readonly' and state['quota']['identityDomain']=='cc-switch-provider:codex'
             assert state['quota']['currentAccountId']=='provider-a'
             assert state['hostObservation']['native']['status']=='known'
@@ -89,12 +89,12 @@ def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path
             body={'enabled':False,'sessionRoles':{'explicit-target':'ta'},'expectedRevision':state['revision']}
             # Wait for query bookkeeping before using its exact revision.
             def disable():
-                body['expectedRevision']=client.get(url).json()['revision']
+                body['expectedRevision']=client.get(url,headers=headers).json()['revision']
                 result=client.put(url+'/host',json=body,headers=headers)
                 return result if result.status_code==200 else None
             real_http._wait_for(disable,label='user host disable after query')
             rt.stop();rt.start();evidence['restartedServerPid']=rt.process.pid
-            recovered=client.get(url).json()
+            recovered=client.get(url,headers=headers).json()
             assert recovered['host']=={'enabled':False,'sessionRoles':{'explicit-target':'ta'}}
             assert client.get(rt.base_url+'/api/automation/session',headers=headers).json()['authenticated'] is True
             with httpx.Client(timeout=10,trust_env=False) as anonymous:

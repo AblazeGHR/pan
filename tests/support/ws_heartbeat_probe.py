@@ -53,7 +53,9 @@ def main() -> None:
     last_pong: float | None = None
     next_send: float | None = None
     deadline = time.time() + args.timeout
-    with connect(args.url, open_timeout=10, close_timeout=2) as ws:
+    token = os.environ.get('PAN_TEST_HEARTBEAT_TOKEN')
+    headers = {'Authorization': token} if token else None
+    with connect(args.url, open_timeout=10, close_timeout=2, additional_headers=headers) as ws:
         if args.ready is not None:
             args.ready.write_text("ready", encoding="ascii")
         while time.time() < deadline:

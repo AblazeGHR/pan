@@ -67,7 +67,10 @@ try {
   await row.getByRole('button', { name: 'Delete record', exact: true }).click();
   await expect(row).toHaveCount(0);
   expect((await context.request.get(`${base}/api/user-inbox/${card.id}`, { headers })).status()).toBe(404);
-  expect((await mcp({ operation: 'create', recipient_id: 'test-user', request_key: 'gui-no-answer', card: card.definition })).status).toBe('rejected');
+  const resurrect = await mcp({ operation: 'create', recipient_id: 'test-user', request_key: 'gui-no-answer', card: card.definition });
+  expect(resurrect.ok, JSON.stringify(resurrect)).toBe(false);
+  expect(resurrect.error.code).toBe(409);
+  expect((await context.request.get(`${base}/api/user-inbox/${card.id}`, { headers })).status()).toBe(404);
   expect(errors).toEqual([]);
   await writeFile(`${evidence}/browser.json`, JSON.stringify({ base, owner, cardId: card.id, done,
     realStdio: true, pendingVisible: true, staleSubmit409: true, reject409: true, terminalVisible: true,

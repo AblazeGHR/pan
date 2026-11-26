@@ -37,6 +37,10 @@ def test_production_scheduler_writes_cannot_reach_either_owner(
     async def scoped(scope, receive, send):
         if identity == 'delegated':
             scope[_SCOPE_KEY] = _MARKER
+            # Internal route negative control: use the provenance marker the
+            # real local Core IPC adapter sets, not a client-supplied header.
+            from packages.web.machine_ipc import _SCOPE, _MARKER as core_marker
+            scope[_SCOPE] = core_marker
         await app(scope, receive, send)
 
     async def call():

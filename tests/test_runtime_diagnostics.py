@@ -175,6 +175,8 @@ def test_persistence_diagnostics_does_not_take_store_locks_on_loop(monkeypatch):
 
 
 def test_real_http_exposes_blocked_read_while_liveness_and_diagnostics_work(tmp_path, monkeypatch):
+    from tests.support.owned_http_auth import owned_bearer
+    headers = owned_bearer(server.app, tmp_path, monkeypatch)
     from packages.core.host_server import PanServer
     from packages.core import logging_setup
     monkeypatch.setattr(logging_setup, "_REPO_ROOT", tmp_path)
@@ -193,7 +195,8 @@ def test_real_http_exposes_blocked_read_while_liveness_and_diagnostics_work(tmp_
     port = sock.getsockname()[1]
     def get(path):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open(f"http://127.0.0.1:{port}" + path, timeout=2) as response:
+        request = urllib.request.Request(f"http://127.0.0.1:{port}" + path, headers=headers)
+        with opener.open(request, timeout=2) as response:
             return json.loads(response.read())
 
     async def run():

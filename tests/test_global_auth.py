@@ -80,6 +80,13 @@ def test_machine_scope_never_grants_admin_or_unmanaged_targets():
     for leaf in ['pan%253A' + 'a' * 32, 'pan%3A..%2fsettings', 'pan%3Anot-an-id', 'pan%3A' + 'a' * 32 + '%2fusage']:
         assert not permit(caller, 'GET', '/api/sessions/ses_child/messages/' + leaf, {}, get)
     assert not permit(caller, 'GET', '/api/sessions/ses_other/messages/' + message, {}, get)
+    submission = '/api/interaction-cards/card_owned/submissions/sub_owned'
+    assert permit(caller, 'GET', submission + '?ownerSessionId=ses_owner', {}, get)
+    assert permit(caller, 'GET', submission + '?ownerSessionId=ses_child', {}, get)
+    for method, query in [('POST','?ownerSessionId=ses_owner'), ('GET',''),
+                          ('GET','?ownerSessionId=ses_other'),
+                          ('GET','?ownerSessionId=ses_owner&ownerSessionId=ses_child')]:
+        assert not permit(caller, method, submission + query, {}, get), (method, query)
     for method, path, body in [
         ('GET', '/api/settings', {}), ('POST', '/api/main/exit', {}),
         ('POST', '/api/automation/revoke', {}), ('POST', '/api/automation/login', {}),

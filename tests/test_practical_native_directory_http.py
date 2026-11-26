@@ -23,6 +23,11 @@ def test_combined_native_directory_production_wiring():
     assert port not in {8767, 8768}
     env = {k: v for k, v in os.environ.items() if not k.upper().startswith('PAN_')}
     env['PAN_E2E_BASE_URL'] = f'http://127.0.0.1:{port}'
+    from packages.automation.auth import UserAuth
+    from tests.support.auth_credentials import provision
+    authority = UserAuth(runtime / 'automation')
+    env['PAN_TEST_ADMIN_PASSWORD'] = provision(authority)
+    env['PAN_TEST_AUTH_TOKEN'] = authority.login(env['PAN_TEST_ADMIN_PASSWORD'])
     kwargs = {'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}
     with (out / 'native-directory-server.log').open('w', encoding='utf-8') as log:
         server = subprocess.Popen([sys.executable, str(root / 'packages/web/e2e/new-session-native-directory.server.py'),
@@ -34,7 +39,7 @@ def test_combined_native_directory_production_wiring():
             while time.monotonic() < deadline:
                 assert server.poll() is None, 'owned fixture exited during startup'
                 try:
-                    with urllib.request.urlopen(env['PAN_E2E_BASE_URL'] + '/__e2e/identity', timeout=1) as response:
+                    with urllib.request.urlopen(urllib.request.Request(env['PAN_E2E_BASE_URL'] + '/__e2e/identity', headers={'Authorization':'Bearer '+env['PAN_TEST_AUTH_TOKEN']}), timeout=1) as response:
                         identity = json.load(response)
                     break
                 except (OSError, ValueError):

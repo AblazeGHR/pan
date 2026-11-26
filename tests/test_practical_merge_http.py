@@ -19,6 +19,8 @@ def test_production_search_and_select_use_real_session_endpoints(runtime):
         page.on('request', lambda request: requests.append({'method': request.method, 'url': request.url}))
         try:
             page.goto(runtime.base_url + '/react/', wait_until='networkidle')
+            from tests.support.auth_credentials import login_page
+            login_page(page, runtime.test_password)
             page.get_by_title('App settings', exact=True).click()
             page.get_by_role('tab', name='Search', exact=True).click()
             field = page.get_by_role('searchbox', name='Search settings', exact=True)

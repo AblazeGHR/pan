@@ -35,7 +35,8 @@ def test_native_terminal_report_survives_http_mcp_handoff_and_cold_reload(tmp_pa
         from mcp import ClientSession,StdioServerParameters
         from mcp.client.stdio import stdio_client
         params=StdioServerParameters(command=os.sys.executable,args=['-m','packages.mcp.server'],
-            cwd=str(base.ROOT),env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':manager})
+            cwd=str(base.ROOT),env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':manager,
+                'PAN_PLUGIN_IPC':json.loads((rt.data_root/'core-ipc.json').read_text(encoding='utf-8'))['address']})
         async with stdio_client(params) as (read,write):
             async with ClientSession(read,write) as client:
                 await client.initialize()
@@ -48,6 +49,7 @@ def test_native_terminal_report_survives_http_mcp_handoff_and_cold_reload(tmp_pa
     try:
         rt.start();capture()
         manager=base._create(rt,'manager');child=base._create(rt,'child')
+        rt.request('PATCH',f"/api/sessions/{manager['id']}",json={'pluginBindings':[{'plugin_id':'pan','mode':'standalone','enabled':True}]})
         rt.request('PATCH',f"/api/sessions/{manager['id']}/queue/paused",json={'paused':True})
         asyncio.run(mcp_assign(manager['id'],child['id']))
         def report_ready():

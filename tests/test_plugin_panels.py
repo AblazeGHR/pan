@@ -263,12 +263,15 @@ def test_bridge_helpers_share_a_lock_without_invoking_the_cli(tmp_path):
 
 
 def test_panel_http_routes_use_declared_actions_without_starting_a_worker(manifest, tmp_path, monkeypatch):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     import httpx
     from packages.web import server
     async def run():
         host = PanelHost(lambda: manifest, tmp_path)
         monkeypatch.setattr(server.app.state, 'plugin_panels', host, raising=False)
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url='http://127.0.0.1') as client:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url='http://127.0.0.1', headers=owned_headers) as client:
             response = await client.get('/api/plugins/panels')
             assert response.status_code == 200
             assert response.json()['panels'][0]['pluginId'] == 'cc-switch-bridge'

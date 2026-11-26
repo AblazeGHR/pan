@@ -97,7 +97,7 @@ def permit(caller, method, path, body, get_session):
         return method == 'POST'
     if re.fullmatch(r'/api/agent-inbox/(?:list|read|consume|subscribe|unsubscribe|mode|backlog|recover)', route):
         return method == 'POST'
-    if re.fullmatch(r'/api/interaction-cards/[^/]+(?:/receipt)?', route):
+    if re.fullmatch(r'/api/interaction-cards/[^/]+(?:/receipt|/submissions/[^/]+)?', route):
         return method == 'GET' and len(query.get('ownerSessionId', [])) == 1
     if route in {'/api/background-jobs', '/api/session-message-jobs'}:
         return method == 'GET' or method == 'POST' and bool(targets(body, query))
@@ -105,8 +105,8 @@ def permit(caller, method, path, body, get_session):
         return method == 'GET' or method == 'POST' and bool(targets(body, query))
     scheduled = re.fullmatch(r'/api/scheduler/tasks/([^/]+)(?:/(?:pause|resume|run-now|runs))?', route)
     if scheduled:
-        from packages.scheduler import store
-        record = store.get_task(scheduled[1])
+        from packages.scheduler.history import History
+        record = History().get(scheduled[1])
         return (record is None and method == 'GET' or record is not None
                 and bool(targets(record, {}))
                 and all(session_allowed(caller, sid) for sid in targets(record, {})))

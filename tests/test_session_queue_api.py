@@ -287,18 +287,23 @@ def test_patch_order_all_sources(monkeypatch):
     _cleanup()
 
 
-def test_patch_order_http_route_precedes_item_route(monkeypatch):
+def test_patch_order_http_route_precedes_item_route(monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     """The literal /order path must not be captured as item_id='order'."""
     from fastapi.testclient import TestClient
     monkeypatch.setattr(_sess, "save", _noop_save)
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
-    s = _setup_session("ses_q")
     import copy
-    mixed = copy.deepcopy(MIXED)
-    s.queue_pending = mixed
-    ids = [srv._queue_item_id(item) for item in mixed]
 
-    with TestClient(srv.app) as client:
+    with TestClient(srv.app, headers=owned_headers) as client:
+        # Lifespan upgrades retained legacy queue IDs. Prepare this route-order
+        # probe after startup so the IDs submitted below remain its own fixture.
+        s = _setup_session("ses_q")
+        mixed = copy.deepcopy(MIXED)
+        s.queue_pending = mixed
+        ids = [srv._queue_item_id(item) for item in mixed]
         response = client.patch(
             "/api/sessions/ses_q/queue/order",
             json={"orderedIds": [ids[2], ids[1], ids[4], ids[0], ids[3]]},

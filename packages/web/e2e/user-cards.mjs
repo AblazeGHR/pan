@@ -8,8 +8,10 @@ try {
   const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
   page.on('pageerror', (error) => evidence.errors.push(error.message));
   await page.goto(base + '/react/locker');
-  await page.getByLabel('Local user key', {exact: true}).fill(process.env.PAN_TEST_JOB_KEY);
-  await page.getByRole('button', {name: 'Log in', exact: true}).click();
+  await page.getByLabel('管理员密码', {exact: true}).fill(process.env.PAN_TEST_JOB_KEY);
+  await page.getByRole('button', {name: '登录', exact: true}).click();
+  await page.getByRole('heading', {name: '登录 Pan', exact: true}).waitFor({state:'hidden'});
+  await page.goto(base + '/react/locker');
   const rows = page.locator(`[data-reminding-card-id="${cardId}"]`);
   await expect(rows).toHaveCount(1);
   const timeline=page.getByRole('region',{name:'Locker messages'});

@@ -411,9 +411,11 @@ def test_cancelled_written_direct_steer_late_unknown_keeps_resend_block(monkeypa
     asyncio.run(run())
 
 
-def test_cancelled_http_steer_waiting_for_queue_lock_has_no_late_write(monkeypatch):
+def test_cancelled_http_steer_waiting_for_queue_lock_has_no_late_write(monkeypatch, tmp_path):
     import httpx
     from packages.web import server
+    from tests.support.owned_http_auth import owned_bearer
+    owned_headers = owned_bearer(server.app, tmp_path, monkeypatch)
 
     async def run():
         s, w, stdin = live_session(CodexAdapter(), status="running")
@@ -432,7 +434,7 @@ def test_cancelled_http_steer_waiting_for_queue_lock_has_no_late_write(monkeypat
         await lock.acquire()
         spawn_lock = await worker._session_spawn_lock(s.id)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app),
-                                     base_url="http://isolated.test", trust_env=False) as client:
+                                     base_url="http://isolated.test", headers=owned_headers, trust_env=False) as client:
             url = f"/api/sessions/{s.id}/worker/steer"
             request = asyncio.create_task(client.post(url, json={"text": "no late HTTP write"}))
             try:

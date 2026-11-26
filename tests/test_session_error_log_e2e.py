@@ -153,12 +153,14 @@ def test_stream_terminal_tool_transient_native_cancelled_and_duplicate(runtime):
     sid = _new_session(runtime, "stream-errors")
     _spawn(runtime, sid)
 
+    # Preserve all earlier samples from this module-owned runtime.
+    previous_samples = _records(runtime)
     # A normal turn must not create any sample.
     _enqueue(runtime, sid, "err-normal")
     _wait_done(runtime, sid)
-    assert _records(runtime) == []
+    assert _records(runtime) == previous_samples
 
-    before = len(_records(runtime))
+    before = len([r for r in _records(runtime) if r.get("sessionId") == sid and r.get("kind") == "terminal_error"])
     _enqueue(runtime, sid, "err-terminal")
     terminal = _wait_matching(
         runtime,

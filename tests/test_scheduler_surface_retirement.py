@@ -87,16 +87,18 @@ def test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect(scheduler_
     assert 'switch_owner' not in vars(api) and '_switch' not in vars(api)
 
 
-def test_production_owner_switch_is_not_a_catchall_or_an_alias(tmp_path):
+def test_production_owner_switch_is_not_a_catchall_or_an_alias(tmp_path, monkeypatch):
     from packages.web.server import app
     from packages.automation.authorization import _MARKER, _SCOPE_KEY
+    from tests.support.owned_http_auth import owned_bearer
+    headers = owned_bearer(app, tmp_path, monkeypatch)
     before = contents(tmp_path)
     async def scoped(scope, receive, send):
         scope[_SCOPE_KEY] = _MARKER
         await app(scope, receive, send)
     async def check():
         for target in (app, scoped):
-            async with httpx.AsyncClient(transport=httpx.ASGITransport(target), base_url='http://ipc') as client:
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(target), base_url='http://ipc', headers=headers) as client:
                 response = await client.post('/api/scheduler/tasks/sch_unknown/owner-switch', json={})
                 assert response.status_code == 404, response.text
     asyncio.run(check())

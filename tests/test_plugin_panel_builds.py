@@ -223,7 +223,10 @@ def test_existing_account_switcher_panel_and_mcp_catalog_are_unchanged(tmp_path)
     assert 'cc-switch-bridge' in Catalog(manifest).plugins
 
 
-def test_panel_build_http_routes_ignore_page_supplied_commands(tmp_path):
+def test_panel_build_http_routes_ignore_page_supplied_commands(tmp_path, monkeypatch):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     import httpx
     from packages.web import server
 
@@ -235,7 +238,7 @@ def test_panel_build_http_routes_ignore_page_supplied_commands(tmp_path):
         server.app.state.plugin_panels = host
         try:
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app),
-                                         base_url='http://127.0.0.1') as client:
+                                         base_url='http://127.0.0.1', headers=owned_headers) as client:
                 listed = (await client.get('/api/plugin-panels')).json()['panels']
                 assert listed[0]['status'] == 'unbuilt'
                 assert (await client.post('/api/plugin-panels/local-console/console/enable')).status_code == 400

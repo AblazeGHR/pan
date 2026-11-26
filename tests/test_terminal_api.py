@@ -1079,7 +1079,10 @@ def test_import_has_no_side_effects_and_disabled_constructs_nothing(tmp_path):
 # ══════════════════════════════════════════════════════════════════════════
 
 
-def test_real_pan_app_registers_terminal_routes_without_full_lifespan(monkeypatch):
+def test_real_pan_app_registers_terminal_routes_without_full_lifespan(monkeypatch, tmp_path):
+    from tests.support.owned_http_auth import owned_bearer
+    from packages.web import server as owned_server
+    owned_headers = owned_bearer(owned_server.app, tmp_path, monkeypatch)
     """真实 ``packages.web.server.app`` 已注册路由（未启动 lifespan → 503，而非 404）。"""
 
     async def scenario() -> None:
@@ -1094,7 +1097,7 @@ def test_real_pan_app_registers_terminal_routes_without_full_lifespan(monkeypatc
         assert getattr(server, "terminal_api", None) is terminal_api
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=server.app), base_url=f"http://{AUTHORITY}",
-            headers={"origin": ORIGIN}, timeout=httpx.Timeout(30.0),
+            headers={**owned_headers, "origin": ORIGIN}, timeout=httpx.Timeout(30.0),
         ) as client:
             response = await client.get("/api/terminals")
             assert response.status_code != 404, "终端路由未注册到 Pan app"

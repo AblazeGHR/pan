@@ -29,7 +29,7 @@ def _upload(runtime: _PanRuntime, session_id: str, body: bytes, filename: str) -
     response = httpx.post(
         f"{runtime.base_url}/api/sessions/{session_id}/attachments",
         content=body,
-        headers={"X-Filename": quote(filename)},
+        headers={**runtime.auth_headers, "X-Filename": quote(filename)},
         timeout=15,
         trust_env=False,
         verify=False,
@@ -58,7 +58,7 @@ def test_real_http_upload_reference_send_and_restart(attachment_runtime):
         f"?session_id={first_id}"
     )
 
-    with httpx.Client(base_url=runtime.base_url, timeout=15, trust_env=False, verify=False) as client:
+    with httpx.Client(base_url=runtime.base_url, timeout=15, trust_env=False, verify=False, headers=runtime.auth_headers) as client:
         download = client.get(uploaded["href"])
     assert download.status_code == 200
     assert download.content == "附件 body".encode("utf-8")
@@ -120,7 +120,7 @@ def test_real_http_upload_reference_send_and_restart(attachment_runtime):
         "GET", f"/api/sessions/{first_id}/history?limit=100"
     )["history"]
     assert any(entry.get("content") == message for entry in restored_history)
-    with httpx.Client(base_url=runtime.base_url, timeout=15, trust_env=False, verify=False) as client:
+    with httpx.Client(base_url=runtime.base_url, timeout=15, trust_env=False, verify=False, headers=runtime.auth_headers) as client:
         restored_download = client.get(uploaded["href"])
     assert restored_download.status_code == 200
     assert restored_download.content == "附件 body".encode("utf-8")

@@ -12,10 +12,11 @@ import path from 'node:path';
 import { chromium, expect } from '@playwright/test';
 
 const base = process.env.PAN_E2E_BASE_URL ?? 'http://127.0.0.1:8765';
-const identity = await (await fetch(`${base}/__e2e/identity`)).json();
+const ownedFetch = url => fetch(url, { headers: { Authorization: `Bearer ${process.env.PAN_TEST_AUTH_TOKEN}` } });
+const identity = await (await ownedFetch(`${base}/__e2e/identity`)).json();
 assert.equal(path.resolve(identity.checkout), path.resolve(process.cwd(), '../..'), 'owned checkout identity');
 assert.ok(![8767, 8768].includes(identity.port), identity);
-const before = await (await fetch(`${base}/__probe/state`)).json();
+const before = await (await ownedFetch(`${base}/__probe/state`)).json();
 
 const pickerRequests = [];
 const browser = await chromium.launch({ headless: true });
@@ -32,6 +33,9 @@ page.on('request', (request) => {
 const result = { identity, cases: [] };
 try {
   await page.goto(`${base}/react/`, { waitUntil: 'domcontentloaded' });
+  await page.getByLabel('管理员密码', { exact: true }).fill(process.env.PAN_TEST_ADMIN_PASSWORD);
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await page.getByRole('heading', { name: '登录 Pan', exact: true }).waitFor({ state: 'hidden' });
   await page.getByTitle('New with settings').click();
   const dialog = page.getByRole('dialog', { name: 'New Session' });
   await dialog.waitFor({ state: 'visible' });
@@ -79,7 +83,7 @@ try {
     assert.ok(request.url.endsWith('/api/native-picker'), request.url);
     assert.equal(request.body?.mode, 'directories', JSON.stringify(request.body));
   }
-  const after = await (await fetch(`${base}/__probe/state`)).json();
+  const after = await (await ownedFetch(`${base}/__probe/state`)).json();
   assert.equal(after.calls.length, 4, JSON.stringify(after.calls));
   assert.deepEqual(after.calls.map((call) => call.mode), ['directories', 'directories', 'directories', 'directories']);
   assert.deepEqual(after.calls.map((call) => call.status), ['selected', 'cancelled', 'unavailable', 'busy']);

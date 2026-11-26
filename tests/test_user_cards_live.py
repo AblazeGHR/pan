@@ -32,8 +32,8 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
         def login():
             return {'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
         auth=login()
-        owner=rt.request('POST','/api/sessions',json={'name':'card-owner','adapter':'codex','mcpServers':[]})
-        other=rt.request('POST','/api/sessions',json={'name':'other','adapter':'codex','mcpServers':[]})
+        owner=rt.request('POST','/api/sessions',json={'name':'card-owner','adapter':'codex','pluginBindings':[{'plugin_id':'pan','mode':'standalone','enabled':True}]})
+        other=rt.request('POST','/api/sessions',json={'name':'other','adapter':'codex','pluginBindings':[{'plugin_id':'pan','mode':'standalone','enabled':True}]})
         sid=owner['id']
         rt.request('PATCH',f'/api/sessions/{sid}/queue/paused',json={'paused':True})
         upload=rt.request('POST',f'/api/sessions/{sid}/attachments?filename=evidence.txt',content=b'owned evidence')
@@ -49,7 +49,8 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
             from mcp import ClientSession,StdioServerParameters
             from mcp.client.stdio import stdio_client
             params=StdioServerParameters(command=os.sys.executable,args=['-m','packages.mcp.server'],cwd=str(root),
-                env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':sid})
+                env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':sid,
+                     'PAN_PLUGIN_IPC':json.loads((rt.data_root/'core-ipc.json').read_text(encoding='utf-8'))['address']})
             async with stdio_client(params) as (read,write):
                 async with ClientSession(read,write) as client:
                     await client.initialize()
@@ -61,16 +62,16 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
                     if not answer:
                         assert pending['cards']==[]
                         foreign=await call(operation='answer',card_id=question['id'],body='forged',expected_revision=0)
-                        assert foreign['error']['code']=='not_found'
+                        assert foreign['error']['code']==404
                         return
                     assert {c['id'] for c in pending['cards']}=={question['id'],task['id'],child['id']}
                     assert next(c for c in pending['cards'] if c['id']==question['id'])['attachments'][0]['id']==aid
                     empty=await call(operation='answer',card_id=question['id'],body='',expected_revision=0)
-                    assert empty['error']['code']=='invalid'
+                    assert empty['error']['code']==422
                     result=await call(operation='answer',card_id=question['id'],body='Real MCP answer',expected_revision=0)
                     assert result['card']['answeredAt'] and result['card']['createdAt']==question['createdAt']
                     duplicate=await call(operation='answer',card_id=question['id'],body='overwrite',expected_revision=1)
-                    assert duplicate['error']['code']=='conflict'
+                    assert duplicate['error']['code']==409
                     assert (await call(operation='answer',card_id=task['id'],body='',expected_revision=0))['card']['answer']==''
                     assert (await call(operation='answer',card_id=child['id'],body='Attached MCP answer',expected_revision=0))['card']['parent']==child['parent']
                     assert (await call(operation='list_pending'))['cards']==[]

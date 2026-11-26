@@ -160,8 +160,9 @@ def _seed_fixture(session_dir: Path) -> dict:
 class _HeartbeatProbe:
     """Real dashboard WebSocket: measure ping→pong round trip and cadence."""
 
-    def __init__(self, url: str, *, interval: float = HEARTBEAT_INTERVAL):
+    def __init__(self, url: str, *, headers, interval: float = HEARTBEAT_INTERVAL):
         self.url = url
+        self.headers = headers
         self.interval = interval
         self.samples: list[dict] = []
         self.ready = threading.Event()
@@ -178,7 +179,7 @@ class _HeartbeatProbe:
 
     def _run(self):
         try:
-            with ws_connect(self.url, open_timeout=10, close_timeout=2) as ws:
+            with ws_connect(self.url, open_timeout=10, close_timeout=2, additional_headers=self.headers) as ws:
                 self.ready.set()
                 last_pong = None
                 next_send = None
@@ -234,8 +235,9 @@ class _AgentEventRecorder:
 
     EVENT_TYPES = ["worker.stream", "worker.result", "worker.status"]
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, *, headers):
         self.url = url
+        self.headers = headers
         self.events: list[dict] = []
         self.ready = threading.Event()
         self.stop_requested = threading.Event()
@@ -251,7 +253,7 @@ class _AgentEventRecorder:
 
     def _run(self):
         try:
-            with ws_connect(self.url, open_timeout=10, close_timeout=2) as ws:
+            with ws_connect(self.url, open_timeout=10, close_timeout=2, additional_headers=self.headers) as ws:
                 ws.send(json.dumps({
                     "type": "subscribe", "eventTypes": self.EVENT_TYPES,
                 }))
@@ -296,8 +298,9 @@ class _OutOfProcessHeartbeatProbe:
     so server response delay and probe-side timing can be compared.
     """
 
-    def __init__(self, url: str, data_root: Path, *, name: str = "heartbeat"):
+    def __init__(self, url: str, data_root: Path, *, headers, name: str = "heartbeat"):
         self.url = url
+        self.headers = headers
         self.data_root = data_root
         self.name = name
         self.out = data_root / f"{name}-samples.json"
@@ -318,7 +321,7 @@ class _OutOfProcessHeartbeatProbe:
         self.process = subprocess.Popen(
             command,
             cwd=str(ROOT),
-            env={**os.environ, "PYTHONPATH": str(ROOT)},
+            env={**os.environ, "PYTHONPATH": str(ROOT), "PAN_TEST_HEARTBEAT_TOKEN": self.headers["Authorization"]},
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -421,8 +424,9 @@ def _latency_summary(samples: list[dict]) -> dict:
 class _ColdLoadBurst:
     """Concurrent real HTTP cold reads, one thread per worker."""
 
-    def __init__(self, base_url: str, *, workers: int = BURST_WORKERS):
+    def __init__(self, base_url: str, *, headers, workers: int = BURST_WORKERS):
         self.base_url = base_url
+        self.headers = headers
         self.workers = workers
         self.results: list[dict] = []
         self.stop_requested = threading.Event()
@@ -442,7 +446,7 @@ class _ColdLoadBurst:
         bulk_id = f"ses-e2e-bulk-{index % BULK_SESSIONS:02d}"
         try:
             with httpx.Client(
-                base_url=self.base_url, timeout=30, trust_env=False, verify=False,
+                base_url=self.base_url, timeout=30, trust_env=False, verify=False, headers=self.headers,
             ) as client:
                 while not self.stop_requested.is_set():
                     if index % 2 == 0:
@@ -481,6 +485,7 @@ class _PanRuntime:
 
     def __init__(self, data_root: Path):
         self.data_root = data_root
+        self.headers = {}
         self.port = _allocate_isolated_port()
         self.log_path = data_root / "fake-cli.jsonl"
         self.stdout_path = data_root / "pan.stdout.log"
@@ -561,6 +566,11 @@ class _PanRuntime:
                 "isolated server failed to start: "
                 f"pid={self.process.pid} returncode={self.process.poll()} "
                 f"stdout={stdout[-4000:]} stderr={stderr[-4000:]}")
+        from packages.automation.auth import UserAuth
+        from tests.support.auth_credentials import provision
+        password = provision(UserAuth(self.data_root / 'automation'))
+        logged = self.request('POST', '/api/automation/login', json={'key': password}, headers={'Origin': self.base_url})
+        self.headers.update(Authorization='Bearer ' + logged['token'])
         self._capture_process_tree()
         assert self.listener_pids, (
             f"no listener PID found for isolated port {self.port}")
@@ -791,7 +801,7 @@ class _PanRuntime:
 
     def request(self, method: str, path: str, **kwargs) -> dict:
         with httpx.Client(
-            base_url=self.base_url, timeout=30, trust_env=False, verify=False,
+            base_url=self.base_url, timeout=30, trust_env=False, verify=False, headers=self.headers,
         ) as client:
             response = client.request(method, path, **kwargs)
         assert response.status_code == 200, (
@@ -803,13 +813,13 @@ class _PanRuntime:
 def coldload_runtime(tmp_path, monkeypatch):
     data_root = tmp_path / "persistent-data-root"
     fixture = _seed_fixture(data_root / "sessions")
-    runtime = _PanRuntime(data_root, authenticated=True)
+    runtime = _PanRuntime(data_root)
     runtime.fixture = fixture
     # Independent-process heartbeat plus an in-process probe and agent stream
     # recorder sharing the pytest process for comparison.
-    probe = _OutOfProcessHeartbeatProbe(runtime.ws_url, data_root)
-    heartbeat = _HeartbeatProbe(runtime.ws_url)
-    agent = _AgentEventRecorder(runtime.agent_ws_url)
+    probe = _OutOfProcessHeartbeatProbe(runtime.ws_url, data_root, headers=runtime.headers)
+    heartbeat = _HeartbeatProbe(runtime.ws_url, headers=runtime.headers)
+    agent = _AgentEventRecorder(runtime.agent_ws_url, headers=runtime.headers)
     try:
         runtime.start()
         probe.start()
@@ -967,7 +977,7 @@ def test_real_http_history_coldload_does_not_stall_dashboard_websocket(coldload_
     }
 
     # ── burst window 1: the first list read also loads the store index ──
-    cold_burst = _ColdLoadBurst(runtime.base_url)
+    cold_burst = _ColdLoadBurst(runtime.base_url, headers=runtime.headers)
     cold_start = time.time()
     cold_burst.start()
     time.sleep(0.2)
@@ -1000,7 +1010,7 @@ def test_real_http_history_coldload_does_not_stall_dashboard_websocket(coldload_
 
     # ── burst window 2: store index loaded, but every history read still
     # streams the companion JSONL from disk (shallow pages never hydrate) ──
-    steady_burst = _ColdLoadBurst(runtime.base_url)
+    steady_burst = _ColdLoadBurst(runtime.base_url, headers=runtime.headers)
     steady_start = time.time()
     steady_burst.start()
     time.sleep(0.3)
@@ -1114,7 +1124,7 @@ def test_real_http_history_coldload_does_not_stall_dashboard_websocket(coldload_
     heartbeat.stop()
     agent.stop()
     assert runtime.request("GET", "/api/health")["status"] == "ok"
-    recovered = _HeartbeatProbe(runtime.ws_url)
+    recovered = _HeartbeatProbe(runtime.ws_url, headers=runtime.headers)
     recovered.start()
     time.sleep(0.4)
     recovered.stop()
