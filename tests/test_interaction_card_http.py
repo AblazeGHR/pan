@@ -76,7 +76,8 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
         assert ports['auth']==ports['trigger']=='synthetic-test-only'
         owner=call('POST','/api/sessions',{'name':'interaction-owner','adapter':'cbc','workdir':str(data/'workdirs/owner'),'mcpServers':['pan']})
         assert 'id' in owner,owner
-        assert call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})['ok']
+        prepared = call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})
+        assert prepared['ok']
         async def mcp_create():
             from mcp import ClientSession,StdioServerParameters
             from mcp.client.stdio import stdio_client
@@ -88,7 +89,7 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
                     await client.initialize()
                     assert 'interaction_card' in [t.name for t in (await client.list_tools()).tools]
                     result=await client.call_tool('interaction_card',{'operation':'create','recipient_id':'test-user','request_key':'once',
-                        'card':{'title':'Backend Card','body':'Question','answerInput':{},'choices':[{'id':'go','label':'Go',
+                        'card':{'title':'Backend Card','body':'PRIVATE_CARD_BODY_OWNED','answerInput':{},'choices':[{'id':'go','label':'Go',
                         'triggerRef':{'id':'synthetic-trigger','revision':1}}],'notification':{'summary':'metadata only'}}})
                     assert not result.isError
                     created=json.loads(result.content[0].text)
@@ -111,7 +112,69 @@ def run_http_mcp(tmp_path,*,browser=False,no_answer=False,units=False):
             event=json.loads(db.execute('SELECT event FROM receipts').fetchone()[0])
         assert event['payload']['response']['answer']=='user answer'
         assert event['payload']['triggerRef']['id']=='synthetic-trigger'
-        assert all(not path.read_text(encoding='utf-8').strip() for path in (data/'sessions').glob('*.history.jsonl'))  # Session creation can create an empty file; no Card enters context.
+        # The existing submitted notice and fixed Action are two independently
+        # authorized deliveries; complete both before proving exact history.
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            histories = {path.name.removesuffix('.history.jsonl'): [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()
+                         if line.strip()] for path in (data/'sessions').glob('*.history.jsonl')}
+            rows = histories.get(owner['id'], [])
+            if sum(row.get('role') == 'terminal' for row in rows) >= 2: break
+            time.sleep(.02)
+        (tmp_path/'history-projection.json').write_text(json.dumps(histories,indent=2),encoding='utf-8')
+        assert all(not value for key,value in histories.items() if key != owner['id']), histories
+        assert [row['role'] for row in rows] == ['user','assistant','assistant','terminal'] * 2, rows
+        from packages.interactions.contracts import canonical, identity
+        submission_id = identity('submission_', [card['id']])
+        locker_id = identity('ulocker_', ['test-user', owner['id']])
+        notice_id = identity('q_', [submission_id])
+        with sqlite3.connect(ports['cardPath']) as db:
+            assert db.execute('SELECT id,owner,state,payload FROM response_outbox').fetchall() == [
+                (submission_id, owner['id'], 'accepted', None)]
+        user_rows = [row for row in rows if row['role'] == 'user']
+        notice = next(row for row in user_rows if row['source'] == 'interaction')
+        action_row = next(row for row in user_rows if row['source'] == 'automation')
+        assert notice['source'] == 'interaction' and notice['queueItemIds'] == [notice_id]
+        projected = {'id': submission_id, 'cardId': card['id'], 'responseKind': 'submit',
+                     'answer': 'user answer', 'choiceId': 'go', 'lockerId': locker_id,
+                     'summaryBody': 'metadata only'}
+        assert notice['envelope'] == {'type': 'interaction.submitted', **projected}
+        assert len(notice['queueEnvelopes']) == 1
+        envelope = notice['queueEnvelopes'][0]
+        expected_text = 'Interaction submitted: ' + canonical({key:value for key,value in projected.items()
+                                                               if key not in {'id','lockerId'}})
+        assert envelope['text'] == envelope['result'] == expected_text
+        assert envelope['id'] == envelope['queueItemId'] == notice_id
+        assert envelope['targetId'] == owner['id'] and envelope['sourceMessageId'] == submission_id
+        from packages.core.worker import _format_report_batch
+        assert notice['content'] == _format_report_batch([envelope])
+        assert prepared['targetSessionId'] == owner['id']
+        assert action_row['source'] == 'automation' and action_row['content'] == prepared['text'] == 'Owned Card response'
+        original_job = call('GET', '/__test/interaction-job/' + prepared['jobId'])
+        (tmp_path/'original-action.json').write_text(json.dumps(original_job,indent=2),encoding='utf-8')
+        assert original_job['jobId'] == prepared['jobId']
+        original = original_job['finalRuntime']
+        assert len(original['runs']) == len(original['effects']) == 1
+        original_run = next(iter(original['runs'].values()))
+        effect = original['effects'][0]
+        assert original_run['state'] == 'completed' and effect['outcome'] == 'succeeded'
+        assert original_run['jobId'] == prepared['jobId']
+        assert effect['effectKey']['runId'] == original_run['runId']
+        from packages.jobs.final_contracts import digest
+        assert action_row['clientMessageId'] == 'effect_' + digest(effect['effectKey'])[:40]
+        receipt = effect['receipt']['receipt']
+        assert receipt['sessionId'] == owner['id'] and action_row['queueItemIds'] == [receipt['queueItemId']]
+        for start in (0, 4):
+            # The deterministic provider's two responses must echo only the
+            # exact original delivery, followed by its own terminal marker.
+            assert rows[start+1]['content'] == 'ack:' + rows[start]['content']
+            assert rows[start+2]['content'] == rows[start]['content']
+            assert rows[start+3]['content'] == ''
+            assert rows[start+3]['terminal']['status'] == 'done'
+        assert len({row['messageId'] for row in rows}) == len(rows)
+        serialized = json.dumps(histories)
+        assert 'PRIVATE_CARD_BODY_OWNED' not in serialized and 'Backend Card' not in serialized
+        assert canonical(card['definition']) not in serialized
         artifact={'instance':ident,'interaction':ports,'ownerSessionId':owner['id'],'cardId':card['id'],
             'eventId':event['id'],'receiptId':done['delivery']['receiptId'],'mcpProducerOnly':True,'oneResponse':True}
         (tmp_path/'interaction-evidence.json').write_text(json.dumps(artifact,indent=2),encoding='utf-8')

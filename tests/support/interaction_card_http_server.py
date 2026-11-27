@@ -115,7 +115,14 @@ async def prepare_trigger(data:dict):
         return result
     adapter.submit=record
     server.app.state.interaction_trigger_adapter=adapter
-    return {'ok':True}
+    return {'ok':True, 'jobId': job['id'], 'targetSessionId': data['ownerSessionId'],
+            'text': 'Owned Card response', 'actionRef': object_ref('action', action)}
+
+
+@server.app.get('/__test/interaction-job/{job_id}')
+async def owned_job_receipt(job_id: str):
+    service = server.app.state.automation
+    return await service.engine.io(service.final_jobs.final.store.get, job_id)
 
 # Reuse the existing fully isolated lifecycle and empty QQ gateway manifest.
 import tests.support.agent_inbox_http_server

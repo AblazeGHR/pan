@@ -150,7 +150,7 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
             browser = playwright.chromium.launch(headless=True)
             try:
                 page = browser.new_page()
-                page.goto(f'http://127.0.0.1:{port}/react/automation/canonical')
+                page.goto(f'http://127.0.0.1:{port}/react/jobs')
                 page.get_by_label('管理员密码', exact=True).fill(provision(h.automation.auth))
                 page.get_by_role('button', name='登录', exact=True).click()
                 page.get_by_role('heading', name='登录 Pan', exact=True).wait_for(state='hidden')

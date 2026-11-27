@@ -48,6 +48,7 @@ EXPECTED_CAPABILITIES = (
     "processOwner",
     "process.hiddenDesktop",
     "secretStore",
+    "script.localIpc",
     "fileManager.reveal",
     "fileDialog.native",
 )

@@ -48,7 +48,10 @@ def test_tcp_removed_addresses_refuse_without_writing(tcp, tmp_path, h):
         for method, path, status in WRITES:
             response = client.request(method, path, json={"operation": "restart"},
                                       headers={**h.headers, "x-pan-expected-pid": "stale"})
-            assert response.status_code == status, response.text
+            expected = 409 if path in {'/api/main/exit', '/api/main/restart'} else status
+            assert response.status_code == expected, response.text
+            if expected == 409:
+                assert response.json() == {'error': 'CLI instance identity mismatch'}
     assert {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
 
 

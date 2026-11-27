@@ -168,6 +168,9 @@ def service():
                 return
             parsed = urlsplit(self.path)
             if parsed.path == "/api/automation/events":
+                state['event_reads'] = state.get('event_reads', 0) + 1
+                if state.get('before_events'):
+                    state['before_events']()
                 after = int(parse_qs(parsed.query)["after"][0])
                 rows = [row for row in state["events"] if row["seq"] > after][:100]
                 value = {"events": rows, "nextAfter": rows[-1]["seq"] if rows else after}
@@ -277,36 +280,46 @@ def test_first_scan_emits_sanitized_health(service, tmp_path):
     assert not (tmp_path / 'ledger.json').exists() and not state['posts']
 
 
-@pytest.mark.skipif(os.name != 'nt', reason='candidate launcher targets Windows PowerShell')
 def test_candidate_launcher_first_scan_and_single_owner(service, tmp_path):
     api, state = service
-    launcher = 'D:/project/Pan/.workflow/codex-rotation-incident-20261123/run-live.candidate.ps1'
-    command = ['powershell.exe', '-NoProfile', '-File', launcher, '-Python', sys.executable,
-               '-Script', rotate.__file__, '-Api', api.base, '-Ledger', str(tmp_path / 'ledger.json'),
-               '-Bridge', str(tmp_path / 'bridge'), '-OwnerLock', str(tmp_path / 'owner.lock'),
-               '-IntervalSeconds', '30']
-    output = tmp_path / 'watch.log'
-    with output.open('w', encoding='utf-8') as stream:
-        proc = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT,
-                                creationflags=subprocess.CREATE_NO_WINDOW)
-        try:
-            deadline = time.monotonic() + 15
-            while time.monotonic() < deadline:
-                if output.exists() and 'scan_complete' in output.read_text(encoding='utf-8', errors='replace'):
-                    break
-                if proc.poll() is not None:
-                    pytest.fail('candidate watcher exited before first scan')
-                time.sleep(.05)
-            else:
-                pytest.fail('candidate watcher did not report the first scan')
-            other = subprocess.run(command, capture_output=True, text=True, timeout=15,
-                                   creationflags=subprocess.CREATE_NO_WINDOW)
-            assert other.returncode != 0
-            assert 'owner lock' in other.stderr
-            assert not state['posts']
-        finally:
+    entered, release = threading.Event(), threading.Event()
+    def barrier():
+        entered.set()
+        assert release.wait(30), 'test did not release the synthetic event page'
+    state['before_events'] = barrier
+    command = [sys.executable, '-B', rotate.__file__, '--api', api.base,
+               '--ledger', str(tmp_path / 'ledger.json'),
+               '--bridge-data', str(tmp_path / 'bridge'), '--execute']
+    options = {'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True, encoding='utf-8', **options)
+    try:
+        assert entered.wait(15), 'first real writer did not enter its synthetic page'
+        assert proc.poll() is None
+        # Normal main() has acquired the actual ledger lock before HTTP.
+        reads = state['event_reads']
+        other = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', timeout=15, **options)
+        assert other.returncode != 0 and 'observation stopped:' in other.stderr
+        assert state['event_reads'] == reads and not state['posts']
+        release.set()
+        stdout, stderr = proc.communicate(timeout=15)
+        assert proc.returncode == 0, stderr
+        health = json.loads(stdout)
+        assert health['event'] == 'scan_complete' and health['cursor'] == 0
+        assert health['pendingCount'] == health['batchCount'] == 0
+        # Real process exit releases the same lock; a third normal CLI can own
+        # and reconcile the exact ledger without a replacement identity.
+        state['before_events'] = None
+        resumed = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', timeout=15, **options)
+        assert resumed.returncode == 0, resumed.stderr
+        assert json.loads(resumed.stdout) == health
+        assert not state['posts'] and not (tmp_path / 'bridge').exists()
+        assert json.loads((tmp_path / 'ledger.json').read_text())['cursor'] == 0
+    finally:
+        release.set()
+        if proc.poll() is None:
             proc.terminate()
-            proc.wait(timeout=10)
+        proc.communicate(timeout=10)
 
 
 def test_nonterminal_then_terminal_and_conflicts(service, tmp_path):
