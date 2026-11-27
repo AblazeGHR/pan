@@ -22,6 +22,8 @@ it('tracks overlapping foreground work and idempotent completion', () => {
 
 it('retains foreground priority through body parsing and releases it on failure', async () => {
   let reject!: (error: Error) => void;
+  let bodyEntered!: () => void;
+  const entered = new Promise<void>((resolve) => { bodyEntered = resolve; });
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => ({
@@ -29,12 +31,13 @@ it('retains foreground priority through body parsing and releases it on failure'
       json: () =>
         new Promise((_r, j) => {
           reject = j;
+          bodyEntered();
         }),
     })),
   );
   const result = fetchSessionHistory('a', 100);
-  await Promise.resolve();
-  await Promise.resolve();
+  expect(foregroundActivity().requests).toBe(1);
+  await entered;
   expect(foregroundActivity().requests).toBe(1);
   reject(new Error('body failed'));
   await expect(result).rejects.toThrow('body failed');

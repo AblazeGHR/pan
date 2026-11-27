@@ -242,6 +242,11 @@ DEFAULT_CONFIG: dict = {
         # 且不会继承插件的 auto_report_default。
         "autoReport": {"system": False, "ma": True, "user": False, "plugins": {},
                        "summary": {"system": False, "ma": False, "user": False, "plugins": {}}},
+        # Terminal Behavior: explicit structured runtime classifications may
+        # opt out of automatic manager reports. Missing entries preserve the
+        # legacy report decision; history and terminal diagnostics are never
+        # affected by this policy.
+        "terminalBehavior": {"autoReportByErrorType": {}},
         # 是否通过 Toast 显示 Codex CLI 原生 warning
         "notifications": {
             "codexWarningToast": True,

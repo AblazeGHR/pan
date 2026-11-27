@@ -103,20 +103,16 @@ def supervisor_exit_evidence(record):
     return {"confirmed": False, "reason": "supervisor_exit_unknown"}
 
 
-def service_offline_evidence(*, root, port, old_pid, old_pid_created_at):
+def service_offline_evidence(*, root, port, old_pid, old_pid_created_at, host="127.0.0.1"):
     """psutil distinguishes absence/reused PID from access-denied/unknown."""
     import psutil
     owner, listener_status = None, "offline"
+    from packages.core.platform.listeners import listener_owner, ListenerQueryError
     try:
-        for connection in psutil.net_connections(kind="tcp"):
-            address = connection.laddr
-            local_port = getattr(address, "port", None)
-            if local_port is None and isinstance(address, (tuple, list)) and len(address) > 1:
-                local_port = address[1]
-            if local_port == port and str(connection.status).upper() in {"LISTEN", "LISTENING"}:
-                owner, listener_status = connection.pid, "listening"
-                break
-    except (psutil.Error, OSError):
+        owner = listener_owner(port, host)
+        if owner is not None:
+            listener_status = "listening"
+    except ListenerQueryError:
         listener_status = "unknown"
     old_gone = False
     try:

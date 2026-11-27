@@ -10,6 +10,7 @@ import { RemoteSettingsSection, RemoteStatus } from './RemoteSettingsSection';
 import { Button } from '@/components/ui/Button';
 import { LoginStartupSettings } from './LoginStartupSettings';
 import { AutoReportSettingsGroup } from './AutoReportSettingsGroup';
+import { TerminalBehaviorSettingsGroup } from './TerminalBehaviorSettingsGroup';
 import {
   Bell,
   Database,
@@ -1862,6 +1863,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               <SessionErrorBridgeSetting />
               <UserCardReminderSettings />
               <AutoReportSettingsGroup />
+              <TerminalBehaviorSettingsGroup />
               <section
                 ref={behaviorSessionRef}
                 data-testid="behavior-session-section"

@@ -459,6 +459,12 @@ export const SETTING_PERMISSIONS = {
 } as const;
 export const SETTING_DESCRIPTIONS: readonly SettingDescription[] = [
   ...BASE_DESCRIPTIONS,
+  {"id": "terminal-behavior", "tab": "behavior", "label": "Terminal behavior", "anchor": "terminal-behavior"},
+  {"id": "terminal-classification", "tab": "behavior", "label": "Runtime error classification", "anchor": "terminal-behavior"},
+  {"id": "terminal-classifications", "tab": "behavior", "label": "Runtime error classifications", "anchor": "terminal-behavior"},
+  {"id": "terminal-classification-example", "tab": "behavior", "label": "e.g. provider_rate_limited", "anchor": "terminal-behavior"},
+  {"id": "terminal-behavior-region", "tab": "behavior", "label": "Terminal Behavior", "anchor": "terminal-behavior"},
+  {"id": "terminal-hint", "tab": "behavior", "label": "Choose structured terminal error types that should skip automatic reports. Error history and terminal diagnostics are always retained.", "anchor": "terminal-behavior"},
   {"id":"settings-search-nav","tab":"appearance","label":"Search","searchable":false},
   {"id":"settings-search-panel","tab":"appearance","label":"Search settings panel","searchable":false},
   {"id":"settings-search-heading","tab":"appearance","label":"Search settings","searchable":false},

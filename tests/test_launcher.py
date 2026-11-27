@@ -83,12 +83,12 @@ def test_identity_rejects_checkout_prefix_and_pid_reuse(tmp_path, monkeypatch):
 def test_readiness_accepts_verified_venv_child_and_rejects_unrelated_owner(tmp_path, monkeypatch):
     import psutil
 
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: 52)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: 52)
     monkeypatch.setattr(launcher, "process_create_time", lambda pid: {41: 10.0, 52: 10.1}[pid])
     monkeypatch.setattr(launcher, "_inspect", lambda pid: {
         **_info(tmp_path, created={41: 10.0, 52: 10.1}[pid]), "pid": pid,
     })
-    monkeypatch.setattr(launcher, "_http_ready", lambda port: (True, None))
+    monkeypatch.setattr(launcher, "_http_ready", lambda port, **kwargs: (True, None))
     monkeypatch.setattr(psutil, "Process", lambda pid: types.SimpleNamespace(
         parents=lambda: [types.SimpleNamespace(pid=41)] if pid == 52 else [],
     ))
@@ -105,7 +105,7 @@ def test_readiness_accepts_verified_venv_child_and_rejects_unrelated_owner(tmp_p
 
 def test_start_refuses_unverified_port_owner(tmp_path, monkeypatch):
     monkeypatch.setattr(launcher, "configured_port", lambda root: 8767)
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: 9001)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: 9001)
     monkeypatch.setattr(launcher, "process_create_time", lambda pid: 12.0)
     monkeypatch.setattr(launcher, "process_identity", lambda *args, **kwargs: {"ok": False, "error": "foreign"})
     with pytest.raises(launcher.PortConflict):
@@ -135,7 +135,7 @@ def test_stale_state_is_replaced_without_killing_reused_pid(tmp_path, monkeypatc
     (root / "data").mkdir()
     (root / "data" / "process.json").write_text(json.dumps(state), encoding="utf-8")
     monkeypatch.setattr(launcher, "configured_port", lambda root: 8767)
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: None)
     monkeypatch.setattr(launcher, "resolve_python_argv", lambda root, probe=True: (["python"], "test"))
     monkeypatch.setattr(launcher, "_console_hidden", lambda root: False)
     new = {"pid": 42, "createdAt": 20.0, "root": str(root), "processType": "main",
@@ -152,7 +152,7 @@ def test_stale_state_is_replaced_without_killing_reused_pid(tmp_path, monkeypatc
 def test_start_records_verified_listener_child_for_later_stop(tmp_path, monkeypatch):
     root = tmp_path.resolve()
     monkeypatch.setattr(launcher, "configured_port", lambda root: 8767)
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: None)
     monkeypatch.setattr(launcher, "resolve_python_argv", lambda root, probe=True: (["python"], "test"))
     monkeypatch.setattr(launcher, "_console_hidden", lambda root: False)
     parent = launcher._record(41, root, "main", ["python", str(root / "main.py")], 10.0,
@@ -178,9 +178,9 @@ def test_graceful_exit_success_does_not_use_fallback(tmp_path, monkeypatch):
     (root / "data").mkdir()
     (root / "data" / "process.json").write_text(json.dumps(state), encoding="utf-8")
     monkeypatch.setattr(launcher, "process_identity", lambda *args, **kwargs: {"ok": True})
-    monkeypatch.setattr(launcher, "_request_internal_shutdown", lambda port, log, root=None: (True, None))
+    monkeypatch.setattr(launcher, "_request_internal_shutdown", lambda port, log, root=None, **kwargs: (True, None))
     monkeypatch.setattr(launcher, "process_alive", lambda pid, created=None: False)
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: None)
     result = launcher.exit_service(root, 8767, 41, 10.0)
     assert result["stopped"] is True
     assert result["coordinated"] is True
@@ -198,9 +198,9 @@ def test_failed_coordination_falls_back_only_for_verified_target(tmp_path, monke
     (root / "data" / "process.json").write_text(json.dumps(state), encoding="utf-8")
     calls = []
     monkeypatch.setattr(launcher, "process_identity", lambda *args, **kwargs: {"ok": True})
-    monkeypatch.setattr(launcher, "_request_internal_shutdown", lambda port, log, root=None: (False, "connection refused"))
+    monkeypatch.setattr(launcher, "_request_internal_shutdown", lambda port, log, root=None, **kwargs: (False, "connection refused"))
     monkeypatch.setattr(launcher, "process_alive", lambda pid, created=None: True)
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: None)
     monkeypatch.setattr(launcher, "_terminate_record", lambda record, root, **kwargs: calls.append(record) or {
         "stopped": True, "fallback": True,
     })
@@ -222,7 +222,7 @@ def test_restart_never_terminates_a_live_unverified_pid(tmp_path, monkeypatch):
         "ok": False, "error": "process command line marker does not match",
     })
     monkeypatch.setattr(launcher, "process_alive", lambda *args, **kwargs: True)
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: 41)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: 41)
     monkeypatch.setattr(
         launcher, "_terminate_record",
         lambda *args, **kwargs: pytest.fail("unverified PID must never reach termination"),
@@ -243,9 +243,9 @@ def test_exit_cleans_verified_qq_and_cloudflared_records(tmp_path, monkeypatch):
     (root / "data" / "process.json").write_text(json.dumps(state), encoding="utf-8")
     killed = []
     monkeypatch.setattr(launcher, "process_identity", lambda *args, **kwargs: {"ok": True})
-    monkeypatch.setattr(launcher, "_request_internal_shutdown", lambda port, log, root=None: (True, None))
+    monkeypatch.setattr(launcher, "_request_internal_shutdown", lambda port, log, root=None, **kwargs: (True, None))
     monkeypatch.setattr(launcher, "process_alive", lambda pid, created=None: False)
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: None)
     monkeypatch.setattr(launcher, "_terminate_record", lambda record, root, **kwargs: killed.append(record["processType"]) or {
         "stopped": True, "fallback": False,
     })

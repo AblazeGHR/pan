@@ -1976,6 +1976,11 @@ async def _persist_terminal_state_locked(
     if report_diagnostic is not None:
         report_diagnostic.update(_error_log.terminal_report_fields(
             (error_context or {}).get("cli_raw")))
+        raw_issue = (error_context or {}).get("cli_raw")
+        if isinstance(raw_issue, dict):
+            issue = _runtime_issue_sample(w, s, raw_issue)
+            if issue and isinstance(issue.get("issue"), dict):
+                report_diagnostic["runtimeIssue"] = copy.deepcopy(issue["issue"])
     terminal_key = _terminal_enrichment_key(
         task_id, task_seq, w.worker_id, w.generation,
         task_idempotent=task_idempotent,
@@ -6238,6 +6243,12 @@ async def _append_new_queue_item(s, item: dict, *, wake: bool = False,
     return next(row for row in s.queue_pending if row.get("id") == item["id"])
 
 
+def _report_diagnostic_projection(diagnostic: dict) -> dict:
+    """Keep report context separate from durable structured observations."""
+    return {key: copy.deepcopy(value) for key, value in diagnostic.items()
+            if key not in {"runtimeIssue", "raw"}}
+
+
 async def _enqueue_report(session_id: str, status: str, result: str,
                           task_id: str | None, worker_id: str,
                           report_type: str | None = None,
@@ -6265,6 +6276,15 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     """
     if _shutdown_started:
         return
+    if status == "error" and isinstance(diagnostic, dict):
+        from . import terminal_behavior
+        issue = diagnostic.get("runtimeIssue")
+        classification = issue.get("classification") if isinstance(issue, dict) else None
+        if not terminal_behavior.auto_report_enabled(
+                classification,
+                (load_config().get("ui") or {}).get("terminalBehavior"),
+                default=True):
+            return
     if admission is not None and admission.get("enabled") is not True:
         return
     s = _get_session_shallow(session_id)
@@ -6298,7 +6318,7 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     if report_type is not None:
         item["type"] = report_type
     if diagnostic is not None:
-        item.update(diagnostic)
+        item.update(_report_diagnostic_projection(diagnostic))
     async with queue_lock(manager.id):
         if (getattr(manager, "agent_reports_paused", False)
                 and _is_pauseable_agent_report(item)):
@@ -6699,7 +6719,7 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
         item["queueItemId"] = item["id"]
 
         if terminal.get("status") == "error" and isinstance(terminal.get("reportDiagnostic"), dict):
-            item.update(copy.deepcopy(terminal["reportDiagnostic"]))
+            item.update(_report_diagnostic_projection(terminal["reportDiagnostic"]))
 
         # Reuse the durable ticket pattern: the candidate APPLY, the write and
         # its failure rollback all run inside ONE persistence ticket, so no

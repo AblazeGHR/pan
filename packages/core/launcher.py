@@ -327,23 +327,19 @@ def process_alive(pid: int | None, created_at: float | None = None) -> bool:
         return False
 
 
-def listener_owner(port: int) -> int | None:
-    """Return only the current local TCP listener owner for ``port``."""
+def listener_owner(port: int, *, host: str = "127.0.0.1") -> int | None:
+    """Return the requested endpoint owner, never an arbitrary same-port PID."""
+    from .platform.listeners import listener_owner as query, ListenerQueryError
     try:
-        import psutil
-        for connection in psutil.net_connections(kind="tcp"):
-            address = connection.laddr
-            local_port = getattr(address, "port", None)
-            if local_port is None and isinstance(address, (tuple, list)) and len(address) > 1:
-                local_port = address[1]
-            if int(local_port or -1) != int(port):
-                continue
-            state = str(connection.status).upper()
-            if state in {"LISTEN", "LISTENING", str(getattr(psutil, "CONN_LISTEN", "LISTEN")).upper()}:
-                return int(connection.pid) if connection.pid else None
-    except Exception:
-        return None
-    return None
+        return query(port, host)
+    except ListenerQueryError as exc:
+        raise LauncherError(str(exc)) from exc
+
+
+def binding_host(root: str | Path) -> str:
+    """Recorded binding wins over a later CLI/agent's environment."""
+    state = load_state(root)
+    return state.get("bindHost") or "127.0.0.1"
 
 
 def _inspect(pid: int | None) -> dict[str, Any] | None:
@@ -660,10 +656,14 @@ def _write_log(path: Path | None, message: str) -> None:
         handle.write(f"[{stamp}] {message}\n")
 
 
-def _http_ready(port: int, path: str = "/api/health", timeout: float = 1.0) -> tuple[bool, str | None]:
-    url = f"http://127.0.0.1:{int(port)}{path}"
+def _http_ready(port: int, path: str = "/api/health", timeout: float = 1.0,
+                *, host: str = "127.0.0.1") -> tuple[bool, str | None]:
+    host = {"0.0.0.0": "127.0.0.1", "::": "::1"}.get(host, host)
+    authority = f"[{host}]" if ":" in host else host
+    url = f"http://{authority}:{int(port)}{path}"
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(url, timeout=timeout) as response:
             if response.status != 200:
                 return False, f"HTTP {response.status}"
             return True, None
@@ -674,7 +674,7 @@ def _http_ready(port: int, path: str = "/api/health", timeout: float = 1.0) -> t
 def readiness(*, root: str | Path, port: int, expected_pid: int | None = None,
               expected_created_at: float | None = None) -> dict[str, Any]:
     root_path = checkout_root(root)
-    owner = listener_owner(port)
+    owner = listener_owner(port, host=binding_host(root_path))
     result: dict[str, Any] = {
         "port": int(port), "listenerOwner": owner,
         "listenerOwnerCreatedAt": process_create_time(owner), "ok": False,
@@ -708,7 +708,7 @@ def readiness(*, root: str | Path, port: int, expected_pid: int | None = None,
     if not identity.get("ok"):
         result["error"] = identity.get("error")
         return result
-    healthy, error = _http_ready(port)
+    healthy, error = _http_ready(port, host=binding_host(root_path))
     result["http"] = healthy
     if not healthy:
         result["error"] = error or "Pan readiness endpoint failed"
@@ -951,6 +951,7 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
     port = configured_port(root_path)
     state = load_state(root_path)
     state["port"] = port
+    state["bindHost"] = os.environ.get("PAN_HOST") or "127.0.0.1"
     refresh_qq_state(root_path, state)
     main = state.get("main")
     if main and process_identity(
@@ -959,7 +960,7 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
     ).get("ok"):
         raise DuplicateStart(f"Pan Core is already running for this checkout, PID={main.get('pid')}")
     _cleanup_stale_children(root_path, state, log_path)
-    owner = listener_owner(port)
+    owner = listener_owner(port, host=state["bindHost"])
     if owner is not None:
         owner_created = process_create_time(owner)
         owner_identity = process_identity(owner, root_path, owner_created, process_type="main")
@@ -1020,10 +1021,11 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
     return state
 
 
-def _request_internal_shutdown(port: int, log_path: Path | None, root=None) -> tuple[bool, str | None]:
+def _request_internal_shutdown(port: int, log_path: Path | None, root=None,
+                               instance=None) -> tuple[bool, str | None]:
     try:
         from .local_transport import request
-        body = request(root, 'POST', '/api/internal/main/shutdown', {})
+        body = request(root, 'POST', '/api/internal/main/shutdown', {}, instance=instance)
         return (True, None) if body.get('ok') else (False, 'Lifecycle IPC rejected')
     except Exception as exc:
         _write_log(log_path, f"internal graceful shutdown request failed: {exc}")
@@ -1037,12 +1039,13 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
     root_path = checkout_root(root)
     log_path = log_path or (_logs_dir(root_path) / "pan-launcher.log")
     state = load_state(root_path)
+    host = state.get("bindHost") or "127.0.0.1"
     refresh_qq_state(root_path, state)
     main = state.get("main") or {}
     pid = int(old_pid) if old_pid is not None else main.get("pid")
     created = old_pid_created_at if old_pid_created_at is not None else main.get("createdAt")
     if pid is None:
-        pid = listener_owner(port)
+        pid = listener_owner(port, host=host)
     if pid is None:
         _cleanup_stale_children(root_path, state, log_path)
         clear_state(root_path)
@@ -1070,20 +1073,20 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
         # state, but it must never turn that omission into permission to kill
         # an unverified PID. Every live target follows the same identity gate.
         raise LauncherError(f"refusing to stop unverified Pan PID={pid}: {identity.get('error')}")
-    owner = listener_owner(port)
+    owner = listener_owner(port, host=host)
     if owner is not None and owner != pid:
         raise LauncherError(f"Pan port {port} is owned by PID={owner}, not verified Pan PID={pid}")
     _write_log(log_path, f"stopping Pan pid={pid} port={port}")
-    coordinated, coordination_error = _request_internal_shutdown(port, log_path, root_path)
+    coordinated, coordination_error = _request_internal_shutdown(port, log_path, root_path, instance=record)
     if coordinated:
         _write_log(log_path, "Pan accepted internal graceful shutdown")
     deadline = time.monotonic() + STOP_TIMEOUT_SEC
     while time.monotonic() < deadline:
-        if not _same_record_alive(record) and listener_owner(port) is None:
+        if not _same_record_alive(record) and listener_owner(port, host=host) is None:
             break
         time.sleep(0.1)
     fallback = False
-    current_owner = listener_owner(port)
+    current_owner = listener_owner(port, host=host)
     if current_owner is not None and current_owner != pid:
         # A different process took the configured port while graceful exit
         # was in flight. Do not kill the verified old PID in that race, and do
@@ -1110,7 +1113,7 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
         if not outcome.get("stopped"):
             raise LauncherError(f"owned {field} process was not stopped: {outcome}")
         fallback = fallback or bool(outcome.get("fallback"))
-    remaining = listener_owner(port)
+    remaining = listener_owner(port, host=host)
     if remaining is not None:
         raise LauncherError(f"Pan port {port} still has listener PID={remaining}")
     clear_state(root_path)
@@ -1187,7 +1190,7 @@ def status(root: str | Path | None = None) -> dict[str, Any]:
             cloud.get("pid"), root_path, cloud.get("createdAt"), process_type="cloudflared",
             marker=cloud.get("marker"), entry_marker="cloudflared",
         ) if cloud else None,
-        "listenerOwner": listener_owner(port),
+        "listenerOwner": listener_owner(port, host=state.get("bindHost") or "127.0.0.1"),
     }
     refresh_qq_state(root_path, state)
     result["qq"] = process_identity(

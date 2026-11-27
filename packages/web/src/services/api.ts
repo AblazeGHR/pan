@@ -173,15 +173,17 @@ function waitForForeground(signal?: AbortSignal): Promise<void> {
 }
 
 async function request<T>(url: string, options?: RequestInit, background = false, canonical = false): Promise<T> {
-  if (url.startsWith('/api/')) {
-    const authStore = (await import('@/stores/automationStore')).useAutomationAuth;
-    const auth = authStore.getState();
-    options = { ...options, credentials: 'same-origin', headers: {
-      ...options?.headers, ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-    } };
-  }
   const finish = background ? () => {} : beginForegroundRequest();
-  try { return await requestBody<T>(url, options, background, canonical); }
+  try {
+    if (url.startsWith('/api/')) {
+      const authStore = (await import('@/stores/automationStore')).useAutomationAuth;
+      const auth = authStore.getState();
+      options = { ...options, credentials: 'same-origin', headers: {
+        ...options?.headers, ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+      } };
+    }
+    return await requestBody<T>(url, options, background, canonical);
+  }
   catch (error) {
     const authStore = (await import('@/stores/automationStore')).useAutomationAuth;
     if (error instanceof ApiRequestError && error.status === 401) authStore.getState().clear();
@@ -2376,6 +2378,19 @@ export async function deleteFs(sessionId: string, path: string): Promise<ApiFsGe
   });
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+// ── Runtime issue classification schema ──
+
+/** Read-only classification vocabulary shared with runtime issue reporting. */
+export interface RuntimeIssueSchema {
+  version: number;
+  eventType: string;
+  classification: string[];
+}
+
+export async function fetchRuntimeIssueSchema(): Promise<RuntimeIssueSchema> {
+  return request<RuntimeIssueSchema>(`${BASE}/diagnostics/runtime-issues/schema`);
 }
 
 // ── App settings (config.json ui) ──

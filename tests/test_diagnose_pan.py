@@ -21,7 +21,8 @@ def http_server():
             if self.path == "/blocked":
                 time.sleep(0.3)
             body = b'{"healthy":true}'
-            self.send_response(200)
+            status = {"/unauthenticated": 401, "/forbidden": 403}.get(self.path, 200)
+            self.send_response(status)
             self.send_header("X-Pan-Request-Id", "owned-request")
             self.send_header("Content-Length", str(len(body) + (10 if self.path == "/short-body" else 0)))
             self.end_headers()
@@ -48,6 +49,9 @@ def test_external_probes_distinguish_headers_body_and_timeout(http_server):
     assert healthy["diagnostics"] == {"healthy": True}
     blocked = tool.probe(base, "/blocked", timeout=0.05)
     assert "errorType" in blocked and blocked["totalMs"] < 500
+    assert blocked["classification"] == "timeout"
+    assert tool.probe(base, "/unauthenticated")["classification"] == "authentication_required"
+    assert tool.probe(base, "/forbidden")["classification"] == "authorization_rejected"
     truncated = tool.probe(base, "/react/", max_bytes=2)
     assert truncated["bodyComplete"] is False and truncated["bodyBytes"] == 3
     short = tool.probe(base, "/short-body")

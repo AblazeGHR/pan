@@ -5,7 +5,7 @@ its existing narrow allowlist and Agent authorization; it is not a user login.
 """
 import asyncio
 import re
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, quote_from_bytes
 
 from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse, Response, RedirectResponse
@@ -20,6 +20,7 @@ PUBLIC = {
     ('POST', '/api/automation/login'),
 }
 ASSET = re.compile(r'/react/assets/[A-Za-z0-9_.-]+\.(?:js|css|svg|woff2?|png|ico)$')
+SPA_ROUTE = re.compile(r'/react/(?:locker|actions|automation|editor|jobs|terminals|schedules|manage/[^/.]+|plugins/[^/.]+/[^/.]+)/?')
 WRITES = {'POST', 'PUT', 'PATCH', 'DELETE'}
 
 
@@ -71,6 +72,9 @@ class GlobalAuthMiddleware:
         path = scope['path']
         method = scope.get('method', '')
         public = not ws and ((method, path) in PUBLIC or method in {'GET', 'HEAD'} and ASSET.fullmatch(path))
+        navigation = not ws and method == 'GET' and 'text/html' in connection.headers.get('accept', '')
+        if navigation and SPA_ROUTE.fullmatch(path):
+            public = True
         # This marker can only be set by the in-process object IPC adapter.
         # Never let it turn into unrestricted HTTP authority.
         if delegated(connection) and object_path(path) and not ws:
@@ -122,8 +126,9 @@ class GlobalAuthMiddleware:
                 state = await asyncio.to_thread(auth.session, token, False)
             valid = state is not None and state['authenticated']
             if not public and not valid:
-                if not ws and method == 'GET' and path.startswith('/react/') and 'text/html' in connection.headers.get('accept', ''):
-                    return await RedirectResponse('/react/', status_code=303)(scope, receive, send)
+                if navigation and path == '/react':
+                    query = quote_from_bytes(scope.get('query_string', b''), safe="!$&'()*+,-./;=?@_~%")
+                    return await RedirectResponse('/react/' + ('?' + query if query else ''), status_code=303)(scope, receive, send)
                 return await reject(401, 'User login required')
             if valid:
                 if (ws and (not bearer or 'origin' in connection.headers)

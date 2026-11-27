@@ -1,5 +1,21 @@
 # Pan 卡顿现场采集
 
+## 2026-11-22 登录保护后的退出与诊断
+
+`scripts/stop.bat` 现在调用当前检出的 `pan_cli.py --root ... exit`，通过已有、
+范围受限的本地 IPC 发起正常 Exit，并等待退出 Job 和原进程退出；无需浏览器
+登录，不在脚本保存密码或令牌。缺少当前检出的 `.venv` 时明确失败，可以使用
+已注册的 `pan exit`。保存策略为 ask 且仍有待决定的运行项时，会保留既有
+选择要求，不自动决定 offline/preserve。`--diagnose` 仍先采集再走相同 Exit。
+
+退出 Job 成功前不会报告成功；失败或未知不自动改走内部 shutdown/强杀。
+其他地址同端口的监听不属于 Pan，停止后也不应要求它消失。
+
+启用登录保护后，独立采集器无浏览器凭据，受保护的列表和诊断接口可返回 401。
+采集器将其分类为 `authentication_required`，403 为 `authorization_rejected`；
+分别保留 `timeout`、`connection_failed`、`response_error`，不把鉴权拒绝写成死锁。
+它仍保留日志、外部栈和资源信息，不扩大本地 IPC 白名单、不修改登录设置。
+
 页面壳能打开、Session 列表或历史一直加载时，先采集再停止。普通 `stop.bat` 保持正常退出语义；以下命令在退出前增加采集：
 
 ```powershell

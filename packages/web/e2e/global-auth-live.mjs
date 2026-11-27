@@ -10,13 +10,23 @@ const profile = path.join(out, 'tmp-browser-profile');
 const errors = [];
 const launch = () => chromium.launchPersistentContext(profile, { headless: true, viewport: { width: 1280, height: 850 } });
 let context = await launch();
+let blockedSockets = 0;
+if (phase === 'http401') {
+  await context.routeWebSocket(/.*/, () => { blockedSockets += 1; });
+}
 let page = context.pages()[0] || await context.newPage();
 page.on('pageerror', error => errors.push(error.message));
 const checks = {};
 try {
-  await page.goto(base + '/react/');
+  await page.goto(base + '/react');
   if (phase === 'login') {
     await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toBeVisible();
+    await page.goto(base + '/react/');
+    await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toBeVisible();
+    await page.goto(base + '/react/jobs?owned=1');
+    await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/react/jobs');
+    expect(new URL(page.url()).search).toBe('?owned=1');
     const denied = await page.request.get(base + '/api/sessions');
     expect(denied.status()).toBe(401);
     for (const width of [1280, 390, 320]) {
@@ -28,6 +38,9 @@ try {
     const loggedIn = page.waitForResponse(r => r.url() === base + '/api/automation/login' && r.request().method() === 'POST');
     await page.getByRole('button', { name: '登录', exact: true }).click();
     expect((await loggedIn).status()).toBe(200);
+    await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe('/react/jobs');
+    await page.reload();
     await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toHaveCount(0);
     expect((await page.request.get(base + '/api/sessions')).status()).toBe(200);
     const cookies = await context.cookies();
@@ -46,6 +59,25 @@ try {
     expect((await page.request.get(base + '/api/sessions')).status()).toBe(200);
     checks.browserReopen = true;
     await page.screenshot({ path: path.join(out, 'authenticated.png') });
+  } else if (phase === 'http401') {
+    await page.goto(base + '/react/jobs');
+    await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
+    await expect.poll(() => blockedSockets).toBeGreaterThan(0);
+    // Revoke the actual cookie through the owned server; the browser's WS
+    // connections are intercepted before opening and cannot report 4401.
+    const revoked = await page.request.post(base + '/api/automation/logout', { headers: { Origin: base } });
+    expect(revoked.status()).toBe(200);
+    await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toHaveCount(0);
+    const denied = page.waitForResponse(r => r.url().includes('/api/') && r.status() === 401);
+    await page.getByRole('button', { name: 'Back to Chat', exact: true }).click();
+    expect((await denied).status()).toBe(401);
+    await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toBeVisible();
+    await page.getByLabel('管理员密码', { exact: true }).fill(process.env.PAN_TEST_AUTH_PASSWORD);
+    await page.getByRole('button', { name: '登录', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toHaveCount(0);
+    expect((await page.request.get(base + '/api/sessions')).status()).toBe(200);
+    checks.http401Recovery = true;
+    checks.interceptedWebSockets = blockedSockets;
   } else if (phase === 'restart') {
     expect((await page.request.get(base + '/api/sessions')).status()).toBe(200);
     await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toHaveCount(0);
@@ -55,6 +87,10 @@ try {
     // Existing WS revocation brings the boundary back without a navigation.
     await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toBeVisible({ timeout: 6000 });
     expect((await page.request.get(base + '/api/sessions')).status()).toBe(401);
+    await page.getByLabel('管理员密码', { exact: true }).fill(process.env.PAN_TEST_AUTH_PASSWORD);
+    await page.getByRole('button', { name: '登录', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '登录 Pan', exact: true })).toHaveCount(0);
+    expect((await page.request.get(base + '/api/sessions')).status()).toBe(200);
     checks.logout = true;
   }
   expect(errors).toEqual([]);

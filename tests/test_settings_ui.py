@@ -43,6 +43,7 @@ def _read(p):
 
 
 _UI_DEFAULTS = {
+    "terminalBehavior": {"autoReportByErrorType": {}},
     "autoReport": {"system": False, "ma": True, "user": False, "plugins": {},
                    "summary": {"system": False, "ma": False, "user": False, "plugins": {}}},
     "defaultGroupBy": "none",

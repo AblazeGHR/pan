@@ -1,4 +1,5 @@
 """Whole-ASGI authentication contract, owned fixtures only."""
+import hashlib
 import asyncio
 from types import SimpleNamespace
 
@@ -15,7 +16,9 @@ def test_local_initialize_hash_restart_and_password_revocation(tmp_path):
     auth = UserAuth(tmp_path)
     auth.initialize(PASSWORD)
     assert PASSWORD not in auth.path.read_text()
+    assert hashlib.sha256(PASSWORD.encode()).hexdigest() not in auth.path.read_text()
     token = auth.login(PASSWORD)
+    assert hashlib.sha256(PASSWORD.encode()).hexdigest() not in auth.sessions_path.read_text()
     assert UserAuth(tmp_path).session(token)['authenticated']
     revision = auth.authorization_status()['revision']
     auth.change_password(PASSWORD, 'OtherFixture!234567', 'OtherFixture!234567', revision)
@@ -36,6 +39,8 @@ def test_legacy_migration_preserves_sessions_and_rejects_verifier_login(tmp_path
     auth = UserAuth(tmp_path)
     auth.login(PASSWORD)
     assert PASSWORD not in auth.path.read_text()
+    assert hashlib.sha256(PASSWORD.encode()).hexdigest() not in auth.path.read_text()
+    assert hashlib.sha256(PASSWORD.encode()).hexdigest() not in auth.sessions_path.read_text()
     assert UserAuth(tmp_path).session(token)['authenticated']
     import pytest
     with pytest.raises(PermissionError):
@@ -126,6 +131,48 @@ def test_unconfigured_login_never_creates_password(tmp_path):
     except (PermissionError, ValueError):
         pass
     assert not auth.path.exists()
+
+
+def test_known_react_navigation_preserves_destination(tmp_path):
+    from packages.web.global_auth import GlobalAuthMiddleware
+    async def run():
+        app = FastAPI()
+        app.state.automation = SimpleNamespace(auth=UserAuth(tmp_path))
+        app.add_middleware(GlobalAuthMiddleware, server=app)
+        @app.get('/react/jobs')
+        async def jobs():
+            return {'shell': True}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://owned.test', follow_redirects=False) as client:
+            assert (await client.get('/react', headers={'Accept': 'text/html'})).status_code in (303, 307)
+            assert (await client.get('/react/jobs', headers={'Accept': 'text/html'})).status_code == 200
+            assert (await client.get('/react/jobs', headers={'Accept': 'application/json'})).status_code == 401
+            assert (await client.get('/react/not-a-route', headers={'Accept': 'text/html'})).status_code == 401
+            assert (await client.get('/react/assets/secret.txt', headers={'Accept': 'text/html'})).status_code == 401
+            assert (await client.get('/react/manage/a/extra', headers={'Accept': 'text/html'})).status_code == 401
+            assert (await client.get('/api/sessions', headers={'Accept': 'text/html'})).status_code == 401
+    asyncio.run(run())
+
+
+def test_react_redirect_preserves_raw_query_safely(tmp_path):
+    from packages.web.global_auth import GlobalAuthMiddleware
+    async def run(query):
+        app = FastAPI()
+        app.state.automation = SimpleNamespace(auth=UserAuth(tmp_path))
+        middleware = GlobalAuthMiddleware(app, app)
+        messages = []
+        scope = {'type': 'http', 'asgi': {'version': '3.0'}, 'http_version': '1.1',
+                 'method': 'GET', 'scheme': 'http', 'path': '/react', 'raw_path': b'/react',
+                 'query_string': query, 'headers': [(b'host', b'owned.test'), (b'accept', b'text/html')],
+                 'server': ('owned.test', 80), 'client': ('127.0.0.1', 1)}
+        async def receive(): return {'type': 'http.request', 'body': b'', 'more_body': False}
+        async def send(message): messages.append(message)
+        await middleware(scope, receive, send)
+        return messages[0]
+    result = asyncio.run(run(b'x=\xe4\xb8\xad&encoded=%2F&bad=\r\nX-Test:evil#fragment'))
+    assert result['status'] == 303
+    location = dict(result['headers'])[b'location']
+    assert location == b'/react/?x=%E4%B8%AD&encoded=%2F&bad=%0D%0AX-Test%3Aevil%23fragment'
+    assert b'\r' not in location and b'\n' not in location
 
 
 def test_default_deny_covers_dynamic_mount_and_non_api(tmp_path):

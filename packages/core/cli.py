@@ -59,7 +59,7 @@ def verified(root):
         raise launcher.LauncherError("No matching recorded instance; run pan status/doctor")
     if not launcher.service_process_identity(record["pid"], root, record["createdAt"]).get("ok"):
         raise launcher.LauncherError("Recorded PID is stale or belongs to another instance")
-    if launcher.listener_owner(port) != record["pid"]:
+    if launcher.listener_owner(port, host=launcher.binding_host(root)) != record["pid"]:
         raise launcher.LauncherError("Port listener does not match the recorded instance")
     remote = request(port, "/api/main/identity", root=root)
     if (remote.get("pid") != record["pid"] or
@@ -78,7 +78,7 @@ def status(root):
         return {**base, "state": "running", "pid": record["pid"],
                 "runningVersion": remote.get("version"), "console": remote.get("console")}
     except (launcher.LauncherError, OSError, ValueError) as exc:
-        owner = launcher.listener_owner(port)
+        owner = launcher.listener_owner(port, host=launcher.binding_host(root))
         record = launcher.load_state(root).get("main") or {}
         alive = record.get("pid") and launcher.process_alive(record["pid"], record.get("createdAt"))
         return {**base, "state": "unknown" if owner or alive else "stopped",
@@ -190,7 +190,7 @@ def doctor(root):
                                 env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
                                 **launcher.command_window_options())
         checks["dependencies"] = "ready" if result.returncode == 0 else "missing or interpreter failed"
-        checks["listenerOwner"] = launcher.listener_owner(checks["port"])
+        checks["listenerOwner"] = launcher.listener_owner(checks["port"], host=launcher.binding_host(root))
         path = Path(config.get("logging", {}).get("file", "data/logs/pan.log"))
         path = path if path.is_absolute() else root / path
         checks.update(logPath=str(path), logDirectoryExists=path.parent.is_dir(),

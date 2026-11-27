@@ -165,6 +165,10 @@ CAPABILITIES: Mapping[str, Capability] = {
         frozenset({WINDOWS}),
         "终端秘密存储使用 DPAPI",
     ),
+    "script.localIpc": Capability(
+        "script.localIpc", frozenset({WINDOWS}),
+        "Owner-only local script IPC and user-scoped DPAPI; unsupported on POSIX",
+    ),
     # 运行时桌面/opener 探测：Windows Explorer、macOS open、Linux xdg-open +
     # DISPLAY/WAYLAND_DISPLAY。缺失时 capability=false，请求返回 501。
     "fileManager.reveal": Capability(

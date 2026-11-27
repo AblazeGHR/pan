@@ -168,7 +168,7 @@ def test_startup_fails_interrupted_pre_handoff_jobs_without_relaunching_supervis
 
 
 def test_ready_checks_reject_old_listener_before_http_health(monkeypatch):
-    monkeypatch.setattr(launcher, "listener_owner", lambda port: 41)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port, **kwargs: 41)
     monkeypatch.setattr(launcher, "process_create_time", lambda pid: 12.5)
     monkeypatch.setattr(launcher, "process_identity", lambda *args, **kwargs: {"ok": True})
     result = main_lifecycle.ready_checks(

@@ -189,6 +189,7 @@ def test_owned_production_http_ws_stdio_and_job(tmp_path, monkeypatch):
         runtime.stop()
         runtime.start()
         browser('restart')
+        browser('http401')
         assert client.get('/api/sessions').status_code == 200
         evidence['coldRestartCookie'] = True
         status = client.get('/api/automation/authorization').json()

@@ -155,11 +155,11 @@ class ProtectedLifecycleExecutor:
             "code": "execution_pending", "effectId": doc["effectId"], "phase": doc["phase"]}).as_dict()
 
 
-def offline_checks(*, root, port, old_pid, old_pid_created_at):
+def offline_checks(*, root, port, old_pid, old_pid_created_at, host="127.0.0.1"):
     """Absence is proven by a process status probe, not a missing timestamp."""
     from packages.core.platform.execution_host import service_offline_evidence
     return service_offline_evidence(root=root, port=port, old_pid=old_pid,
-                                    old_pid_created_at=old_pid_created_at)
+                                    old_pid_created_at=old_pid_created_at, host=host)
 
 
 def run_canonical_supervisor(store, doc):
@@ -185,8 +185,9 @@ def run_canonical_supervisor(store, doc):
                              {"confirmed": True, "effectStarted": False}).as_dict()
     # The transaction closes cancellation before the first irreversible call.
     store.phase(identity, attempt, claim, "stopping", root=root, port=port, oldPid=old_pid, oldPidCreatedAt=birth)
+    host = launcher.binding_host(root)
     stopped = launcher.stop_service(Path(root), port, old_pid, birth, require_identity=True)
-    offline = offline_checks(root=root, port=port, old_pid=old_pid, old_pid_created_at=birth)
+    offline = offline_checks(root=root, port=port, old_pid=old_pid, old_pid_created_at=birth, host=host)
     store.phase(identity, attempt, claim, "stopped", stopReceipt=stopped, offlineProof=offline)
     if stopped.get("stopped") is not True or offline.get("ok") is not True:
         return EffectReceipt(key, "unknown", {"code": "offline_unconfirmed", "phase": "uncertain", "offlineProof": offline},
@@ -235,7 +236,7 @@ def service_process_identity(pid: int | None, root: str,
 def ready_checks(*, root: str, port: int, old_pid: int | None,
                  old_pid_created_at: float | None) -> dict[str, Any]:
     """Require a new verified listener and the historical HTTP readiness path."""
-    pid = launcher.listener_owner(port)
+    pid = launcher.listener_owner(port, host=launcher.binding_host(root))
     created = process_create_time(pid)
     result: dict[str, Any] = {
         "root": str(Path(root).resolve()), "port": int(port), "listenerOwner": pid,

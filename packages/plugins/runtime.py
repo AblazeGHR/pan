@@ -247,6 +247,8 @@ class Runtime:
         if self.closing:
             return error("runtime_stopping", "Plugin runtime is stopping")
         sid, op = request["session_id"], request["operation"]
+        if op == 'script_http':
+            return error('permission_denied', 'Script operation requires the dedicated local endpoint')
         if op == 'cli_http':
             callback = getattr(self, 'cli_http', None)
             if callback is None:
