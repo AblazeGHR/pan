@@ -370,3 +370,25 @@ jobs:
             evidence/cp-x1-strict-successors-20261029/controller/
             evidence/cp-x2-windows-hidden-20261028/proof/
           if-no-files-found: warn
+
+  global-auth-contract:
+    name: global-auth-contract (${{ matrix.os }}, Python 3.12)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r minimal-requirements.txt pytest pytest-timeout
+      - run: python -c "import packages.web.server"
+      - run: python scripts/run_tests_isolated.py -- python -m pytest tests/test_global_auth.py tests/test_global_auth_platform.py --collect-only -q -o addopts=
+      - run: python scripts/run_tests_isolated.py -- python -m pytest tests/test_global_auth.py tests/test_global_auth_platform.py -q -o addopts= --junitxml=auth-contract.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integrated-auth-contract-${{ matrix.os }}
+          path: auth-contract.xml
