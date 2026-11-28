@@ -1,5 +1,6 @@
 """Isolated HTTP and fake bridge checks; never contacts an installed provider."""
 import copy
+import hashlib
 import json
 import secrets
 import threading
@@ -35,6 +36,16 @@ def detail(event):
                 "generation": c["generation"], "taskSeq": c["taskSeq"], "executionSeq": c["executionSeq"],
                 "taskId": c["taskId"], "historyEpoch": "history1", "historyRevision": 7,
                 "reportDiagnostic": {"runtimeIssue": copy.deepcopy(event["payload"])}}}
+
+
+def fixture_snapshot(value):
+    view = {'sessionId':value['id'], 'adapter':value['adapter'], 'historyEpoch':value['historyEpoch'],
+            'historyRevision':value['historyRevision'], 'queueRevision':value['queueRevision'],
+            'queuePaused':value['queuePaused'], 'illegalOffline':value['illegalOffline'],
+            'pending':[{'queueItemId':'new'}] * value['queuePendingCount'],
+            'terminal':{k:value['lastResult'][k] for k in ('terminalKey','status','historyEpoch','historyRevision')}}
+    view['version'] = hashlib.sha256(json.dumps(view, sort_keys=True).encode()).hexdigest()
+    return view
 
 
 class FilteredIPC(rotate.PanScriptIPC):
@@ -112,7 +123,7 @@ def service():
         {"sessionId": "s2", "workerId": "w2", "generation": 2, "status": "running"},
         {"sessionId": "s3", "workerId": "w3", "generation": 1, "status": "running"}],
         "sessions": [{"id": "s1", "adapter": "codex"}, {"id": "s2", "adapter": "codex"},
-                     {"id": "s3", "adapter": "cbc"}], "posts": [], "receipts": {},
+                     {"id": "s3", "adapter": "cbc"}], "posts": [], "receipts": {}, 'wakeReceipts':{},
         "auth": None, "auth_status": 401, "reject_posts": None, "revision": 0}
 
     class Handler(BaseHTTPRequestHandler):
@@ -129,13 +140,15 @@ def service():
                 self.send_error(state["reject_posts"])
                 return
             parsed = urlsplit(self.path)
-            state["posts"].append((parsed.path, body))
-            if parsed.path == "/api/sessions/wake":
-                sid, = body["sessionIds"]
-                value = {"ok": True, "results": [
-                    {"status": "queued", "sessionId": sid, "queueItemId": "fixture-q-" + sid},
-                ]}
+            if parsed.path.endswith('/queue/conditional-wake'):
+                sid = parsed.path.split('/')[3]
+                if fixture_snapshot(state['details'][sid])['version'] != body['expectedVersion']:
+                    return self.reply({'status':'conflict'})
+                state['posts'].append((parsed.path, body))
+                value = {"status": "queued", "sessionId": sid, "queueItemId": "fixture-q-" + sid}
+                state['wakeReceipts'][(sid, body['clientMessageId'])] = value
             elif parsed.path.endswith("/worker/delayed-restart"):
+                state["posts"].append((parsed.path, body))
                 assert parse_qs(parsed.query).get("existing_worker_only") == ["true"]
                 sid = parsed.path.split("/")[3]
                 worker = next(w for w in state["workers"] if w["sessionId"] == sid)
@@ -179,6 +192,12 @@ def service():
                 value = {"sessions": state["sessions"]}
             elif parsed.path.endswith("/worker/delayed-restart"):
                 value = {"delayedRestart": state["receipts"].get(parsed.path.split("/")[3])}
+            elif parsed.path.endswith('/queue/state-token'):
+                value = fixture_snapshot(state['details'][parsed.path.split('/')[3]])
+            elif parsed.path.endswith('/queue/wake-receipt'):
+                sid = parsed.path.split('/')[3]
+                key = parse_qs(parsed.query)['clientMessageId'][0]
+                value = state['wakeReceipts'].get((sid, key), {'status':'unknown'})
             else:
                 value = state["details"][parsed.path.rsplit("/", 1)[-1]]
             self.reply(value)
@@ -378,7 +397,8 @@ def test_concurrent_limit_targets_remain_in_same_batch(service, tmp_path):
     run_reconcile(api, bridge, ledger)
     assert bridge.switches == [("a", "b")]
     assert [p for p, _ in state["posts"][:2]] == ["/api/sessions/s1/worker/delayed-restart", "/api/sessions/s2/worker/delayed-restart"]
-    assert [body["sessionIds"] for p, body in state["posts"][2:] if p == "/api/sessions/wake"] == [["s1"], ["s2"]]
+    assert [p for p, body in state["posts"][2:] if p.endswith('/queue/conditional-wake')] == [
+        '/api/sessions/s1/queue/conditional-wake', '/api/sessions/s2/queue/conditional-wake']
     run_reconcile(api, bridge, ledger)
     assert len(state["posts"]) == 4 and len(bridge.switches) == 1
 
@@ -688,22 +708,22 @@ def test_disabled_source_can_switch_only_after_own_exhaustion_is_observed(servic
     assert bridge.switches == [('a','b')]
 
 
-@pytest.mark.parametrize('change', ['provider', 'disabled', 'issue_provider'])
+@pytest.mark.parametrize('change', ['provider', 'disabled', 'issue_provider', 'issue_provider_equal'])
 def test_quota_admission_rejects_changed_or_conflicting_identity(service, tmp_path, change):
     api, state = service
     bridge = RecoveryBridge()
     ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
     rotate.observe(api, ledger)
     event = issue()
-    if change == 'issue_provider':
-        event['payload']['correlation']['accountId'] = 'other'
+    if change in ('issue_provider', 'issue_provider_equal'):
+        event['payload']['correlation']['accountId'] = 'a' if change == 'issue_provider_equal' else 'other'
     state['events'].append({'seq':1, 'event':event})
     state['details']['s1'] = detail(event)
     rotate.observe(api, ledger)
     result = rotate.inspect_quota(ledger, bridge, now=lambda:1000)
-    if change == 'issue_provider':
+    if change in ('issue_provider', 'issue_provider_equal'):
         assert result['decision'] == 'unknown'
-        assert ledger.data['batches'][0]['quotaDiagnostic']['reason'] == 'issue_provider_conflict'
+        assert ledger.data['batches'][0]['quotaDiagnostic']['reason'] == 'issue_account_domain_unknown'
     elif change == 'provider':
         bridge.current = 'b'
     else:
@@ -783,11 +803,11 @@ def test_http_recovery_switch_then_restart_and_enqueue_once(service, tmp_path):
     assert [p for p, _ in state["posts"]] == [
         "/api/sessions/s1/worker/delayed-restart",
         "/api/sessions/s2/worker/delayed-restart",
-        "/api/sessions/wake",
+        "/api/sessions/s1/queue/conditional-wake",
     ]
     assert all(r["status"] == "pending" for r in state["receipts"].values())
     wake = state["posts"][-1][1]
-    assert wake["sessionIds"] == ["s1"] and wake["source"] == "automation"
+    assert wake["source"] == "automation"
     assert wake["clientMessageId"].startswith("codex-limit:")
     target, = ledger.data["batches"][0]["targets"]
     assert target["continuation"]["status"] == "queued"
@@ -811,10 +831,211 @@ def test_session_continuation_when_worker_offline_and_no_restart_receipt(service
     batch, = ledger.data['batches']
     assert batch['workers']['s1']['restart']['status'] == 'skipped_changed'
     assert batch['targets'][0]['continuation']['status'] == 'queued'
-    wakes = [body for path, body in state['posts'] if path == '/api/sessions/wake']
-    assert len(wakes) == 1 and wakes[0]['sessionIds'] == ['s1']
+    wakes = [body for path, body in state['posts'] if path.endswith('/queue/conditional-wake')]
+    assert len(wakes) == 1
     run_reconcile(api, bridge, rotate.Ledger(ledger.path, True))
-    assert len([p for p, _ in state['posts'] if p == '/api/sessions/wake']) == 1
+    assert len([p for p, _ in state['posts'] if p.endswith('/queue/conditional-wake')]) == 1
+
+
+@pytest.mark.parametrize('change', ['pending_before', 'pending_race', 'pause_race', 'illegal_race'])
+def test_pending_or_racing_session_change_must_not_enqueue_wake(service, tmp_path, change):
+    api, state = service
+    bridge = RecoveryBridge(10, 10)
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    event = issue()
+    state['events'].append({'seq':1, 'event':event})
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    rotate.inspect_quota(ledger, bridge, now=lambda:1000)
+    if change == 'pending_before':
+        state['details']['s1']['queuePendingCount'] = 1
+        state['details']['s1']['queueRevision'] += 1
+    class Concurrent:
+        def __getattr__(self, name): return getattr(api, name)
+        def enqueue_continuation(self, sid, key, version):
+            if change == 'pending_race':
+                state['details'][sid]['queuePendingCount'] = 1
+                state['details'][sid]['queueRevision'] += 1
+            elif change == 'pause_race': state['details'][sid]['queuePaused'] = True
+            elif change == 'illegal_race': state['details'][sid]['illegalOffline'] = True
+            return api.enqueue_continuation(sid, key, version)
+    run_reconcile(Concurrent(), bridge, ledger)
+    assert not [body for path, body in state['posts'] if path.endswith('/queue/conditional-wake')]
+
+
+def test_history_can_advance_while_queue_owned_persistence_is_blocked(monkeypatch):
+    """Evidence of the existing boundary, not proof of a conditional Wake."""
+    import asyncio
+    from packages.core import session, worker
+    obj = session.Session(id='synthetic', name='synthetic')
+    monkeypatch.setattr(session, 'get', lambda *args, **kwargs: obj)
+    started, release = threading.Event(), threading.Event()
+    def blocked_save(*args, **kwargs):
+        started.set()
+        assert release.wait(5)
+    monkeypatch.setattr(session, '_save_body', blocked_save)
+    async def run():
+        async def owned_commit():
+            async with worker.queue_lock(obj.id):
+                await worker._commit_offline(obj, lambda candidate: setattr(candidate, 'queue_revision', 1), force=True)
+        task = asyncio.create_task(owned_commit())
+        try:
+            assert await asyncio.to_thread(started.wait, 3)
+            before = obj.history_revision
+            session.append_history(obj, {'role':'user', 'content':'synthetic concurrent history'})
+            assert obj.history_revision == before + 1 and not task.done()
+        finally:
+            release.set()
+            await task
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('change', ['history', 'terminal', 'scope'])
+def test_conditional_commit_rechecks_history_at_actual_replace(tmp_path, monkeypatch, change):
+    import asyncio
+    from pathlib import Path
+    from packages.core import session, worker
+    monkeypatch.setattr(session, 'SESSION_DIR', tmp_path)
+    monkeypatch.setattr(session, '_cache', {})
+    obj = session.create(name='synthetic-conditional-commit')
+    before = (tmp_path / (obj.id + '.json')).read_bytes()
+    entered, release = threading.Event(), threading.Event()
+    scope = {'allowed':True}
+    original = Path.write_text
+    def delayed(path, *args, **kwargs):
+        result = original(path, *args, **kwargs)
+        if path.name == obj.id + '.json.tmp':
+            entered.set()
+            assert release.wait(5)
+        return result
+    monkeypatch.setattr(Path, 'write_text', delayed)
+    async def run():
+        state = await worker.conditional_queue_snapshot(obj.id)
+        task = asyncio.create_task(worker.conditional_wake_session(obj.id,
+            client_message_id='synthetic-request', expected_version=state['version'],
+            scope_guard=lambda target: scope['allowed']))
+        try:
+            assert await asyncio.to_thread(entered.wait, 3)
+            if change == 'history':
+                session.append_history(obj, {'role':'user', 'content':'concurrent synthetic input'})
+            elif change == 'terminal':
+                with obj._summary_lock:
+                    obj.last_result = {'terminalKey':'successor', 'status':'done'}
+            else:
+                scope['allowed'] = False
+            assert not task.done()  # Event loop remains live during blocked disk I/O.
+        finally:
+            release.set()
+        assert (await task)['status'] == 'conflict'
+        assert not obj.queue_pending
+        assert (tmp_path / (obj.id + '.json')).read_bytes() == before
+        assert (await worker.conditional_wake_receipt(obj.id, 'synthetic-request'))['status'] == 'unknown'
+    asyncio.run(run())
+
+
+def test_conditional_wake_does_not_publish_unpersisted_history(tmp_path, monkeypatch):
+    import asyncio
+    from packages.core import session, worker
+    monkeypatch.setattr(session, 'SESSION_DIR', tmp_path)
+    monkeypatch.setattr(session, '_cache', {})
+    obj = session.create(name='synthetic-pending-history')
+    before = (tmp_path / (obj.id + '.json')).read_bytes()
+    session.append_history(obj, {'role':'user', 'content':'not yet persisted'})
+    async def run():
+        snapshot = await worker.conditional_queue_snapshot(obj.id)
+        result = await worker.conditional_wake_session(obj.id, client_message_id='pending-history',
+                                                       expected_version=snapshot['version'])
+        assert result['status'] == 'conflict'
+        assert (tmp_path / (obj.id + '.json')).read_bytes() == before
+        assert not obj.queue_pending
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('change', ['input', 'pause', 'illegal'])
+def test_conditional_commit_conflicts_with_persisted_concurrent_state(tmp_path, monkeypatch, change):
+    import asyncio
+    from packages.core import session, worker
+    monkeypatch.setattr(session, 'SESSION_DIR', tmp_path)
+    monkeypatch.setattr(session, '_cache', {})
+    obj = session.create(name='synthetic-conflict')
+    async def run():
+        state = await worker.conditional_queue_snapshot(obj.id)
+        async with worker.queue_lock(obj.id):
+            if change == 'input':
+                item, error = await worker._persist_task_item(obj, 'synthetic', 'user', None, None,
+                                                              'new-input', auto_force=False)
+                assert item and not error
+            elif change == 'pause':
+                obj.queue_paused = True
+                obj.queue_revision += 1
+                await worker._save_receipt(obj)
+            else:
+                def illegal(candidate):
+                    candidate.execution_operations['incident'] = {'id':'incident', 'state':'illegal',
+                                                                   'safeTerminal':False}
+                await worker._commit_offline(obj, illegal)
+        before = (tmp_path / (obj.id + '.json')).read_bytes()
+        result = await worker.conditional_wake_session(obj.id, client_message_id='conditional',
+                                                       expected_version=state['version'])
+        assert result['status'] == 'conflict'
+        assert (tmp_path / (obj.id + '.json')).read_bytes() == before
+        assert (await worker.conditional_wake_receipt(obj.id, 'conditional'))['status'] == 'unknown'
+    asyncio.run(run())
+
+
+def test_generic_plugin_ipc_scopes_same_queue_primitive(tmp_path, monkeypatch):
+    import asyncio
+    from packages.core import session
+    from packages.plugins.ipc import request
+    from packages.web.server import app
+    from tests.support.core_ipc import core_bridge
+    monkeypatch.setattr(session, 'SESSION_DIR', tmp_path / 'sessions')
+    monkeypatch.setattr(session, '_cache', {})
+    target = session.create(name='synthetic-generic-caller-target')
+    caller = session.Session(id='synthetic-caller', name='synthetic', restrict_to_managed=True)
+    caller.managed = [target.id]
+    original_get = session.get
+    monkeypatch.setattr(session, 'get', lambda sid, **kwargs: caller if sid == caller.id else original_get(sid, **kwargs))
+    async def run():
+        bridge = core_bridge(app, tmp_path, caller=caller)
+        async def call(method, path, body=None):
+            return await asyncio.to_thread(request, {'operation':'core_http', 'session_id':caller.id,
+                'method':method, 'path':path, 'body':body or {}}, bridge.address)
+        try:
+            base = '/api/sessions/' + target.id + '/queue/'
+            snapshot = await call('GET', base + 'state-token')
+            assert snapshot['sessionId'] == target.id
+            payload = {'source':'automation', 'clientMessageId':'generic-test',
+                       'expectedVersion':snapshot['version']}
+            result = await call('POST', base + 'conditional-wake', payload)
+            assert result['status'] == 'queued'
+            receipt = await call('GET', base + 'wake-receipt?clientMessageId=generic-test')
+            assert receipt['queueItemId'] == result['queueItemId']
+            forbidden = await call('GET', '/api/sessions/foreign/queue/state-token')
+            assert forbidden['ok'] is False
+        finally:
+            await bridge.close()
+    asyncio.run(run())
+
+
+def test_conditional_snapshot_cross_process_shared_directory_is_not_supported(tmp_path, monkeypatch):
+    import asyncio
+    from packages.core import session, worker
+    monkeypatch.setattr(session, 'SESSION_DIR', tmp_path)
+    monkeypatch.setattr(session, '_cache', {})
+    obj = session.create(name='synthetic-cross-process')
+    code = ('import asyncio,sys\nfrom packages.core import worker\n'
+            'async def run():\n async with worker.queue_lock(sys.argv[1]): print("acquired",flush=True)\n'
+            'asyncio.run(run())')
+    async def run():
+        async with worker.queue_lock(obj.id):
+            child = await asyncio.create_subprocess_exec(sys.executable, '-B', '-c', code, obj.id,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            out, err = await asyncio.wait_for(child.communicate(), timeout=10)
+            assert child.returncode == 0, err.decode()
+            assert out.strip() == b'acquired'
+    asyncio.run(run())
 
 
 def test_real_isolated_offline_wake_queue_head_and_original_receipt(tmp_path, monkeypatch):
@@ -849,13 +1070,22 @@ def test_real_isolated_offline_wake_queue_head_and_original_receipt(tmp_path, mo
         _enqueue(runtime, sid, 'older synthetic item', 'older')
         key = 'codex-limit:synthetic-id'
         api = rotate.Pan(runtime.base_url, token)
-        first = api.enqueue_continuation(sid, key)
-        second = api.enqueue_continuation(sid, key)
+        initial_snapshot = api.queue_snapshot(sid)
+        _enqueue(runtime, sid, 'later synthetic item', 'later')
+        assert api.enqueue_continuation(sid, key, initial_snapshot['version'])['status'] == 'conflict'
+        assert len(durable(runtime, sid)['queue_pending']) == 2
+        updated = api.queue_snapshot(sid)
+        first = api.enqueue_continuation(sid, key, updated['version'])
+        second = api.enqueue_continuation(sid, key, updated['version'])
         assert first['status'] == second['status'] == 'queued'
         assert first['queueItemId'] == second['queueItemId']
+        assert api.continuation_receipt(sid, key)['queueItemId'] == first['queueItemId']
         rows = durable(runtime, sid)['queue_pending']
-        assert len(rows) == 2 and rows[0]['id'] == first['queueItemId']
+        assert len(rows) == 3 and rows[0]['id'] == first['queueItemId']
         assert rows[0]['wakeMessage'] is True and rows[1]['text'] == 'older synthetic item'
+        normal = runtime.request('POST', '/api/sessions/wake', json={
+            'sessionIds':[sid], 'clientMessageId':'ordinary-wake'})
+        assert normal['ok'] and durable(runtime, sid)['queue_pending'][0]['wakeMessage'] is True
     finally:
         runtime.stop()
 
@@ -879,7 +1109,7 @@ def test_continuation_skips_changed_or_blocked_session(service, tmp_path, change
 
     ledger = begin_recovery(ChangeAfterRestart(), state, tmp_path / "ledger.json", bridge)
     assert not bridge.switches
-    assert not any(path == "/api/sessions/wake" for path, _ in state["posts"])
+    assert not any(path.endswith('/queue/conditional-wake') for path, _ in state["posts"])
     target, = ledger.data["batches"][0]["targets"]
     assert target["continuation"]["status"] == "skipped_changed_or_blocked"
 
@@ -945,14 +1175,15 @@ def test_send_response_loss_is_never_replayed(service, tmp_path):
         def __getattr__(self, name):
             return getattr(api, name)
 
-        def enqueue_continuation(self, sid, key):
-            api.enqueue_continuation(sid, key)
+        def enqueue_continuation(self, sid, key, version):
+            api.enqueue_continuation(sid, key, version)
             raise OSError("synthetic response loss")
 
     ledger = begin_recovery(LoseSend(), state, path, bridge)
     assert ledger.data["batches"][0]["targets"][0]["continuation"]["status"] == "unknown"
+    assert ledger.data["batches"][0]["targets"][0]["continuation"]['observedReceipt']['status'] == 'queued'
     run_reconcile(api, bridge, rotate.Ledger(path, True))
-    assert len([p for p, _ in state["posts"] if p == "/api/sessions/wake"]) == 1
+    assert len([p for p, _ in state["posts"] if p.endswith('/queue/conditional-wake')]) == 1
 
 
 def test_restart_accepts_current_worker_for_same_session(service, tmp_path):

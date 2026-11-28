@@ -2582,7 +2582,8 @@ def _save_body(s: Session, force_full: bool = False, *,
                adapter_config_override: dict | None = None,
                adapter_config_publish_keys: frozenset[str] | None = None,
                offline_override: dict | None = None,
-               behavior_state: tuple[dict | None, int] | None = None):
+               behavior_state: tuple[dict | None, int] | None = None,
+               conditional_guard=None):
     """Write one Session while its per-Session ticket is active.
 
     The history ``[start, end)`` cursor is deliberately kept from T-062.2:
@@ -2591,7 +2592,12 @@ def _save_body(s: Session, force_full: bool = False, *,
     """
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
     hist_path = _history_path(s.id)
-    _prepare_history_for_save(s, hist_path, force_full=force_full)
+    if conditional_guard is None:
+        _prepare_history_for_save(s, hist_path, force_full=force_full)
+    elif not getattr(s, '_history_loaded', True) and (s.history or not hist_path.exists()):
+        # Do not hydrate or rewrite history as part of a conditional queue
+        # mutation: that could race an append before its final version check.
+        raise RuntimeError('conditional queue history state unavailable')
     shallow_existing_history = (
         not getattr(s, "_history_loaded", True)
         and hist_path.exists()
@@ -2643,7 +2649,7 @@ def _save_body(s: Session, force_full: bool = False, *,
     end = len(s.history)
     # 需要整重写的三种情况：显式 force、history 被整体替换（游标超出当前
     # 长度，说明 jsonl 里有作废条目）、jsonl 尚不存在（首次/旧格式迁移）。
-    if not shallow_existing_history:
+    if not shallow_existing_history and conditional_guard is None:
         rewrite_full = force_full or start > end or not hist_path.exists()
         if rewrite_full:
             history_to_write = s.history[:end]
@@ -2658,7 +2664,7 @@ def _save_body(s: Session, force_full: bool = False, *,
     # 元数据变化 → 重写主文件（元数据 + 尾部 history，常量序列化开销）。
     # 写临时文件 + os.replace 原子替换：主文件写一半崩溃也不会损坏
     # （history 真源在 jsonl，主文件只是元数据镜像 + 存在标记）。
-    if force_full or meta_sig != getattr(s, "_last_meta_sig", None):
+    if force_full or conditional_guard is not None or meta_sig != getattr(s, "_last_meta_sig", None):
         d = metadata.to_dict()
         d.pop("system_prompt")  # derived API/export alias is not durable state
         d["history"] = (
@@ -2670,7 +2676,17 @@ def _save_body(s: Session, force_full: bool = False, *,
         tmp_path.write_text(
             json.dumps(d, ensure_ascii=False, indent=2),
             encoding="utf-8")
-        _replace_session_metadata(tmp_path, main_path)
+        if conditional_guard is None:
+            _replace_session_metadata(tmp_path, main_path)
+        else:
+            try:
+                # History mutations use this lock. Perform the compare at the
+                # actual atomic metadata replacement, not before slow I/O.
+                with s._summary_lock:
+                    conditional_guard()
+                    _replace_session_metadata(tmp_path, main_path)
+            finally:
+                tmp_path.unlink(missing_ok=True)
         s._last_meta_sig = meta_sig
     if metadata is not s:
         # Publish before retiring the ticket so a subsequent writer cannot

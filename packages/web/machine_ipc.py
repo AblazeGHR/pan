@@ -74,6 +74,11 @@ def permit(caller, method, path, body, get_session):
         target = get_session(body.get('sessionId', ''))
         if target is not None and target.managed_by not in (None, '', caller.id):
             return False
+    queue_op = re.fullmatch(r'/api/sessions/([a-zA-Z0-9_-]+)/queue/(state-token|wake-receipt|conditional-wake)', route)
+    if queue_op:
+        return (session_allowed(caller, queue_op[1])
+                and ((queue_op[2] in ('state-token', 'wake-receipt') and method == 'GET')
+                     or (queue_op[2] == 'conditional-wake' and method == 'POST')))
     match = SESSION.fullmatch(route)
     if match:
         if not session_allowed(caller, match[1]):
@@ -152,6 +157,8 @@ def bind(runtime, app, get_session):
         body = {} if body is None else body
         if not await io(permit, caller, method, path, body, get_session):
             return denied()
+        if method == 'POST' and re.fullmatch(r'/api/sessions/[a-zA-Z0-9_-]+/queue/conditional-wake', urlsplit(path).path):
+            body = {**body, 'sourceSessionId':caller.id}
         headers = {'X-Pan-Queue-Caller': caller.id, 'X-Pan-Terminal-Caller': caller.id}
         async def transport(scope, receive, send):
             scope[_SCOPE] = _MARKER

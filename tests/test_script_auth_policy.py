@@ -12,6 +12,22 @@ def profile():
         {'method': method, 'path': path} for method, path in sorted(script_auth.RULES)]})
 
 
+def test_conditional_queue_requires_explicit_rule_and_session_scope():
+    rules = [
+        {'method':'GET', 'path':'/api/sessions/{sessionId}/queue/state-token'},
+        {'method':'GET', 'path':'/api/sessions/{sessionId}/queue/wake-receipt'},
+        {'method':'POST', 'path':'/api/sessions/{sessionId}/queue/conditional-wake'}]
+    old = script_auth.validate_profile({'enabled':True, 'sessions':['ses_allowed'], 'rules':[]})
+    allowed = script_auth.validate_profile({'enabled':True, 'sessions':['ses_allowed'], 'rules':rules})
+    path = '/api/sessions/ses_allowed/queue/conditional-wake'
+    body = {'source':'automation', 'clientMessageId':'request', 'expectedVersion':'a' * 64}
+    assert not script_auth.permit(old, 'POST', path, body)
+    assert script_auth.permit(allowed, 'POST', path, body)
+    assert not script_auth.permit(allowed, 'POST', path.replace('ses_allowed', 'ses_other'), body)
+    assert not script_auth.permit(allowed, 'POST', path, {**body, 'source':'user'})
+    assert script_auth.permit(allowed, 'GET', '/api/sessions/ses_allowed/queue/wake-receipt?clientMessageId=request', {})
+
+
 def test_known_watcher_operations_and_restrictions():
     p = profile()
     for method, path, body in [
@@ -436,7 +452,7 @@ def test_local_ipc_watcher_simulated_rotation_once(tmp_path, monkeypatch, target
     from packages.plugins.runtime import Runtime
     from packages.web import server
     from scripts import codex_limit_rotate as rotate
-    from tests.test_codex_limit_rotate_script import issue, detail, RecoveryBridge
+    from tests.test_codex_limit_rotate_script import issue, detail, fixture_snapshot, RecoveryBridge
 
     async def run():
         root = tmp_path / 'owned-rotation'
@@ -476,6 +492,11 @@ def test_local_ipc_watcher_simulated_rotation_once(tmp_path, monkeypatch, target
         async def wake(body):
             effects.append(('wake', body['sessionIds'][0]))
             return {'ok': True, 'results': [{'sessionId': body['sessionIds'][0], 'status': 'queued', 'queueItemId': 'q-fixture'}]}
+        async def queue_state(sid, *, scope_guard=None): return fixture_snapshot(detail(issue()))
+        async def conditional_wake(sid, *, client_message_id, expected_version, source, scope_guard=None):
+            assert expected_version == fixture_snapshot(detail(issue()))['version']
+            effects.append(('wake', sid))
+            return {'sessionId':sid, 'status':'queued', 'queueItemId':'q-fixture'}
         monkeypatch.setattr(server, 'api_list', inventory)
         monkeypatch.setattr(server, 'api_get_session', read)
         monkeypatch.setattr(server, '_store_read', store)
@@ -484,6 +505,8 @@ def test_local_ipc_watcher_simulated_rotation_once(tmp_path, monkeypatch, target
         monkeypatch.setattr(server, 'api_delayed_restart', restart)
         monkeypatch.setattr(server, 'api_delayed_restart_state', restart_state)
         monkeypatch.setattr(server, 'api_sessions_wake', wake)
+        monkeypatch.setattr(server.worker, 'conditional_queue_snapshot', queue_state)
+        monkeypatch.setattr(server.worker, 'conditional_wake_session', conditional_wake)
         runtime = Runtime(lambda: None, lambda sid: None)
         script_auth.bind(runtime, root)
         transport = Bridge(runtime, root, script_only=True)

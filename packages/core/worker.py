@@ -658,7 +658,7 @@ _LEGAL_WORKER_STATES = frozenset({
 _legal_state_locks: dict[str, asyncio.Lock] = {}
 
 
-async def _commit_offline(s, mutate, *, force: bool = False) -> bool:
+async def _commit_offline(s, mutate, *, force: bool = False, conditional_guard=None) -> bool:
     """Caller owns queue_lock. Stage/rollback inside the ordered writer ticket.
 
     Earlier/later metadata writers must never save an uncommitted candidate.
@@ -681,7 +681,10 @@ async def _commit_offline(s, mutate, *, force: bool = False) -> bool:
         values = _offline.snapshot(candidate)
         changed = old != values
         if changed or force:
-            _sess._save_body(s, offline_override=values)
+            if conditional_guard is None:
+                _sess._save_body(s, offline_override=values)
+            else:
+                _sess._save_body(s, offline_override=values, conditional_guard=conditional_guard)
         return result
     await _sess._persist_async_outcome(s.id, commit)
     return changed
@@ -4835,7 +4838,7 @@ _RECEIPT_COMPACT_KEYS = frozenset({
     "jobId", "creatorSessionId", "targetSessionId", "targetSessionIds",
     "status", "workerId", "seq", "revision", "createdAt", "updatedAt",
     "receiptAt", "deliveredAt", "deletedAt", "deliveryState",
-    "dispatchState", "receiptVersion", "receiptOnly", "reportConsumeIds",
+    "dispatchState", "receiptVersion", "receiptOnly", "reportConsumeIds", "wakeMessage",
 })
 
 
@@ -6232,14 +6235,14 @@ def _stage_new_queue_item(s, item: dict, *, wake: bool = False) -> None:
 
 
 async def _append_new_queue_item(s, item: dict, *, wake: bool = False,
-                                 metadata: dict | None = None) -> dict:
+                                 metadata: dict | None = None, conditional_guard=None) -> dict:
     # queue_lock is held by caller. Stage before atomic replacement so an
     # unrelated metadata writer cannot persist an unlocked new Illegal row.
     def stage(candidate):
         for key, value in (metadata or {}).items():
             setattr(candidate, key, copy.deepcopy(value))
         _stage_new_queue_item(candidate, item.copy(), wake=wake)
-    await _commit_offline(s, stage)
+    await _commit_offline(s, stage, conditional_guard=conditional_guard)
     return next(row for row in s.queue_pending if row.get("id") == item["id"])
 
 
@@ -11251,7 +11254,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              activate_task: bool = False,
                              locked: bool = False, wake: bool = False,
                              auto_force: bool = True,
-                             source_plugin_id: str | None = None) -> tuple[dict | None, str | None]:
+                             source_plugin_id: str | None = None,
+                             conditional_guard=None) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger.
 
     ``auto_force=False`` is used by the explicit Force branches, which already
@@ -11331,7 +11335,10 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
     if activate_task:
         metadata["active_task_id"] = task_id
     try:
-        item = await _append_new_queue_item(s, item, wake=wake, metadata=metadata)
+        item = await _append_new_queue_item(s, item, wake=wake, metadata=metadata,
+                                           conditional_guard=conditional_guard)
+    except ConditionalSnapshotConflict:
+        raise
     except Exception as exc:
         # The ordered writer staged everything, including browser idempotency.
         return None, f"Failed to persist queued task: {exc}"
@@ -11355,6 +11362,95 @@ def configured_wake_message() -> str:
     raw = load_config().get("session_lifecycle", {})
     value = raw.get("wakeMessage") if isinstance(raw, dict) else None
     return value if isinstance(value, str) and value.strip() and len(value) <= 32000 else "继续"
+
+
+class ConditionalSnapshotConflict(RuntimeError):
+    """The supplied state version no longer describes this Session."""
+
+
+def _conditional_queue_view(s):
+    """Metadata only; caller owns queue_lock and, for history, summary_lock."""
+    last = s.last_result if isinstance(s.last_result, dict) else {}
+    pending = []
+    for item in (s.queue_pending or []):
+        if not isinstance(item, dict):
+            raise ConditionalSnapshotConflict('invalid queue state')
+        pending.append({'queueItemId': _queue_item_id(item), 'source': item.get('source'),
+                        'deliveryState': _delivery_state(item), 'locked': bool(_queue_item_locked(item))})
+    view = {'sessionId':s.id, 'adapter':s.adapter, 'historyEpoch':s.history_epoch, 'historyRevision':s.history_revision,
+            'queueRevision':s.queue_revision, 'queuePaused':bool(s.queue_paused),
+            'illegalOffline':_offline.is_illegal(s), 'pending':pending,
+            'terminal':{'terminalKey':last.get('terminalKey'), 'status':last.get('status'),
+                        'historyEpoch':last.get('historyEpoch'), 'historyRevision':last.get('historyRevision'),
+                        'workerId':last.get('workerId'), 'generation':last.get('generation'),
+                        'executionSeq':last.get('executionSeq'), 'taskSeq':last.get('taskSeq'),
+                        'taskId':last.get('taskId')}}
+    view['version'] = hashlib.sha256(json.dumps(view, sort_keys=True, ensure_ascii=True,
+                                                separators=(',', ':')).encode()).hexdigest()
+    return view
+
+
+async def conditional_queue_snapshot(session_id: str, *, scope_guard=None) -> dict:
+    s = _get_session_shallow(session_id)
+    if s is None:
+        return {'status':'not_found'}
+    async with queue_lock(session_id):
+        with s._summary_lock:
+            if scope_guard is not None and not scope_guard(s):
+                return {'status':'unavailable'}
+            return _conditional_queue_view(s)
+
+
+def _conditional_wake_receipt(s, client_message_id):
+    item = _find_queue_item_by_idempotency(s, client_message_id=client_message_id)
+    if not isinstance(item, dict) or item.get('wakeMessage') is not True:
+        return {'status':'unknown'}
+    state = _delivery_state(item)
+    return {'status':state if state in ('queued', 'sent_to_cli') else 'unknown',
+            'queueItemId':_queue_item_id(item), 'sessionId':s.id}
+
+
+async def conditional_wake_receipt(session_id, client_message_id, *, scope_guard=None):
+    s = _get_session_shallow(session_id)
+    if s is None: return {'status':'unknown'}
+    async with queue_lock(session_id):
+        if scope_guard is not None and not scope_guard(s): return {'status':'unknown'}
+        return _conditional_wake_receipt(s, client_message_id)
+
+
+async def conditional_wake_session(session_id, *, client_message_id, expected_version, source='user', source_session_id=None,
+                                   scope_guard=None):
+    s = _get_session_shallow(session_id)
+    if s is None: return {'status':'not_found'}
+    async with queue_lock(session_id):
+        if scope_guard is not None and not scope_guard(s): return {'status':'unavailable'}
+        receipt = _conditional_wake_receipt(s, client_message_id)
+        if receipt.get('queueItemId'):
+            return {**receipt, 'duplicate':True}
+        if _has_accepted_input_id(s, client_message_id):
+            return {'status':'unknown'}
+        def check():
+            # Do not publish metadata for history rows whose writer has not
+            # committed yet. A fresh snapshot is not proof of durability.
+            history_pending = (getattr(s, '_history_loaded', True) and
+                               getattr(s, '_hist_persisted', 0) != len(s.history))
+            if (history_pending or _sess.get(s.id, load_history=False) is not s
+                    or (scope_guard is not None and not scope_guard(s))
+                    or _conditional_queue_view(s)['version'] != expected_version):
+                raise ConditionalSnapshotConflict('state version changed')
+        with s._summary_lock:
+            try: check()
+            except ConditionalSnapshotConflict: return {'status':'conflict'}
+        try:
+            item, error = await _persist_task_item(s, configured_wake_message(), source,
+                None, None, client_message_id, source_session_id, wake=True, auto_force=False, conditional_guard=check)
+        except ConditionalSnapshotConflict:
+            return {'status':'conflict'}
+        if error or not item:
+            return {'status':'unknown'}
+        receipt = {'status':'queued', 'sessionId':session_id, 'queueItemId':_queue_item_id(item)}
+    await _wake_worker(session_id, auto_spawn=False)
+    return receipt
 
 
 async def wake_session(session_id: str, *, client_message_id: str | None = None,

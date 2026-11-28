@@ -19,6 +19,9 @@ RULES = {
     ('GET', '/api/sessions/{sessionId}/worker/delayed-restart'),
     ('POST', '/api/sessions/{sessionId}/worker/delayed-restart'),
     ('POST', '/api/sessions/wake'),
+    ('GET', '/api/sessions/{sessionId}/queue/state-token'),
+    ('GET', '/api/sessions/{sessionId}/queue/wake-receipt'),
+    ('POST', '/api/sessions/{sessionId}/queue/conditional-wake'),
 }
 PROFILE = re.compile(r'[A-Za-z0-9_-]{1,64}\Z')
 
@@ -217,6 +220,16 @@ def permit(profile, method, path, body):
         return q == {'summary': '1'} and not body
     if route == '/api/sessions/{sessionId}':
         return q == {'historyLimit': '1'} and not body
+    if route.endswith('/queue/state-token'):
+        return not q and not body
+    if route.endswith('/queue/wake-receipt'):
+        return set(q) == {'clientMessageId'} and 0 < len(q['clientMessageId']) <= 256 and not body
+    if route.endswith('/queue/conditional-wake'):
+        return (not q and set(body) == {'clientMessageId', 'expectedVersion', 'source'}
+                and body.get('source') == 'automation'
+                and isinstance(body.get('clientMessageId'), str) and 0 < len(body['clientMessageId']) <= 256
+                and isinstance(body.get('expectedVersion'), str)
+                and re.fullmatch(r'[0-9a-f]{64}', body['expectedVersion']) is not None)
     if route.endswith('/worker/delayed-restart'):
         return not body and (q == {'existing_worker_only': 'true'} if method == 'POST' else not q)
     if route == '/api/sessions/wake':
@@ -329,6 +342,16 @@ def bind(runtime, root):
             if route == '/api/sessions/wake':
                 return await server.api_sessions_wake(body)
             sid = route.split('/')[3]
+            def conditional_scope(target):
+                return (target.id in profile['sessions'] and
+                        (profile['targetMode'] != 'codex' or target.adapter == 'codex'))
+            if route.endswith('/queue/state-token'):
+                return await server.worker.conditional_queue_snapshot(sid, scope_guard=conditional_scope)
+            if route.endswith('/queue/wake-receipt'):
+                return await server.worker.conditional_wake_receipt(sid, query['clientMessageId'], scope_guard=conditional_scope)
+            if route.endswith('/queue/conditional-wake'):
+                return await server.worker.conditional_wake_session(sid, client_message_id=body['clientMessageId'],
+                    expected_version=body['expectedVersion'], source='automation', scope_guard=conditional_scope)
             if route.endswith('/worker/delayed-restart'):
                 if method == 'POST':
                     return await server.api_delayed_restart(sid, existing_worker_only=True)

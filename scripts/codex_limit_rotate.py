@@ -5,8 +5,7 @@ Supply explicit ``--api``, ``--ledger`` and ``--bridge-data``. Default mode
 only observes; ``--execute`` enables durable records and effects. An existing
 user Bearer may be supplied in the PAN_ROTATION_BEARER environment variable;
 never put credentials in command arguments. Run periodically with one ledger.
-The continuation uses the Session Wake message and is queued after restart
-acceptance. Pan gives the accepted restart priority over queue dispatch.
+The continuation uses a version-conditional Session Wake at the queue head.
 """
 from __future__ import annotations
 
@@ -88,16 +87,16 @@ class Pan:
     def restart_state(self, sid):
         return self.get(f"/api/sessions/{quote(sid, safe='')}/worker/delayed-restart").get("delayedRestart")
 
-    def enqueue_continuation(self, sid, key):
-        response = self.request("POST", "/api/sessions/wake", {
-            "sessionIds": [sid], "source": "automation", "clientMessageId": key,
+    def queue_snapshot(self, sid):
+        return self.get(f"/api/sessions/{quote(sid, safe='')}/queue/state-token")
+
+    def continuation_receipt(self, sid, key):
+        return self.get(f"/api/sessions/{quote(sid, safe='')}/queue/wake-receipt?clientMessageId={quote(key, safe='')}")
+
+    def enqueue_continuation(self, sid, key, version):
+        return self.request("POST", f"/api/sessions/{quote(sid, safe='')}/queue/conditional-wake", {
+            "source": "automation", "clientMessageId": key, "expectedVersion": version,
         })
-        results = response.get("results")
-        if (response.get("ok") is not True or not isinstance(results, list)
-                or len(results) != 1 or not isinstance(results[0], dict)
-                or results[0].get("sessionId") != sid):
-            raise Uncertain("continuation receipt unconfirmed")
-        return results[0]
 
     def events(self, cursor):
         return self.get(f"/api/automation/events?after={cursor}&limit={PAGE}")
@@ -448,11 +447,11 @@ def inspect_quota(ledger, bridge, now=time.time):
                 continue
             batch_decision = decision
             targets = batch.get('targets', [])
-            if any(t.get('trigger', {}).get('correlation', {}).get('accountId') not in (None, current)
+            if any(t.get('trigger', {}).get('correlation', {}).get('accountId') is not None
                    for t in targets):
                 batch_decision = {'decision':'unknown'}
                 provider_conflict = True
-                batch['quotaDiagnostic'] = {**diagnostic, 'reason':'issue_provider_conflict'}
+                batch['quotaDiagnostic'] = {**diagnostic, 'reason':'issue_account_domain_unknown'}
             else:
                 batch['quotaDiagnostic'] = dict(diagnostic)
             batch["quotaDecision"] = batch_decision
@@ -616,26 +615,54 @@ def reconcile(api, bridge, ledger, now=time.time):
                 target["continuation"] = {"status": "skipped_changed_or_blocked"}
                 ledger.save()
                 continue
+            snapshot = api.queue_snapshot(sid)
+            terminal = snapshot.get('terminal') if isinstance(snapshot, dict) else None
+            if (not isinstance(snapshot, dict) or snapshot.get('adapter') != 'codex' or not isinstance(terminal, dict) or terminal.get('terminalKey') != target['terminalKey']
+                    or terminal.get('status') != 'error'
+                    or terminal.get('historyEpoch') != target['historyEpoch']
+                    or terminal.get('historyRevision') != target['historyRevision']
+                    or snapshot.get('historyEpoch') != target['historyEpoch']
+                    or snapshot.get('historyRevision') != target['historyRevision']
+                    or snapshot.get('queuePaused') is not False or snapshot.get('illegalOffline') is not False
+                    or snapshot.get('pending') != [] or not isinstance(snapshot.get('version'), str)):
+                target['continuation'] = {'status':'skipped_changed_or_blocked'}
+                ledger.save()
+                continue
             key = "codex-limit:" + hashlib.sha256((sid + "\0" + target["terminalKey"]).encode()).hexdigest()
             target["continuation"] = {"status": "dispatching", "clientMessageId": key}
             ledger.save()
             try:
-                result = api.enqueue_continuation(sid, key)
+                result = api.enqueue_continuation(sid, key, snapshot['version'])
             except AuthDenied:
                 target["continuation"]["status"] = "unknown"
                 ledger.save()
                 raise
             except Exception:
                 target["continuation"]["status"] = "unknown"
+                try:
+                    target['continuation']['observedReceipt'] = api.continuation_receipt(sid, key)
+                except Exception:
+                    pass
                 ledger.save()
                 continue
-            target["continuation"]["status"] = "queued" if result.get("status") == "queued" and isinstance(result.get("queueItemId"), str) and bool(result["queueItemId"]) else "unknown"
+            if result.get('status') == 'conflict':
+                target['continuation']['status'] = 'skipped_changed_or_blocked'
+                ledger.save()
+                continue
+            target["continuation"]["status"] = "queued" if (result.get("status") == "queued"
+                and result.get('sessionId') == sid and isinstance(result.get("queueItemId"), str)
+                and bool(result["queueItemId"])) else "unknown"
             if target["continuation"]["status"] == "queued":
                 target["continuation"]["queueItemId"] = result.get("queueItemId")
             ledger.save()
         # A dispatching send is uncertain after a process crash. Never replay it.
         for target in batch["targets"]:
             if (target.get("continuation") or {}).get("status") == "dispatching":
+                record = target['continuation']
+                try:
+                    record['observedReceipt'] = api.continuation_receipt(target['targetSessionId'], record['clientMessageId'])
+                except Exception:
+                    pass
                 target["continuation"]["status"] = "unknown"
                 ledger.save()
         if all(w.get("restart", {}).get("status") not in {"ready", "dispatching"}

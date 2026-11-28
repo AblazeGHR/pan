@@ -11284,6 +11284,47 @@ async def api_sessions_broadcast(data: dict):
             else ("error" if failed else "queued"), "results": results}
 
 
+def _conditional_scope_guard(request):
+    from . import machine_ipc
+    if not machine_ipc.trusted(request.scope):
+        return None
+    caller_id = request.headers.get('X-Pan-Queue-Caller')
+    def allowed(target):
+        caller = sess.get(caller_id, load_history=False) if caller_id else None
+        return caller is not None and machine_ipc.session_allowed(caller, target.id)
+    return allowed
+
+
+@app.get('/api/sessions/{session_id}/queue/state-token')
+async def api_session_queue_state_token(session_id: str, request: Request):
+    return await worker.conditional_queue_snapshot(session_id, scope_guard=_conditional_scope_guard(request))
+
+
+@app.get('/api/sessions/{session_id}/queue/wake-receipt')
+async def api_session_queue_wake_receipt(session_id: str, clientMessageId: str, request: Request):
+    if not clientMessageId or len(clientMessageId) > 256:
+        raise HTTPException(status_code=422, detail='invalid clientMessageId')
+    return await worker.conditional_wake_receipt(session_id, clientMessageId, scope_guard=_conditional_scope_guard(request))
+
+
+@app.post('/api/sessions/{session_id}/queue/conditional-wake')
+async def api_session_queue_conditional_wake(session_id: str, data: dict, request: Request):
+    if (set(data) not in ({'clientMessageId', 'expectedVersion', 'source'},
+                          {'clientMessageId', 'expectedVersion', 'source', 'sourceSessionId'})
+            or not isinstance(data['clientMessageId'], str) or not 0 < len(data['clientMessageId']) <= 256
+            or not isinstance(data['expectedVersion'], str) or not re.fullmatch(r'[0-9a-f]{64}', data['expectedVersion'])
+            or not isinstance(data['source'], str)):
+        raise HTTPException(status_code=422, detail='invalid conditional wake')
+    source, source_sid, source_error = _request_source_metadata(data)
+    if source_error: return source_error
+    target = sess.get(session_id, load_history=False)
+    denied = _source_access_error(target, source_sid) if target else None
+    if denied: return denied
+    return await worker.conditional_wake_session(session_id, client_message_id=data['clientMessageId'],
+        expected_version=data['expectedVersion'], source=source, source_session_id=source_sid,
+        scope_guard=_conditional_scope_guard(request))
+
+
 @app.post("/api/sessions/wake")
 async def api_sessions_wake(data: dict):
     """Explicit recovery operation, separate from ordinary broadcast."""
