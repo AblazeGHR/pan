@@ -183,6 +183,7 @@ def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0
         'final', 'jobs', 'actions', 'action-drafts', 'background-jobs',
         'session-message-jobs', 'scheduler'}) or path.startswith((
             '/api/automation/triggers', '/api/automation/runs'))
+    token = _remote_access_token.get()
     if canonical_path(path) or retired_family:
         # A gateway can import this registry without running main(). Inspect the
         # request context too; the module's default 'stdio' is not provenance.
@@ -190,10 +191,9 @@ def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0
             remote_request = mcp.get_context().request_context.request is not None
         except ValueError:
             remote_request = False
-        if remote_request or _terminal_transport != 'stdio':
+        if token is not None or remote_request or _terminal_transport != 'stdio':
             return {'ok': False, 'error': {'code': 'authorization_denied',
                     'message': 'Trusted local MCP transport required'}}
-    token = _remote_access_token.get()
     if token is not None:
         try:
             from packages.plugins.ipc import request

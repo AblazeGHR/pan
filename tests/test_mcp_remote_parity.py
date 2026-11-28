@@ -426,6 +426,9 @@ def test_remote_authorized_reads_reach_owned_core(remote_gateway, owned_remote_c
         ('POST', '/api/claim', {'sessionId': sid, 'managerId': sid}),
         ('POST', '/api/send', {'sessionId': sid, 'text': 'forged', 'sourceSessionId': sid}),
         ('GET', '/api/jobs/action-jobs', None),
+        ('GET', f'/api/sessions/{sid}/queue/state-token', None),
+        ('POST', f'/api/sessions/{sid}/queue/conditional-wake', {}),
+        ('GET', f'/api/sessions/{sid}/queue/wake-receipt?clientMessageId=remote', None),
     ]:
         assert core(method, path, body)['error']['code'] == 'permission_denied', path
     assert core('GET', '/api/sessions', credential='invalid')['error']['code'] == 'permission_denied'

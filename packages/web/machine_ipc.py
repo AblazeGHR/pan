@@ -44,7 +44,8 @@ def remote_permit(method, path, body, get_session):
         route = urlsplit(path).path
     except ValueError:
         return False
-    if (object_path(path) or SELF.fullmatch(route) or route in {
+    if (object_path(path) or object_path(path, method) or SELF.fullmatch(route)
+            or re.fullmatch(r'/api/sessions/[^/]+/queue/[^/]+', route) or route in {
             '/api/claim', '/api/unclaim', '/api/readonly', '/api/report-subscribe',
             '/api/report-unsubscribe', '/api/notifications/send',
             '/api/qq/subscribe', '/api/qq/unsubscribe', '/api/wechat/subscribe',
