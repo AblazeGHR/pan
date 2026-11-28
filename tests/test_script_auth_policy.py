@@ -703,9 +703,11 @@ def test_real_service_watcher_process_consumes_original_ta_queue_item(tmp_path, 
     monkeypatch.setattr(h, 'SERVER_LAUNCHER', h.ROOT / 'tests/support/automation_http_server.py')
     monkeypatch.setenv('PAN_E2E_ROTATION_CODEX', '1')
     root = tmp_path / 'owned-service'; root.mkdir()
+    wake_text = 'owned rotation continuation only'
     (root / 'config.json').write_text(json.dumps({'qq':{'enabled':False}, 'wechat':{'enabled':False},
         'remote':{'enabled':False}, 'tailscale':{'startupEnabled':False}, 'lan':{'startupEnabled':False},
-        'codex':{'models':['synthetic-model'], 'model':'synthetic-model'}}))
+        'codex':{'models':['synthetic-model'], 'model':'synthetic-model'},
+        'session_lifecycle':{'wakeMessage':wake_text}}))
     rules = [{'method':m, 'path':p} for m,p in sorted(script_auth.RULES)]
     script_auth.initialize(root, 'watcher', {'enabled':True, 'targetMode':'codex', 'sessions':[], 'rules':rules})
     login_key = 'Aa1!' + secrets.token_urlsafe(24)
@@ -737,9 +739,10 @@ def test_real_service_watcher_process_consumes_original_ta_queue_item(tmp_path, 
             raise AssertionError(f'{exc}; task={queued.text}; list={client.get("/api/list", headers=bearer).text}; session={client.get(f"/api/sessions/{sid}?historyLimit=1", headers=bearer).text}; log={(root / "pan.log").read_text(encoding="utf-8", errors="replace")[-4000:]}')
         h._wait_for(lambda: client.get('/api/automation/events?after=0&limit=100', headers=bearer).json().get('events'),
             timeout=15, label='persisted runtime issue')
-        watcher = subprocess.run([sys.executable, str(h.ROOT / 'tests/support/rotation_watcher_fixture.py'),
+        watcher_argv = [sys.executable, str(h.ROOT / 'tests/support/rotation_watcher_fixture.py'),
             '--script-profile','watcher','--script-data-dir',str(root), '--ledger',str(root/'runner-ledger.json'),
-            '--bridge-data',str(root/'synthetic-bridge'), '--execute'], cwd=str(h.ROOT),
+            '--bridge-data',str(root/'synthetic-bridge'), '--execute']
+        watcher = subprocess.run(watcher_argv, cwd=str(h.ROOT),
             capture_output=True, text=True, timeout=45)
         assert watcher.returncode == 0, watcher.stderr + watcher.stdout
         state = json.loads((root / 'runner-ledger.json').read_text(encoding='utf-8'))
@@ -753,14 +756,51 @@ def test_real_service_watcher_process_consumes_original_ta_queue_item(tmp_path, 
         assert continuation['status'] == 'queued'
         assert target['targetSessionId'] == sid
         assert continuation['clientMessageId'].startswith('codex-limit:')
+        assert isinstance(continuation['queueItemId'], str) and continuation['queueItemId']
         queue = client.get(f'/api/sessions/{sid}/queue', headers=bearer).json()
         assert all(item.get('clientMessageId') != continuation['clientMessageId'] for item in queue.get('items', []))
         h._wait_for(lambda: len(native_log.read_text(encoding='utf-8').splitlines()) >= 2,
             timeout=30, label='successor consumption')
         native = [json.loads(x) for x in native_log.read_text(encoding='utf-8').splitlines()]
         assert len(native) == 2 and native[0]['text'] == 'synthetic first turn'
+        assert native[1]['text'] == wake_text
+        assert native[0]['pid'] != native[1]['pid'], 'continuation must reach the restarted successor'
         receipt = client.get(f'/api/sessions/{sid}/queue/wake-receipt', params={'clientMessageId':continuation['clientMessageId']}, headers=bearer)
         assert receipt.status_code == 200
+        assert receipt.json() == {'status':'sent_to_cli', 'sessionId':sid,
+                                  'queueItemId':continuation['queueItemId']}
+        def successor_terminal():
+            response = client.get(f'/api/sessions/{sid}?historyLimit=1', headers=bearer)
+            assert response.status_code == 200, response.text
+            last = response.json().get('lastResult') or {}
+            return last if last.get('status') == 'done' else None
+        last = h._wait_for(successor_terminal, timeout=15, label='successor durable terminal')
+        original_owner = target['trigger']['correlation']
+        assert last['workerId'] == original_owner['workerId'] and last['generation'] > original_owner['generation']
+        history = [json.loads(row) for row in (root/'sessions'/f'{sid}.history.jsonl').read_text(encoding='utf-8').splitlines()]
+        delivered = [row for row in history if continuation['queueItemId'] in row.get('queueItemIds', [])]
+        assert len(delivered) == 1 and delivered[0]['content'] == wake_text
+        assert delivered[0]['clientMessageId'] == continuation['clientMessageId']
+        queue_response = client.get(f'/api/sessions/{sid}/queue', headers=bearer)
+        assert queue_response.status_code == 200
+        assert not queue_response.json().get('items', [])
+        # Re-enter the normal watcher in a separate process, retaining the
+        # original ledger and receipt. A second scan may observe new facts,
+        # but cannot switch, restart or submit this continuation again.
+        repeated = subprocess.run(watcher_argv, cwd=str(h.ROOT), capture_output=True, text=True, timeout=45)
+        assert repeated.returncode == 0, repeated.stderr + repeated.stdout
+        reopened = json.loads((root/'runner-ledger.json').read_text(encoding='utf-8'))
+        assert len(reopened['batches']) == 1
+        assert reopened['batches'][0]['targets'][0]['continuation'] == continuation
+        assert (root/'synthetic-bridge'/'switches.jsonl').read_text(encoding='utf-8').splitlines() == switches
+        assert native_log.read_text(encoding='utf-8').splitlines() == [json.dumps(row) for row in native]
+        final_receipt = client.get(f'/api/sessions/{sid}/queue/wake-receipt',
+            params={'clientMessageId':continuation['clientMessageId']}, headers=bearer)
+        assert final_receipt.status_code == 200 and final_receipt.json() == receipt.json()
+        (tmp_path/'successor-proof.json').write_text(json.dumps({'sessionId':sid,
+            'continuation':continuation, 'receipt':receipt.json(), 'native':native,
+            'successorTerminal':last, 'secondScanExit':repeated.returncode,
+            'originalHistoryMessageId':delivered[0]['messageId']},indent=2),encoding='utf-8')
     finally:
         if watcher and watcher.returncode is None: watcher.kill()
         client.close()

@@ -82,3 +82,27 @@ This evidence covers the real Pan service process, plugin-local IPC, spawned
 Worker/wrapper and watcher process. It uses a synthetic adapter executable and
 provider; no real Codex account, cc-switch profile, production ledger or
 protected port is involved.
+
+
+### Combined main acceptance: 2026-11-28
+
+The combined candidate retains both ACP and rotation native fixtures, ordinary
+bound stdio delayed restart, canonical/retired Job gates and remote agent_send
+force semantics. Core explicitly refuses remote requests to state-token,
+wake-receipt and conditional-wake; their local script/stdin scope is unchanged.
+
+The service/watcher acceptance now verifies an independently configured Wake
+text, the ledger's original queueItemId and sent_to_cli receipt, one history row
+for that same clientMessageId, and a different native PID with a higher Worker
+generation on the successor. After its durable done terminal, another separate
+watcher process reopens the same ledger: its continuation receipt, switch log
+and native turn log remain unchanged. This tests consumption and no replay,
+not merely admission. All roots, providers and native RPCs are synthetic and
+owned; this does not claim real-provider or production deployment acceptance.
+
+Original MA five-file evidence began before the final combined commit, so it
+is retained as diagnostic evidence only. TA revalidates the frozen final SHA
+with the five-file group plus direct ACP/full-api isolated smoke, using an
+exclusive temporary root and original Pan Job terminal/JUnit evidence. The
+first added test's invalid top-level Worker identity lookup failed; its red
+JUnit is preserved and the fixed assertion uses the durable trigger correlation.
