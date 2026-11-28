@@ -28,6 +28,16 @@ workspace._cache.clear()
 workspace._loaded = False
 from packages.core.adapters.cbc.adapter import CbcAdapter
 CbcAdapter.supported_models = property(lambda self: ['deepseek-v4-flash'])
+if os.environ.get('PAN_TEST_REMOTE_JWKS_URL'):
+    # Test-only key distribution; production Core keeps the issuer's HTTPS JWKS.
+    import jwt
+    from urllib.parse import urlsplit
+    jwks_url = os.environ['PAN_TEST_REMOTE_JWKS_URL']
+    parsed = urlsplit(jwks_url)
+    assert parsed.scheme == 'http' and parsed.hostname == '127.0.0.1'
+    assert parsed.port not in {8767, 8768, 9742}
+    key_client = jwt.PyJWKClient
+    jwt.PyJWKClient = lambda *args, **kwargs: key_client(jwks_url, timeout=5)
 if os.environ.get('PAN_TEST_AUTH_CHANNEL_FIXTURE') == '1':
     import json
     from packages.web.channel_auth import child_environment

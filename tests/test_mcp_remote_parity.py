@@ -40,25 +40,13 @@ AUDIENCE = "test-aud"
 TOKEN_HEADER = "cf-access-jwt-assertion"
 
 
-class _FakeKey:
-    def __init__(self, key):
-        self.key = key
-
-
-class _FakeJwkClient:
-    def __init__(self, public_key):
-        self.public_key = public_key
-
-    def get_signing_key_from_jwt(self, _token):
-        return _FakeKey(self.public_key)
-
-
 def _access_token(private_key):
     now = int(time.time())
     return pyjwt.encode(
         {"iss": ISSUER, "aud": AUDIENCE, "sub": "test-user", "iat": now, "exp": now + 300},
         private_key,
         algorithm="RS256",
+        headers={'kid': 'owned-test-key'},
     )
 
 
@@ -74,12 +62,35 @@ def remote_gateway(access_key):
 
     mp = pytest.MonkeyPatch()
     key = access_key
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    jwk = json.loads(pyjwt.algorithms.RSAAlgorithm.to_jwk(key.public_key()))
+    jwk.update(kid='owned-test-key', use='sig', alg='RS256')
+
+    class Keys(BaseHTTPRequestHandler):
+        def do_GET(self):
+            assert self.path == '/cdn-cgi/access/certs'
+            raw = json.dumps({'keys': [jwk]}).encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def log_message(self, *args):
+            pass
+
+    jwks = ThreadingHTTPServer(('127.0.0.1', 0), Keys)
+    assert jwks.server_port not in {8767, 8768, 9742}
+    jwks_thread = threading.Thread(target=jwks.serve_forever, daemon=True)
+    jwks_thread.start()
+    key_client = pyjwt.PyJWKClient
     mp.setattr(
         mcp_gateway.jwt, "PyJWKClient",
-        lambda *args, **kwargs: _FakeJwkClient(key.public_key()),
+        lambda *args, **kwargs: key_client(
+            f'http://127.0.0.1:{jwks.server_port}/cdn-cgi/access/certs', timeout=5),
     )
     saved_env = {name: os.environ.get(name) for name in (
-        "PAN_API_URL", "PAN_AGENT_SESSION_ID", "PAN_AGENT_SESSION_TITLE")}
+        "PAN_API_URL", "PAN_AGENT_SESSION_ID", "PAN_AGENT_SESSION_TITLE", "PAN_PLUGIN_IPC")}
     saved_path = list(sys.path)
     saved_bytecode = sys.dont_write_bytecode
     saved_settings = (
@@ -116,6 +127,8 @@ def remote_gateway(access_key):
         evidence = ROOT / "artifacts" / "remote-http-owned.json"
         evidence.parent.mkdir(exist_ok=True)
         evidence.write_text(json.dumps({"host": "127.0.0.1", "port": port, "pid": os.getpid(), "synthetic_access_key": True}), encoding="utf-8")
+        # Expose only the fixture JWKS address, never a production override.
+        mp.setenv('PAN_TEST_REMOTE_JWKS_URL', f'http://127.0.0.1:{jwks.server_port}/cdn-cgi/access/certs')
         yield f"http://127.0.0.1:{port}/mcp", _access_token(key)
     finally:
         if server is not None:
@@ -137,6 +150,10 @@ def remote_gateway(access_key):
             else:
                 os.environ[name] = value
         mp.undo()
+        jwks.shutdown()
+        jwks.server_close()
+        jwks_thread.join(5)
+        assert not jwks_thread.is_alive()
 
 
 def _mcp_call(url, token, name, arguments):
@@ -183,6 +200,95 @@ def test_gateway_has_no_second_tool_registry():
     assert "types.Tool(" not in source
 
 
+def test_request_identity_is_independent_and_reset(access_key):
+    from packages.mcp.server import _remote_access_token
+    observed = []
+    barrier = asyncio.Event()
+
+    async def endpoint(scope, receive, send):
+        before = _remote_access_token.get()
+        observed.append(before)
+        if len(observed) == 2:
+            barrier.set()
+        await barrier.wait()
+        assert _remote_access_token.get() == before
+        if scope['path'] == '/raise':
+            raise RuntimeError('owned endpoint failure')
+
+    tokens = [_access_token(access_key), pyjwt.encode({
+        'iss': ISSUER, 'aud': AUDIENCE, 'sub': 'second-user',
+        'iat': int(time.time()), 'exp': int(time.time()) + 300},
+        access_key, algorithm='RS256', headers={'kid': 'owned-test-key'})]
+
+    class LocalKeys:
+        def get_signing_key_from_jwt(self, token):
+            from types import SimpleNamespace
+            return SimpleNamespace(key=access_key.public_key())
+
+    guard = mcp_gateway.AccessGuard(endpoint, ISSUER, AUDIENCE, key_client=LocalKeys())
+    async def run():
+        async def call(token, path):
+            try:
+                await guard({'type': 'http', 'path': path,
+                             'headers': [(TOKEN_HEADER.encode(), token.encode())]}, None, None)
+            except RuntimeError:
+                assert path == '/raise'
+            assert _remote_access_token.get() is None
+        await asyncio.gather(call(tokens[0], '/ok'), call(tokens[1], '/raise'))
+    asyncio.run(run())
+    assert set(observed) == set(tokens)
+    assert _remote_access_token.get() is None
+
+
+def test_remote_transport_unknown_is_not_replayed(monkeypatch):
+    from packages.mcp import server
+    calls = []
+    def fail(message):
+        calls.append(message)
+        raise TimeoutError('unconfirmed')
+    monkeypatch.setattr('packages.plugins.ipc.request', fail)
+    monkeypatch.setenv('PAN_AGENT_SESSION_ID', 'inherited-local')
+    monkeypatch.setenv('PAN_AGENT_SESSION_TITLE', 'inherited title')
+    binding = server._remote_access_token.set('request-token')
+    try:
+        result = server.agent_send('target', 'original', 'stable-txn')
+        assert result['status'] == 'unknown' and result['retryable'] is False
+        assert len(calls) == 1
+        assert calls[0] == {'operation': 'remote_http', 'session_id': '',
+                            'access_token': 'request-token', 'method': 'POST', 'path': '/api/send',
+                            'body': {'sessionId': 'target', 'text': 'original', 'source': 'agent',
+                                     'force': True, 'clientMessageId': 'stable-txn'}}
+        assert server._terminal_api('list', {})['error']['code'] == 'local-stdio-required'
+        assert server._self_queue_api('read')['error'] == 'local-stdio-required'
+    finally:
+        server._remote_access_token.reset(binding)
+
+
+def test_gateway_discards_inherited_ipc_and_uses_checkout_locator(tmp_path):
+    import subprocess
+    code = """
+import json, os, sys
+from pathlib import Path
+from packages.remote.mcp_gateway import create_app
+root = Path(sys.argv[1])
+config = {'access_issuer': 'https://team.cloudflareaccess.com',
+          'access_audience': 'test-aud', 'public_hostname': 'mcp.example.com',
+          'pan_project_root': str(root), 'pan_api_url': 'http://127.0.0.1:9'}
+create_app(config)
+assert 'PAN_PLUGIN_IPC' not in os.environ
+assert 'PAN_AGENT_SESSION_ID' not in os.environ
+(root / 'data').mkdir()
+(root / 'data/core-ipc.json').write_text(json.dumps({'address': 'owned-test-locator'}))
+create_app(config)
+assert os.environ['PAN_PLUGIN_IPC'] == 'owned-test-locator'
+"""
+    result = subprocess.run([sys.executable, '-c', code, str(tmp_path)], cwd=ROOT,
+                            env={**os.environ, 'PAN_PLUGIN_IPC': 'foreign-test-locator',
+                                 'PAN_AGENT_SESSION_ID': 'foreign-test-session'},
+                            capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+
+
 def test_remote_tools_list_equals_stdio_registry(remote_gateway):
     url, token = remote_gateway
     remote = {tool.name: tool for tool in _mcp_list_tools(url, token)}
@@ -210,6 +316,179 @@ def test_remote_tools_list_equals_stdio_registry(remote_gateway):
     schema = remote_force.inputSchema
     assert {"session_id", "text", "client_message_id"} <= set(schema["properties"])
     assert "session_id" in schema.get("required", [])
+
+
+@pytest.fixture
+def owned_remote_core(remote_gateway, tmp_path, monkeypatch):
+    """Production Core with synthetic credentials and private profile/ports."""
+    from packages.automation.auth import UserAuth
+    import test_real_queue_http_e2e as real
+
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1', 0))
+        port = probe.getsockname()[1]
+    assert port not in {8767, 8768, 9742}
+    monkeypatch.setattr(real, 'PORT', port)
+    monkeypatch.setattr(real, 'SERVER_LAUNCHER', ROOT / 'tests/support/automation_http_server.py')
+    root = tmp_path / 'owned-remote-profile'
+    root.mkdir()
+    (root / 'config.json').write_text(json.dumps({
+        'plugin_manifests': [str(ROOT / 'manifest.json'), str(ROOT / 'packages/mcp/manifest.json')],
+        'qq': {'enabled': False}, 'wechat': {'enabled': False}, 'remote': {'enabled': False},
+        'tailscale': {'startupEnabled': False}, 'lan': {'startupEnabled': False},
+        'mcp_remote': {'access_issuer': ISSUER, 'access_audience': AUDIENCE,
+                       'public_hostname': 'mcp.example.com'},
+    }), encoding='utf-8')
+    password = 'Owned-remote-test-only-123!'
+    UserAuth(root / 'automation').initialize(password)
+    runtime = real._PanRuntime(root)
+    runtime.start()
+    try:
+        with httpx.Client(base_url=runtime.base_url, trust_env=False) as client:
+            login = client.post('/api/automation/login', json={'key': password},
+                                headers={'Origin': runtime.base_url})
+            assert login.status_code == 200
+            bearer = {'Authorization': 'Bearer ' + login.json()['token']}
+            created = client.post('/api/sessions', headers=bearer, json={
+                'name': 'Owned-remote-read-target', 'adapter': 'cbc',
+                'model': 'deepseek-v4-flash', 'mcpServers': []})
+            assert created.status_code == 200, created.text
+            assert 'id' in created.json(), created.text
+            sid = created.json()['id']
+            assert client.get('/api/sessions/' + sid, headers=bearer).status_code == 200
+            client.cookies.clear()
+            assert client.get('/api/sessions', headers={
+                'X-Pan-Queue-Caller': sid, 'X-Pan-Terminal-Caller': sid,
+                'cf-access-jwt-assertion': remote_gateway[1]}).status_code == 401
+        monkeypatch.setattr('packages.mcp.server._pan_api_url', runtime.base_url)
+        address = json.loads((root / 'core-ipc.json').read_text())['address']
+        monkeypatch.setenv('PAN_PLUGIN_IPC', address)
+        yield runtime, sid, bearer, address
+    finally:
+        runtime.stop()
+
+
+def test_remote_authorized_reads_reach_owned_core(remote_gateway, owned_remote_core, access_key):
+    """Do not replace _api: metadata parity alone cannot prove dispatch works."""
+    runtime, sid, bearer, address = owned_remote_core
+    url, token = remote_gateway
+    assert 'session_list' in {tool.name for tool in _mcp_list_tools(url, token)}
+    results = {name: _payload(_mcp_call(url, token, name, args)) for name, args in (
+        ('session_list', {}), ('session_get', {'session_id': sid}))}
+    summaries = {}
+    for name, value in results.items():
+        if isinstance(value, dict) and set(value) == {'result'}:
+            value = value['result']
+        summaries[name] = ({'ok': False, 'error': value['error']}
+                           if isinstance(value, dict) and value.get('error') else
+                           {'ok': True, 'synthetic_target_present': sid in json.dumps(value)})
+    evidence = {'baseline': 'd5cd05e48da3b43727f6a4e8108adb4dda1bf49b',
+                'gateway': url, 'core': runtime.base_url, 'pids': runtime.pan_pids,
+                'synthetic_access': True, 'results': summaries}
+    (ROOT / 'artifacts/remote-core-read.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
+    print('REMOTE_CORE_READ ' + json.dumps(evidence))
+    listed = results['session_list']
+    if isinstance(listed, dict) and set(listed) == {'result'}:
+        listed = listed['result']
+    assert not (isinstance(listed, dict) and listed.get('error')), results
+    assert not any(isinstance(value, dict) and value.get('error') for value in results.values()), results
+    assert sid in json.dumps(listed)
+    assert results['session_get']['id'] == sid
+    # Allowed writes retain the original business receipt and queue gates.
+    update = _payload(_mcp_call(url, token, 'session_update', {
+        'session_id': sid, 'game_id': 'remote-owned-game'}))
+    assert not update.get('error'), update
+    with httpx.Client(base_url=runtime.base_url, trust_env=False) as client:
+        assert client.get('/api/sessions/' + sid, headers=bearer).json()['gameId'] == 'remote-owned-game'
+        paused = client.patch('/api/sessions/' + sid + '/queue/paused',
+                              headers=bearer, json={'paused': True})
+        assert paused.status_code == 200, paused.text
+    sent = _payload(_mcp_call(url, token, 'agent_send', {
+        'session_id': sid, 'text': 'owned remote queued input', 'client_message_id': 'remote-owned-txn'}))
+    assert not sent.get('error'), sent
+    assert sent.get('status') == 'queued', sent
+    assert sent.get('queuePaused') is True and sent.get('pendingSpawn') is False, sent
+    with httpx.Client(base_url=runtime.base_url, trust_env=False) as client:
+        queue = client.get('/api/sessions/' + sid + '/queue', headers=bearer).json()
+    assert 'owned remote queued input' in json.dumps(queue), queue
+    assert '////by agent' not in json.dumps(queue), queue
+    assert not runtime.fake_records(), 'paused write must not spawn a CLI'
+    # Exercise Core's own authorization, rather than only the Gateway gate.
+    from packages.plugins.ipc import request
+    def core(method, path, body=None, credential=token):
+        return request({'operation': 'remote_http', 'session_id': '',
+                        'access_token': credential, 'method': method, 'path': path, 'body': body},
+                       address=address)
+    for method, path, body in [
+        ('GET', '/api/settings/ui', None),
+        ('POST', '/api/self-queue/read', {}),
+        ('POST', '/api/terminal-tools/list', {}),
+        ('POST', '/api/claim', {'sessionId': sid, 'managerId': sid}),
+        ('POST', '/api/send', {'sessionId': sid, 'text': 'forged', 'sourceSessionId': sid}),
+        ('GET', '/api/jobs/action-jobs', None),
+    ]:
+        assert core(method, path, body)['error']['code'] == 'permission_denied', path
+    assert core('GET', '/api/sessions', credential='invalid')['error']['code'] == 'permission_denied'
+    for claim, value in [('aud', 'other-application'), ('iss', 'https://other.cloudflareaccess.com'), ('exp', 1)]:
+        claims = {'iss': ISSUER, 'aud': AUDIENCE, 'sub': 'owned-synthetic',
+                  'iat': int(time.time()), 'exp': int(time.time()) + 300}
+        claims[claim] = value
+        wrong = pyjwt.encode(claims, access_key, algorithm='RS256', headers={'kid': 'owned-test-key'})
+        assert core('GET', '/api/sessions', credential=wrong)['error']['code'] == 'permission_denied'
+    other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    assert core('GET', '/api/sessions', credential=_access_token(other_key))['error']['code'] == 'permission_denied'
+    policy_path = runtime.data_root / 'config.json'
+    original_policy = policy_path.read_text(encoding='utf-8')
+    changed = json.loads(original_policy)
+    changed['mcp_remote']['access_audience'] = 'different-core-scope'
+    try:
+        policy_path.write_text(json.dumps(changed), encoding='utf-8')
+        refused = _payload(_mcp_call(url, token, 'session_get', {'session_id': sid}))
+        assert refused['error']['code'] == 'permission_denied'
+    finally:
+        policy_path.write_text(original_policy, encoding='utf-8')
+    assert core('GET', '/api/sessions')['sessions'][0]['id'] == sid
+    with httpx.Client(base_url=runtime.base_url, trust_env=False) as client:
+        after_denials = client.get('/api/sessions/' + sid + '/queue', headers=bearer).json()
+    assert after_denials['items'] == queue['items'], 'denials must not partially enqueue input'
+    assert not runtime.fake_records(), 'denials must not spawn a provider'
+    from packages.mcp.server import _remote_access_token as access_token
+    assert access_token.get() is None
+    (ROOT / 'artifacts/remote-core-write.json').write_text(json.dumps({
+        'update': {'gameId': update.get('gameId')}, 'receipt': sent,
+        'queueItems': len(queue.get('items', [])), 'no_provider_spawn': True,
+        'cross_scope_denied': True}), encoding='utf-8')
+
+
+def test_real_stdio_retains_bound_scope(remote_gateway, owned_remote_core):
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    runtime, outsider, bearer, address = owned_remote_core
+    with httpx.Client(base_url=runtime.base_url, trust_env=False) as client:
+        owner = client.post('/api/sessions', headers=bearer, json={
+            'name': 'Owned-bound-stdio', 'adapter': 'cbc', 'model': 'deepseek-v4-flash',
+            'mcpServers': ['pan'],
+            'panAccess': {'restrictToManaged': True, 'canClaimUnmanaged': False}}).json()
+        assert owner.get('id'), owner
+    params = StdioServerParameters(command=sys.executable, args=['-m', 'packages.mcp.server'],
+        cwd=str(ROOT), env={**{k: v for k, v in os.environ.items() if not k.startswith('PAN_')},
+            'PAN_PLUGIN_IPC': address, 'PAN_AGENT_SESSION_ID': owner['id'],
+            'PAN_API_URL': runtime.base_url, 'PYTHONPATH': str(ROOT)})
+    async def run():
+        async with stdio_client(params) as streams, ClientSession(*streams) as client:
+            await client.initialize()
+            listing = _payload(await client.call_tool('session_list', {}))
+            assert owner['id'] in json.dumps(listing)
+            assert outsider not in json.dumps(listing)
+            assert _payload(await client.call_tool('session_get', {'session_id': owner['id']}))['id'] == owner['id']
+            denied = _payload(await client.call_tool('session_get', {'session_id': outsider}))
+            assert denied['error']['code'] == 'permission_denied'
+            url, token = remote_gateway
+            remote = await asyncio.to_thread(_mcp_call, url, token, 'session_get', {'session_id': outsider})
+            assert _payload(remote)['id'] == outsider
+            denied_after_remote = _payload(await client.call_tool('session_get', {'session_id': outsider}))
+            assert denied_after_remote['error']['code'] == 'permission_denied'
+    asyncio.run(run())
 
 
 def test_remote_access_requires_valid_jwt(remote_gateway):
@@ -341,8 +620,26 @@ def test_access_rejects_wrong_claims(remote_gateway, access_key, claim):
     key = access_key
     claims = {"iss": ISSUER, "aud": AUDIENCE, "sub": "synthetic", "iat": int(time.time()), "exp": int(time.time()) + 300}
     claims[claim] = 1 if claim == "exp" else "wrong"
-    token = pyjwt.encode(claims, key, algorithm="RS256")
+    token = pyjwt.encode(claims, key, algorithm="RS256", headers={'kid': 'owned-test-key'})
     assert httpx.post(url, json={}, headers={TOKEN_HEADER: token}).status_code == 401
+
+
+def test_access_rejects_untrusted_signature(remote_gateway):
+    url, _ = remote_gateway
+    other = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    assert httpx.post(url, json={}, headers={TOKEN_HEADER: _access_token(other)}).status_code == 401
+
+
+@pytest.mark.parametrize('name,arguments', [
+    ('reminding_card', {'operation': 'list_pending'}),
+    ('locker_message', {'operation': 'get', 'message_id': 'owned-test-id'}),
+    ('interaction_card', {'operation': 'list_pending'}),
+])
+def test_remote_local_producers_never_reach_core(monkeypatch, remote_gateway, name, arguments):
+    monkeypatch.setattr('packages.mcp.server._api', lambda *a, **k: pytest.fail('local producer reached Core'))
+    url, token = remote_gateway
+    result = _payload(_mcp_call(url, token, name, arguments))
+    assert result == {'ok': False, 'error': 'local_stdio_caller_required'}
 
 
 @pytest.mark.parametrize("name,arguments", [
@@ -366,7 +663,7 @@ def test_real_managed_gate_before_backend(monkeypatch, remote_gateway, name, arg
     assert result["error"]["code"] == "permission_denied"
 
 
-def test_remote_delayed_restart_real_http(monkeypatch, remote_gateway, tmp_path):
+def test_bound_stdio_delayed_restart_real_http(monkeypatch, tmp_path):
     import test_real_queue_http_e2e as real
     from test_delayed_restart_locked_queue_http import _stop_owned
     from types import SimpleNamespace
@@ -381,13 +678,6 @@ def test_remote_delayed_restart_real_http(monkeypatch, remote_gateway, tmp_path)
         monkeypatch.setattr('packages.mcp.server._pan_api_url', runtime.base_url)
         session = real._create(runtime, 'remote-delayed-offline')
         sid = session['id']
-        url, token = remote_gateway
-        # An Access-authenticated remote client has no bound local Session.
-        # Keep its refusal separate from the real bound stdio lifecycle proof.
-        monkeypatch.setattr('packages.mcp.server._terminal_transport','streamable-http')
-        for name in ('agent_restart_delayed_status','agent_restart_delayed'):
-            denied = _payload(_mcp_call(url,token,name,{'session_id':sid}))
-            assert denied['ok'] is False and denied['error']['code'] == 'bound_stdio_required', denied
         runtime.request('PATCH',f'/api/sessions/{sid}',json={'pluginBindings':[
             {'plugin_id':'pan','mode':'standalone','enabled':True}]})
         async def bound_stdio():
@@ -410,6 +700,17 @@ def test_remote_delayed_restart_real_http(monkeypatch, remote_gateway, tmp_path)
         assert rejected['ok'] is False and 'No live Worker' in rejected['error']
         assert runtime.request('GET', f'/api/sessions/{sid}/worker/delayed-restart')['delayedRestart'] is None
         assert not [row for row in runtime.fake_records() if row.get('cwd') == session['workdir']]
-        print('REMOTE_DELAYED_REAL_HTTP ' + json.dumps({'mcp': url, 'api': runtime.base_url, 'pids': runtime.pan_pids, 'dataRoot': str(runtime.data_root), 'status': status, 'rejected': rejected}))
     finally:
         _stop_owned(runtime, SimpleNamespace(stop=lambda: None), locals().get('sid'))
+
+
+def test_remote_delayed_restart_real_http(remote_gateway, owned_remote_core):
+    runtime, sid, bearer, _ = owned_remote_core
+    url, token = remote_gateway
+    status = _payload(_mcp_call(url, token, 'agent_restart_delayed_status', {'session_id': sid}))
+    assert status == {'ok': True, 'delayedRestart': None}
+    rejected = _payload(_mcp_call(url, token, 'agent_restart_delayed', {'session_id': sid}))
+    assert rejected['ok'] is False and 'No live Worker' in rejected['error']
+    with httpx.Client(base_url=runtime.base_url, trust_env=False) as client:
+        assert client.get(f'/api/sessions/{sid}/worker/delayed-restart', headers=bearer).json()['delayedRestart'] is None
+    assert not runtime.fake_records()

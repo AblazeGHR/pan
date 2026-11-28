@@ -28,6 +28,34 @@ CONTROL = {'/api/spawn', '/api/task', '/api/assign', '/api/send', '/api/notify',
            '/api/wechat/subscribe', '/api/wechat/unsubscribe'}
 
 
+class RemoteScope:
+    """All-Session coordinator scope, explicitly without a Session identity."""
+    id = None
+    restrict_to_managed = False
+    can_claim_unmanaged = False
+    managed = ()
+
+
+def remote_permit(method, path, body, get_session):
+    from packages.automation.authorization import object_path
+    if not isinstance(method, str) or not isinstance(path, str) or not isinstance(body, dict):
+        return False
+    try:
+        route = urlsplit(path).path
+    except ValueError:
+        return False
+    if (object_path(path) or SELF.fullmatch(route) or route in {
+            '/api/claim', '/api/unclaim', '/api/readonly', '/api/report-subscribe',
+            '/api/report-unsubscribe', '/api/notifications/send',
+            '/api/qq/subscribe', '/api/qq/unsubscribe', '/api/wechat/subscribe',
+            '/api/wechat/unsubscribe'} or '/reminders' in route or route.endswith('/managers')
+            or route.startswith(('/api/agent-inbox/', '/api/interaction-cards/'))):
+        return False
+    if any(key in body for key in ('managerId', 'creatorSessionId', 'sourceSessionId', 'callerSessionId')):
+        return False
+    return permit(RemoteScope(), method, path, body, get_session)
+
+
 def trusted(scope):
     return scope.get(_SCOPE) is _MARKER
 
@@ -127,6 +155,32 @@ def permit(caller, method, path, body, get_session):
 
 
 def bind(runtime, app, get_session):
+    async def remote(token, method, path, body):
+        from packages.core.config import load_config
+        from packages.remote.mcp_gateway import AccessGuard, validate_config
+        import jwt
+        settings = (await io(load_config)).get('mcp_remote') or {}
+        try:
+            issuer, audience, _ = validate_config(settings)
+            if not isinstance(token, str) or not token:
+                return denied()
+            # Revalidate against this Core's policy on every invocation, including
+            # expiry. The gateway cannot choose the Core issuer/audience or scope.
+            await io(AccessGuard(None, issuer, audience).verify, token)
+        except (KeyError, TypeError, ValueError, OSError, jwt.PyJWTError):
+            return denied()
+        body = {} if body is None else body
+        if not await io(remote_permit, method, path, body, get_session):
+            return denied()
+        async def transport(scope, receive, send):
+            scope[_SCOPE] = _MARKER
+            await app(scope, receive, send)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=transport),
+                                     base_url='http://ipc', trust_env=False, follow_redirects=False) as client:
+            response = await client.request(method, path, json=body if method != 'GET' else None)
+        return response.json()
+    runtime.remote_http = remote
+
     async def cli(method, path, body, instance=None):
         if (method, path) not in {
             ('POST', '/api/system-actions/main-lifecycle'),

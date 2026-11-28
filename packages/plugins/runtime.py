@@ -247,6 +247,13 @@ class Runtime:
         if self.closing:
             return error("runtime_stopping", "Plugin runtime is stopping")
         sid, op = request["session_id"], request["operation"]
+        if op == 'remote_http':
+            callback = getattr(self, 'remote_http', None)
+            if (sid or callback is None or set(request) != {
+                    'operation', 'session_id', 'access_token', 'method', 'path', 'body'}):
+                return error('permission_denied', 'Remote Core scope unavailable')
+            return await callback(request.get('access_token'), request.get('method'),
+                                  request.get('path'), request.get('body'))
         if op == 'script_http':
             return error('permission_denied', 'Script operation requires the dedicated local endpoint')
         if op == 'cli_http':

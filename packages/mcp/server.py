@@ -72,6 +72,7 @@ import json
 import os
 import urllib.request
 import urllib.error
+from contextvars import ContextVar
 from pathlib import Path
 from urllib.parse import quote, urlencode, urlsplit
 
@@ -92,12 +93,16 @@ class PanMCP(FastMCP):
 
 mcp = PanMCP("Pan")
 _terminal_transport = "stdio"
+# Request-local evidence; never a local Session or process-wide identity.
+_remote_access_token = ContextVar('pan_remote_access_token', default=None)
 
 
 def _terminal_api(operation: str, arguments: dict) -> dict:
     """Local stdio only: never lend this process's caller to remote MCP clients."""
     def failure(code):
         return {"ok": False, "error": {"code": code}}
+    if _remote_access_token.get() is not None:
+        return failure('local-stdio-required')
     try:
         url = urlsplit(_pan_api_url)
         if (_terminal_transport != "stdio" or url.scheme != "http" or
@@ -125,6 +130,8 @@ register_terminal_tools(mcp, _terminal_api)
 
 def _self_queue_api(operation: str, item_id: str | None = None) -> dict:
     """Never lend a local worker's identity to remote MCP clients."""
+    if _remote_access_token.get() is not None:
+        return {'ok': False, 'error': 'local-stdio-required'}
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     url = urlsplit(_pan_api_url)
     if (_terminal_transport != "stdio" or not sid or url.scheme != "http"
@@ -186,6 +193,16 @@ def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0
         if remote_request or _terminal_transport != 'stdio':
             return {'ok': False, 'error': {'code': 'authorization_denied',
                     'message': 'Trusted local MCP transport required'}}
+    token = _remote_access_token.get()
+    if token is not None:
+        try:
+            from packages.plugins.ipc import request
+            return request({'operation': 'remote_http', 'session_id': '',
+                            'access_token': token, 'method': method, 'path': path, 'body': body})
+        except Exception:
+            return {'ok': False, 'status': 'unknown', 'retryable': False,
+                    'error': {'code': 'core_transport_unavailable',
+                              'message': 'Remote Core IPC outcome unconfirmed; do not replay'}}
     if object_path(path) or retired_family:
         if _terminal_transport != 'stdio':
             return {'ok': False, 'error': {'code': 403, 'message': 'Trusted local MCP transport required'}}
@@ -274,6 +291,8 @@ def _caller_identity() -> dict | None:
     that still emit the legacy top-level flags they are normalized here, so
     callers can always read them from ``panAccess``.
     """
+    if _remote_access_token.get() is not None:
+        return None
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     if not sid:
         return None
@@ -429,6 +448,8 @@ def _agent_message_prefix(text: str) -> str:
     agent 发消息时标注发送者身份，目标 worker 据此区分编排消息与真实用户消息。
     agent_send_to_queue / agent_send 及其 worker_* 别名共用本实现。
     """
+    if _remote_access_token.get() is not None:
+        return text
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     title = os.environ.get("PAN_AGENT_SESSION_TITLE")
     if sid or title:
@@ -2032,6 +2053,8 @@ def locker_message(operation: str, message: dict | None = None, message_id: str 
 
 def _local_producer_api(path, body):
     """Same-user loopback assertion, never forwarded from remote MCP transports."""
+    if _remote_access_token.get() is not None:
+        return {'ok': False, 'error': 'local_stdio_caller_required'}
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     try:
         url = urlsplit(_pan_api_url)

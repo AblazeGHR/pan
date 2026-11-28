@@ -34,7 +34,14 @@ class AccessGuard:
             await asyncio.to_thread(self.verify, token)
         except (jwt.PyJWTError, ValueError, OSError):
             return await JSONResponse({"error": "Invalid Access identity"}, status_code=401)(scope, receive, send)
-        return await self.app(scope, receive, send)
+        # Keep the context in the shared registry module, including when this
+        # gateway is launched as __main__ rather than imported by a test.
+        from packages.mcp.server import _remote_access_token as access_token
+        binding = access_token.set(token)
+        try:
+            return await self.app(scope, receive, send)
+        finally:
+            access_token.reset(binding)
 
 
 def validate_config(config):
@@ -56,6 +63,10 @@ def create_app(config):
     os.environ["PAN_API_URL"] = config["pan_api_url"]
     os.environ.pop("PAN_AGENT_SESSION_ID", None)
     os.environ.pop("PAN_AGENT_SESSION_TITLE", None)
+    os.environ.pop('PAN_PLUGIN_IPC', None)
+    locator = root / 'data' / 'core-ipc.json'
+    if locator.is_file():
+        os.environ['PAN_PLUGIN_IPC'] = json.loads(locator.read_text(encoding='utf-8'))['address']
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(root))
     # Single source of truth: serve the checkout's stdio FastMCP registry.
