@@ -132,7 +132,6 @@ def service():
             state["posts"].append((parsed.path, body))
             if parsed.path == "/api/sessions/wake":
                 sid, = body["sessionIds"]
-                assert sid in state["receipts"]
                 value = {"ok": True, "results": [
                     {"status": "queued", "sessionId": sid, "queueItemId": "fixture-q-" + sid},
                 ]}
@@ -626,6 +625,136 @@ class RecoveryBridge:
         return {"currentProviderId": self.current}
 
 
+def test_unknown_other_candidate_does_not_block_known_choice(service, tmp_path):
+    api, state = service
+    bridge = RecoveryBridge()
+    original = bridge.read_only
+    def read(op, args, *, deadline=None):
+        if op == 'list':
+            value = original(op, args, deadline=deadline)
+            value['providers'].append({'id':'c', 'category':'official'})
+            return value
+        if args['id'] == 'c':
+            raise ValueError('synthetic quota unavailable')
+        return original(op, args, deadline=deadline)
+    bridge.read_only = read
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    event = issue()
+    state['events'].append({'seq':1, 'event':event})
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    assert rotate.inspect_quota(ledger, bridge, now=lambda:1000) == {
+        'decision':'switch', 'provider':'b', 'expected':'a'}
+    assert ledger.data['batches'][0]['quotaDiagnostic']['unknownCount'] == 1
+    run_reconcile(api, bridge, ledger)
+    assert bridge.switches == [('a','b')]
+
+
+def test_unattributed_disabled_current_and_unknown_candidates_do_not_switch(service, tmp_path):
+    api, state = service
+    bridge = RecoveryBridge()
+    bridge.gates = lambda app: {'a':True}
+    original = bridge.read_only
+    def read(op, args, *, deadline=None):
+        if op == 'quota' and args['id'] == 'a': raise ValueError('unknown source quota')
+        return original(op, args, deadline=deadline)
+    bridge.read_only = read
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    event = issue()
+    state['events'].append({'seq':1, 'event':event})
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    assert rotate.inspect_quota(ledger, bridge, now=lambda:1000)['decision'] == 'unknown'
+    assert ledger.data['batches'][0]['quotaDiagnostic']['reason'] == 'current_disabled_quota_unknown'
+    run_reconcile(api, bridge, ledger)
+    assert not bridge.switches and not state['posts']
+
+
+def test_disabled_source_can_switch_only_after_own_exhaustion_is_observed(service, tmp_path):
+    api, state = service
+    bridge = RecoveryBridge()
+    bridge.gates = lambda app: {'a':True}
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    event = issue()
+    state['events'].append({'seq':1, 'event':event})
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    assert rotate.inspect_quota(ledger, bridge, now=lambda:1000) == {
+        'decision':'switch', 'provider':'b', 'expected':'a'}
+    run_reconcile(api, bridge, ledger)
+    assert bridge.switches == [('a','b')]
+
+
+@pytest.mark.parametrize('change', ['provider', 'disabled', 'issue_provider'])
+def test_quota_admission_rejects_changed_or_conflicting_identity(service, tmp_path, change):
+    api, state = service
+    bridge = RecoveryBridge()
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    event = issue()
+    if change == 'issue_provider':
+        event['payload']['correlation']['accountId'] = 'other'
+    state['events'].append({'seq':1, 'event':event})
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    result = rotate.inspect_quota(ledger, bridge, now=lambda:1000)
+    if change == 'issue_provider':
+        assert result['decision'] == 'unknown'
+        assert ledger.data['batches'][0]['quotaDiagnostic']['reason'] == 'issue_provider_conflict'
+    elif change == 'provider':
+        bridge.current = 'b'
+    else:
+        bridge.gates = lambda app: {'b':True}
+    run_reconcile(api, bridge, ledger)
+    assert not bridge.switches and not state['posts']
+
+
+def test_unknown_other_candidate_does_not_prove_all_exhausted(service, tmp_path):
+    api, state = service
+    bridge = RecoveryBridge(alternative_used=100)
+    original = bridge.read_only
+    def read(op, args, *, deadline=None):
+        if op == 'list':
+            value = original(op, args, deadline=deadline)
+            value['providers'].append({'id':'c', 'category':'official'})
+            return value
+        if args['id'] == 'c': raise ValueError('unknown')
+        return original(op, args, deadline=deadline)
+    bridge.read_only = read
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    event = issue()
+    state['events'].append({'seq':1, 'event':event})
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    assert rotate.inspect_quota(ledger, bridge, now=lambda:1000)['decision'] == 'unknown'
+    run_reconcile(api, bridge, ledger)
+    assert not bridge.switches and not state['posts']
+
+
+def test_manual_provider_change_at_switch_cas_is_unknown_and_never_replayed(service, tmp_path):
+    api, state = service
+    bridge = RecoveryBridge()
+    def conflict(op, args):
+        bridge.current = 'b'  # A synthetic manual switch precedes CAS admission.
+        raise ValueError('expected current changed')
+    bridge.invoke = conflict
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    event = issue()
+    state['events'].append({'seq':1, 'event':event})
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    rotate.inspect_quota(ledger, bridge, now=lambda:1000)
+    run_reconcile(api, bridge, ledger)
+    assert ledger.data['batches'][0]['status'] == 'unknown'
+    run_reconcile(api, bridge, rotate.Ledger(ledger.path, True))
+    assert not state['posts']
+
+
 def run_reconcile(api, bridge, ledger):
     rotate.reconcile(api, bridge, ledger, now=lambda: bridge.at)
 
@@ -667,8 +796,72 @@ def test_http_recovery_switch_then_restart_and_enqueue_once(service, tmp_path):
     assert len(state["posts"]) == 3 and bridge.switches == [("a", "b")]
 
 
+def test_session_continuation_when_worker_offline_and_no_restart_receipt(service, tmp_path):
+    api, state = service
+    bridge = RecoveryBridge(10, 10)
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    rotate.observe(api, ledger)
+    event = issue()
+    state['events'].append({'seq':1, 'event':event})
+    state['details']['s1'] = detail(event)
+    rotate.observe(api, ledger)
+    state['workers'] = [w for w in state['workers'] if w['sessionId'] != 's1']
+    rotate.inspect_quota(ledger, bridge, now=lambda:1000)
+    run_reconcile(api, bridge, ledger)
+    batch, = ledger.data['batches']
+    assert batch['workers']['s1']['restart']['status'] == 'skipped_changed'
+    assert batch['targets'][0]['continuation']['status'] == 'queued'
+    wakes = [body for path, body in state['posts'] if path == '/api/sessions/wake']
+    assert len(wakes) == 1 and wakes[0]['sessionIds'] == ['s1']
+    run_reconcile(api, bridge, rotate.Ledger(ledger.path, True))
+    assert len([p for p, _ in state['posts'] if p == '/api/sessions/wake']) == 1
+
+
+def test_real_isolated_offline_wake_queue_head_and_original_receipt(tmp_path, monkeypatch):
+    import socket
+    from packages.automation.auth import UserAuth
+    from test_real_queue_http_e2e import _PanRuntime, _create, _enqueue
+    import test_real_queue_http_e2e as h
+    from test_legal_offline_http import durable, paused
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1', 0)); port = probe.getsockname()[1]
+    assert port not in (8767, 8768)
+    monkeypatch.setattr(h, 'PORT', port)
+    monkeypatch.setattr(h, 'SERVER_LAUNCHER', h.ROOT / 'tests/support/automation_http_server.py')
+    root = tmp_path / 'owned'
+    root.mkdir()
+    (root / 'config.json').write_text(json.dumps({'qq':{'enabled':False}, 'wechat':{'enabled':False},
+        'remote':{'enabled':False}, 'tailscale':{'startupEnabled':False}, 'lan':{'startupEnabled':False}}))
+    password = 'Aa1!' + secrets.token_urlsafe(24)
+    UserAuth(root / 'automation').initialize(password)
+    runtime = _PanRuntime(root)
+    try:
+        runtime.start()
+        original = runtime.request
+        token = original('POST', '/api/automation/login', json={'key':password},
+                         headers={'Origin':runtime.base_url})['token']
+        def authorized(method, path, **kwargs):
+            kwargs['headers'] = {'Authorization':'Bearer ' + token}
+            return original(method, path, **kwargs)
+        runtime.request = authorized
+        sid = _create(runtime, 'synthetic-offline-wake')['id']
+        paused(runtime, sid, True)
+        _enqueue(runtime, sid, 'older synthetic item', 'older')
+        key = 'codex-limit:synthetic-id'
+        api = rotate.Pan(runtime.base_url, token)
+        first = api.enqueue_continuation(sid, key)
+        second = api.enqueue_continuation(sid, key)
+        assert first['status'] == second['status'] == 'queued'
+        assert first['queueItemId'] == second['queueItemId']
+        rows = durable(runtime, sid)['queue_pending']
+        assert len(rows) == 2 and rows[0]['id'] == first['queueItemId']
+        assert rows[0]['wakeMessage'] is True and rows[1]['text'] == 'older synthetic item'
+    finally:
+        runtime.stop()
+
+
 @pytest.mark.parametrize("change,value", [
-    ("historyRevision", 8), ("illegalOffline", True), ("queuePaused", True),
+    ("historyRevision", 8), ("historyEpoch", 'new-epoch'), ("illegalOffline", True), ("queuePaused", True),
 ])
 def test_continuation_skips_changed_or_blocked_session(service, tmp_path, change, value):
     api, state = service
@@ -689,6 +882,20 @@ def test_continuation_skips_changed_or_blocked_session(service, tmp_path, change
     assert not any(path == "/api/sessions/wake" for path, _ in state["posts"])
     target, = ledger.data["batches"][0]["targets"]
     assert target["continuation"]["status"] == "skipped_changed_or_blocked"
+
+
+def test_settled_legacy_batch_is_not_replayed(service, tmp_path):
+    api, state = service
+    bridge = RecoveryBridge(10, 10)
+    ledger = rotate.Ledger(tmp_path / 'ledger.json', True)
+    ledger.data['cursor'] = 5
+    ledger.data['batches'] = [{'status':'settled', 'workers':{}, 'targets':[
+        {'targetSessionId':'s1', 'terminalKey':'old', 'historyEpoch':'history1', 'historyRevision':7}]}]
+    ledger.save()
+    rotate.observe(api, ledger)
+    rotate.inspect_quota(ledger, bridge, now=lambda:1000)
+    run_reconcile(api, bridge, rotate.Ledger(ledger.path, True))
+    assert ledger.data['cursor'] == 5 and not state['posts'] and not bridge.switches
 
 
 def test_all_exhausted_waits_then_refreshes_before_restarts(service, tmp_path):
@@ -726,7 +933,8 @@ def test_restart_response_loss_queries_receipt_without_replay(service, tmp_path)
         assert worker["restart"]["status"] == "unknown"
         assert worker["restart"]["observedReceipt"]["status"] == "pending"
     run_reconcile(LoseRestart(), bridge, rotate.Ledger(path, True))
-    assert len(state["posts"]) == 2
+    assert len(state["posts"]) == 3
+    assert ledger.data['batches'][0]['targets'][0]['continuation']['status'] == 'queued'
 
 
 def test_send_response_loss_is_never_replayed(service, tmp_path):

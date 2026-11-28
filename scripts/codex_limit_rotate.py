@@ -394,7 +394,7 @@ def observe(api, ledger):
 
 def inspect_quota(ledger, bridge, now=time.time):
     """Sample through the existing read-only bridge; never issue a switch."""
-    from packages.automation.quota_provider import sample
+    from packages.automation.quota_provider import catalog, sample
 
     actionable = [b for b in ledger.data["batches"] if b["status"] in {"observed_only", "waiting_reset"}]
     if not actionable:
@@ -404,17 +404,62 @@ def inspect_quota(ledger, bridge, now=time.time):
         return {"decision": "wait", "until": min(b["quotaDecision"]["until"] for b in waiting)}
     gates = bridge.settings.gates("codex")
     disabled = {pid for pid, value in gates.items() if value}
-    _, snapshot = sample(bridge, disabled, now, time.monotonic() + 30)
-    decision = choose(snapshot, now())
+    deadline = time.monotonic() + 30
+    # A manually selected gated source may be read for quota, never selected
+    # as an automatic destination. Prove it remains the same throughout.
+    try:
+        source, _ = catalog(bridge.read_only('list', {'app':'codex'}, deadline=deadline))
+    except Exception:
+        source = None
+    observed, snapshot = sample(bridge, disabled - {source}, now, deadline)
+    sampled_at = now()
+    rows = observed.get('providers', []) if isinstance(observed, dict) else []
+    stable = (isinstance(observed, dict) and observed.get('stable') is True
+              and source is not None and observed.get('currentProviderId') == source)
+    current = observed.get('currentProviderId') if stable else None
+    unknown_count = sum(1 for r in rows if r.get('status') == 'unknown')
+    diagnostic = {'reason': 'catalog_unstable' if not stable else
+                  'current_disabled_quota_unknown' if current in disabled and snapshot.get('status') != 'known' else
+                  'quota_unknown' if snapshot.get('status') != 'known' else 'complete',
+                  'unknownCount': unknown_count,
+                  'disabledCount': sum(1 for r in rows if r.get('id') in disabled),
+                  'currentDisabled': current in disabled if current is not None else None}
+    decision = choose(snapshot, sampled_at) if stable else {'decision':'unknown'}
+    if stable and snapshot.get('status') != 'known' and observed.get('reason') == 'provider_windows_unknown_or_current_disabled':
+        # The shared policy stays unchanged. Only an independently validated,
+        # fresh current and known destination may drive this watcher; unknown
+        # alternatives do not prove that every account is exhausted.
+        known = [r for r in rows if r.get('status') == 'known'
+                 and type(r.get('queriedAt')) in (int, float)
+                 and 0 <= sampled_at - r['queriedAt'] <= MAX_AGE]
+        partial = {'status':'known', 'observedAt':observed.get('observedAt'),
+                   'currentAccountId':current, 'accounts':known}
+        decision = choose(partial, sampled_at)
+        if decision['decision'] == 'wait':
+            decision = {'decision':'unknown'}
+        elif decision['decision'] in ('current', 'switch'):
+            diagnostic['reason'] = 'known_choice_with_unknown_candidates'
+    if decision.get('decision') == 'switch' and decision.get('provider') in disabled:
+        decision = {'decision':'unknown'}
+    provider_conflict = False
     for batch in ledger.data["batches"]:
         if batch["status"] in {"observed_only", "waiting_reset"}:
             if batch["status"] == "waiting_reset" and now() < batch["quotaDecision"]["until"]:
                 continue
-            batch["quotaDecision"] = decision
-            batch["quotaCheckedAt"] = now()
-            batch["status"] = "waiting_reset" if decision["decision"] == "wait" else "observed_only"
+            batch_decision = decision
+            targets = batch.get('targets', [])
+            if any(t.get('trigger', {}).get('correlation', {}).get('accountId') not in (None, current)
+                   for t in targets):
+                batch_decision = {'decision':'unknown'}
+                provider_conflict = True
+                batch['quotaDiagnostic'] = {**diagnostic, 'reason':'issue_provider_conflict'}
+            else:
+                batch['quotaDiagnostic'] = dict(diagnostic)
+            batch["quotaDecision"] = batch_decision
+            batch["quotaCheckedAt"] = sampled_at
+            batch["status"] = "waiting_reset" if batch_decision["decision"] == "wait" else "observed_only"
     ledger.save()
-    return decision
+    return {'decision':'unknown'} if provider_conflict else decision
 
 
 def _continuation_safe(detail, target):
@@ -450,6 +495,20 @@ def reconcile(api, bridge, ledger, now=time.time):
             checked = batch.get("quotaCheckedAt")
             if type(checked) not in (int, float) or not 0 <= now() - checked <= MAX_AGE:
                 batch["quotaDecision"] = {"decision": "unknown"}
+                ledger.save()
+                continue
+            try:
+                gates = bridge.settings.gates('codex')
+                expected = decision['expected'] if kind == 'switch' else decision['provider']
+                current = bridge.read_only('list', {'app':'codex'}).get('currentProviderId')
+                if current != expected or (kind == 'switch' and gates.get(decision['provider'], False)):
+                    batch['quotaDecision'] = {'decision':'unknown'}
+                    batch['quotaDiagnostic'] = {'reason':'provider_or_gate_changed'}
+                    ledger.save()
+                    continue
+            except Exception:
+                batch['quotaDecision'] = {'decision':'unknown'}
+                batch['quotaDiagnostic'] = {'reason':'provider_or_gate_unknown'}
                 ledger.save()
                 continue
             if kind == "switch":
@@ -552,10 +611,6 @@ def reconcile(api, bridge, ledger, now=time.time):
             if target.get("continuation") is not None:
                 continue
             sid = target["targetSessionId"]
-            worker = batch["workers"].get(sid, {})
-            restart = worker.get("restart", {})
-            if restart.get("status") not in {"accepted", "completed"}:
-                continue
             detail = api.session(sid)
             if not _continuation_safe(detail, target):
                 target["continuation"] = {"status": "skipped_changed_or_blocked"}
