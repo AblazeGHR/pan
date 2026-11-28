@@ -61,3 +61,24 @@ Then, following independent acceptance, run the existing launcher with
 first enabled run starts from the current event tip when there is no ledger;
 existing ledgers must be retained and unknown historical effects reconciled
 without cursor rollback or replay. Do not place credentials in arguments.
+
+
+## Independent-process acceptance
+
+`test_real_service_watcher_process_consumes_original_ta_queue_item` starts an
+owned FastAPI Pan process on a dynamic port, lets its plugin lifespan create the
+Windows-local script pipe, spawns a real Codex Worker and wrapper, and drives a
+deterministic native RPC executable from `tests/support/rotation_fake_codex_rpc.py`.
+The first native turn emits a structured quota failure with generation 0. A
+separate `rotation_watcher_fixture.py` process runs the normal watcher entry
+with a disposable profile and synthetic cc-switch provider. The persisted ledger
+records one target, one stable continuation client ID and its queue item ID; the
+service's JSON session file contains that same pending item. The delayed restart
+then starts the successor, the native fixture logs exactly two turns, and the
+second turn consumes the original queue item. A second scan does not add another
+item. The fixture also confirms the source Session is not granted continuation.
+
+This evidence covers the real Pan service process, plugin-local IPC, spawned
+Worker/wrapper and watcher process. It uses a synthetic adapter executable and
+provider; no real Codex account, cc-switch profile, production ledger or
+protected port is involved.

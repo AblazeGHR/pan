@@ -12,7 +12,11 @@ for key in tuple(os.environ):
 os.environ['PAN_BACKGROUND_JOBS_DIR'] = str(data / 'background_jobs')
 os.environ['PAN_TERMINALS_DIR'] = str(data / 'terminals')
 os.environ['PAN_SCHEDULER_DIR'] = str(data / 'scheduler')
-if os.environ.get('PAN_E2E_SYNTH_CODEX') == '1':
+if os.environ.get('PAN_E2E_ROTATION_CODEX') == '1':
+    os.environ['PAN_CODEX_NODE'] = sys.executable
+    os.environ['PAN_CODEX_PATH'] = str(ROOT / 'tests/support/rotation_fake_codex_rpc.py')
+    os.environ['CODEX_HOME'] = str(data / 'synthetic-codex-home')
+elif os.environ.get('PAN_E2E_SYNTH_CODEX') == '1':
     os.environ['PAN_CODEX_NODE'] = sys.executable
     os.environ['PAN_CODEX_PATH'] = str(ROOT / 'tests/support/fake_acp_codex_rpc.py')
     os.environ['CODEX_HOME'] = str(data / 'synthetic-codex-home')

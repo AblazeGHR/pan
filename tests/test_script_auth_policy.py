@@ -686,3 +686,82 @@ def test_owned_runtime_issue_to_conditional_wake_end_to_end(tmp_path, monkeypatc
             except asyncio.CancelledError: pass
             await transport.close()
     asyncio.run(run())
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='owned script pipe fixture is Windows-only')
+def test_real_service_watcher_process_consumes_original_ta_queue_item(tmp_path, monkeypatch):
+    """Owned service process + spawned Codex wrapper + external watcher process."""
+    import secrets, socket, subprocess, time, sys
+    import httpx
+    from packages.automation.auth import UserAuth
+    from tests import test_real_queue_http_e2e as h
+    from scripts import codex_limit_rotate as rotate
+
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1', 0)); port = probe.getsockname()[1]
+    monkeypatch.setattr(h, 'PORT', port)
+    monkeypatch.setattr(h, 'SERVER_LAUNCHER', h.ROOT / 'tests/support/automation_http_server.py')
+    monkeypatch.setenv('PAN_E2E_ROTATION_CODEX', '1')
+    root = tmp_path / 'owned-service'; root.mkdir()
+    (root / 'config.json').write_text(json.dumps({'qq':{'enabled':False}, 'wechat':{'enabled':False},
+        'remote':{'enabled':False}, 'tailscale':{'startupEnabled':False}, 'lan':{'startupEnabled':False},
+        'codex':{'models':['synthetic-model'], 'model':'synthetic-model'}}))
+    rules = [{'method':m, 'path':p} for m,p in sorted(script_auth.RULES)]
+    script_auth.initialize(root, 'watcher', {'enabled':True, 'targetMode':'codex', 'sessions':[], 'rules':rules})
+    login_key = 'Aa1!' + secrets.token_urlsafe(24)
+    UserAuth(root / 'automation').initialize(login_key)
+    runtime = h._PanRuntime(root)
+    client = httpx.Client(base_url=f'http://127.0.0.1:{port}', trust_env=False, timeout=10)
+    watcher = None
+    try:
+        runtime.start()
+        login = client.post('/api/automation/login', json={'key':login_key}, headers={'Origin':f'http://127.0.0.1:{port}'})
+        assert login.status_code == 200, login.text
+        bearer = {'Authorization':'Bearer '+login.json()['token']}
+        created = client.post('/api/sessions', json={'name':'rotation-ta', 'adapter':'codex',
+            'model':'synthetic-model', 'permissionMode':'read-only', 'mcpServers':[]}, headers=bearer)
+        assert created.status_code == 200, created.text
+        sid = created.json()['id']
+        (root / 'runner-ledger.json').write_text(json.dumps({'version':1,'cursor':0,'pending':{},'seen':{},'batches':[]}))
+        spawned = client.post('/api/spawn', json={'sessionId':sid}, headers=bearer)
+        assert spawned.status_code == 200 and 'workerId' in spawned.json(), spawned.text
+        queued = client.post('/api/task', json={'sessionId':sid,'text':'synthetic first turn',
+            'clientMessageId':'ta-original'}, headers=bearer)
+        assert queued.status_code == 200, queued.text
+        native_log = root / 'workdirs' / 'rotation-ta' / 'rotation-native-rpc.jsonl'
+        try:
+            h._wait_for(lambda: native_log.exists() and
+                'synthetic first turn' in native_log.read_text(encoding='utf-8'),
+                timeout=30, label='synthetic Codex first turn')
+        except AssertionError as exc:
+            raise AssertionError(f'{exc}; task={queued.text}; list={client.get("/api/list", headers=bearer).text}; session={client.get(f"/api/sessions/{sid}?historyLimit=1", headers=bearer).text}; log={(root / "pan.log").read_text(encoding="utf-8", errors="replace")[-4000:]}')
+        h._wait_for(lambda: client.get('/api/automation/events?after=0&limit=100', headers=bearer).json().get('events'),
+            timeout=15, label='persisted runtime issue')
+        watcher = subprocess.run([sys.executable, str(h.ROOT / 'tests/support/rotation_watcher_fixture.py'),
+            '--script-profile','watcher','--script-data-dir',str(root), '--ledger',str(root/'runner-ledger.json'),
+            '--bridge-data',str(root/'synthetic-bridge'), '--execute'], cwd=str(h.ROOT),
+            capture_output=True, text=True, timeout=45)
+        assert watcher.returncode == 0, watcher.stderr + watcher.stdout
+        state = json.loads((root / 'runner-ledger.json').read_text(encoding='utf-8'))
+        assert len(state['batches']) == 1 and len(state['batches'][0]['targets']) == 1
+        assert set(state['batches'][0]['workers']) == {sid}
+        assert state['batches'][0]['workers'][sid]['restart']['status'] == 'accepted'
+        switches = (root / 'synthetic-bridge' / 'switches.jsonl').read_text(encoding='utf-8').splitlines()
+        assert len(switches) == 1 and json.loads(switches[0])['to'] == 'synthetic-b'
+        target = state['batches'][0]['targets'][0]
+        continuation = target['continuation']
+        assert continuation['status'] == 'queued'
+        assert target['targetSessionId'] == sid
+        assert continuation['clientMessageId'].startswith('codex-limit:')
+        queue = client.get(f'/api/sessions/{sid}/queue', headers=bearer).json()
+        assert all(item.get('clientMessageId') != continuation['clientMessageId'] for item in queue.get('items', []))
+        h._wait_for(lambda: len(native_log.read_text(encoding='utf-8').splitlines()) >= 2,
+            timeout=30, label='successor consumption')
+        native = [json.loads(x) for x in native_log.read_text(encoding='utf-8').splitlines()]
+        assert len(native) == 2 and native[0]['text'] == 'synthetic first turn'
+        receipt = client.get(f'/api/sessions/{sid}/queue/wake-receipt', params={'clientMessageId':continuation['clientMessageId']}, headers=bearer)
+        assert receipt.status_code == 200
+    finally:
+        if watcher and watcher.returncode is None: watcher.kill()
+        client.close()
+        runtime.stop()
