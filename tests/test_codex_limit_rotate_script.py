@@ -1258,3 +1258,53 @@ def test_bearer_denied_at_restart_stops_later_effects(service, tmp_path, status)
     assert workers["s1"]["restart"]["status"] == "unknown"
     assert "restart" not in workers["s2"]
     assert secret not in ledger.path.read_text(encoding="utf-8")
+
+
+def test_ma_dispatched_ta_generation_zero_survives_projection_and_terminal():
+    from packages.web.script_auth import project_collection, _correlation
+    event = issue('synthetic-ma-ta')
+    c = event['payload']['correlation']
+    c.update(generation=0, sourceSessionId='synthetic-ma')
+    c.pop('taskSeq'); c.pop('taskId')
+    event['system'].update(sourceSessionId='synthetic-ma')
+    event['system'].pop('taskId')
+    profile = {'sessions': frozenset({'s1'})}
+    row = project_collection(profile, '/api/automation/events',
+        {'events':[{'seq':1,'event':event}], 'nextAfter':1})['events'][0]['event']
+    parsed = rotate.valid_issue(row)
+    assert parsed is not None
+    last = {'status':'error', 'terminalKey':'terminal', 'workerId':'w1', 'generation':0,
+            'executionSeq':3, 'taskSeq':None, 'taskId':None, 'historyEpoch':'e', 'historyRevision':2,
+            'reportDiagnostic':{'runtimeIssue':{'issueId':event['id'], 'correlation':_correlation(c, 's1')}}}
+    assert rotate.correlate(parsed, {'id':'s1','adapter':'codex','lastResult':last,
+        'historyEpoch':'e','historyRevision':2}) == 'matched'
+    assert 'sourceSessionId' not in row['system']
+    assert 'sourceSessionId' not in row['payload']['correlation']
+
+
+@pytest.mark.parametrize('field,value', [('generation',False), ('generation',-1), ('executionSeq',0), ('executionSeq',False), ('taskSeq',0), ('taskSeq',False)])
+def test_issue_zero_generation_does_not_weaken_other_numeric_identity(field, value):
+    event=issue()
+    event['payload']['correlation']['generation']=0
+    assert rotate.valid_issue(event) is not None
+    event['payload']['correlation'][field]=value
+    assert rotate.valid_issue(event) is None
+
+
+def test_direct_http_issue_rejects_conflicting_delegation_source():
+    event = issue()
+    event['system']['sourceSessionId'] = event['payload']['correlation']['sourceSessionId'] = 'manager'
+    assert rotate.valid_issue(event) is not None
+    event['system']['sourceSessionId'] = 'other'
+    assert rotate.valid_issue(event) is None
+    event['system']['sourceSessionId'] = event['payload']['correlation']['sourceSessionId'] = False
+    assert rotate.valid_issue(event) is None
+
+
+def test_direct_http_issue_requires_trusted_target():
+    event = issue()
+    assert rotate.valid_issue(event) is not None
+    del event['system']['sessionId']
+    assert rotate.valid_issue(event) is None
+    event['system']['sessionId'] = 'foreign'
+    assert rotate.valid_issue(event) is None

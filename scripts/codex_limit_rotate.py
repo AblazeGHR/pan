@@ -165,7 +165,8 @@ def valid_issue(event):
         return None
     if any(not isinstance(c.get(k), str) or not c[k] for k in ("sessionId", "workerId", "runtimeEpoch")):
         return None
-    if any(type(c.get(k)) is not int or c[k] < 1 for k in ("generation", "executionSeq")):
+    if (type(c.get("generation")) is not int or c["generation"] < 0
+            or type(c.get("executionSeq")) is not int or c["executionSeq"] < 1):
         return None
     # Ordinary executions omit taskSeq/taskId from runtime.issue; a supplied
     # task identity must still be well formed and match the persisted result.
@@ -173,7 +174,11 @@ def valid_issue(event):
             or "taskId" in c and (not isinstance(c["taskId"], str) or not c["taskId"])):
         return None
     system = event.get("system", {})
-    if not isinstance(system, dict) or any(k in system and system[k] != c.get(k) for k in ("sessionId", "workerId", "taskId")):
+    if (not isinstance(system, dict) or system.get("sessionId") != c["sessionId"]
+            or any(k in system and system[k] != c.get(k) for k in ("sessionId", "workerId", "taskId"))
+            or system.get("sourceSessionId") != c.get("sourceSessionId")
+            or (c.get("sourceSessionId") is not None
+                and (not isinstance(c["sourceSessionId"], str) or not c["sourceSessionId"]))):
         return None
     return {"issueId": p["issueId"], "correlation": c}
 

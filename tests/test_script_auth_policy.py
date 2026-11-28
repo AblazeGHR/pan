@@ -542,3 +542,147 @@ def test_local_ipc_watcher_simulated_rotation_once(tmp_path, monkeypatch, target
         finally:
             await transport.close()
     asyncio.run(run())
+
+
+def test_delegated_event_target_scope_and_source_consistency():
+    import copy
+    from tests.test_codex_limit_rotate_script import issue
+    event=issue('delegated')
+    event['system']['sessionId']=event['payload']['correlation']['sessionId']='ses_allowed'
+    event['system']['sourceSessionId']=event['payload']['correlation']['sourceSessionId']='ses_manager'
+    def page(e):
+        return script_auth.project_collection(profile(), '/api/automation/events',
+            {'events':[{'seq':1,'event':e}], 'nextAfter':1})['events']
+    rows=page(event)
+    assert len(rows)==1
+    assert 'sourceSessionId' not in json.dumps(rows)
+    bad=copy.deepcopy(event); bad['system']['sourceSessionId']='ses_forged'
+    assert page(bad)==[]
+    bad=copy.deepcopy(event); bad['system']['sourceSessionId']=bad['payload']['correlation']['sourceSessionId']=42
+    assert page(bad)==[]
+    bad=copy.deepcopy(event); bad['system']['sessionId']='ses_other'
+    assert page(bad)==[]
+    bad=copy.deepcopy(event); bad['payload']['correlation']['sessionId']='ses_other'
+    assert page(bad)==[]
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='owner-only script IPC uses Windows DPAPI')
+@pytest.mark.parametrize('current_used', [100, 10])
+def test_owned_runtime_issue_to_conditional_wake_end_to_end(tmp_path, monkeypatch, current_used):
+    import time
+    from packages.automation.service import Service
+    from packages.core import session, worker, runtime_issues
+    from packages.core.adapters.codex.adapter import CodexAdapter
+    from packages.core.adapters.codex import app_server_wrapper
+    from packages.plugins.ipc import Bridge as IPCBridge
+    from packages.plugins.runtime import Runtime
+    from packages.web import server
+    from packages.cc_switch_bridge import provider
+    from scripts import codex_limit_rotate as rotate
+    from tests.test_codex_limit_rotate_script import RecoveryBridge
+
+    async def run():
+        root = tmp_path / 'owned-pan'
+        root.mkdir()
+        session.SESSION_DIR = root / 'sessions'
+        session._cache.clear()
+        source = session.create(name='fixture-manager', adapter='cbc')
+        target = session.create(name='fixture-ta', adapter='codex')
+        other = session.create(name='fixture-other-codex', adapter='codex')
+        service = Service(root / 'automation', worker, lambda *_: None)
+        service.events.initialize()
+        service.started = True
+        service.loop = asyncio.get_running_loop()
+        ingester = asyncio.create_task(service.ingest_core())
+        monkeypatch.setattr(server.app.state, 'automation', service, raising=False)
+        runtime_issues.set_observer(service.observe_runtime_issue)
+        runtime = Runtime(lambda: None, lambda sid: None)
+        script_auth.bind(runtime, root)
+        transport = IPCBridge(runtime, root, script_only=True)
+        (root / 'script-ipc.json').write_text(json.dumps({'address':transport.address, 'pid':os.getpid()}))
+        rules = [{'method': m, 'path': p} for m,p in sorted(script_auth.RULES)]
+        script_auth.initialize(root, 'watcher', {'enabled':True, 'targetMode':'codex', 'sessions':[], 'rules':rules})
+        api = rotate.PanScriptIPC(root, 'watcher')
+        ledger = root / 'ledger.json'
+        bridge = RecoveryBridge(current_used=current_used)
+        bridge.at = time.time()
+        if current_used == 10:
+            original_read = bridge.read_only
+            def read_after_target_offline(op, args, *, deadline=None):
+                if op == 'quota':
+                    worker.workers.pop('fixture-worker', None)
+                return original_read(op, args, deadline=deadline)
+            bridge.read_only = read_after_target_offline
+        monkeypatch.setattr(provider, 'Bridge', lambda _path: bridge)
+        args = ['--script-profile','watcher','--script-data-dir',str(root), '--ledger',str(ledger),
+                '--bridge-data',str(root / 'fake-provider'), '--execute']
+        try:
+            assert await asyncio.to_thread(rotate.main, args) == 0
+            w = worker.Worker(worker_id='fixture-worker', session_id=target.id, adapter=CodexAdapter(),
+                              status='running', generation=0, process=None, pending_signal=asyncio.Queue())
+            w._execution_seq = 1
+            w._current_source_session_id = source.id
+            native = app_server_wrapper.AppServer('synthetic-node', 'synthetic-codex', str(root), [])
+            native.thread_id = 'fixture-thread'
+            emitted = []
+            monkeypatch.setattr(app_server_wrapper, '_write_stdout', emitted.append)
+            def native_request(method, params):
+                assert method == 'turn/start'
+                native.incoming.put({'id':1, 'result':{'turn':{'id':'fixture-turn'}}})
+                native.incoming.put({'method':'turn/completed', 'params':{'turn':{
+                    'id':'fixture-turn', 'status':'failed', 'items':[],
+                    'error':{'message':'synthetic quota', 'codexErrorInfo':'usageLimitExceeded'}}}})
+                return 1
+            monkeypatch.setattr(native, '_request', native_request)
+            native.run_turn('synthetic prompt')
+            raw = w.adapter.parse_event(json.dumps(emitted[-1]))
+            assert raw['type'] == 'result' and raw['is_error'] is True
+            result = await worker._persist_terminal_state(w, target, 'error', 'synthetic limit',
+                error_context={'origin':'worker.stream.result', 'cli_raw':raw})
+            assert result is not None
+            await asyncio.wait_for(service.ingress.join(), 5)
+            stored = service.events.page(0,100)
+            assert len(stored['events']) == 1 and stored['events'][0]['event']['system']['sessionId'] == target.id
+            assert stored['events'][0]['event']['system']['sourceSessionId'] == source.id
+            assert target.last_result['generation'] == 0
+            projected = await asyncio.to_thread(api.session, target.id)
+            assert 'sourceSessionId' not in json.dumps(projected)
+            original_source = target.last_result['sourceSessionId']
+            target.last_result['sourceSessionId'] = 'synthetic-conflict'
+            rejected = await asyncio.to_thread(api.session, target.id)
+            assert 'reportDiagnostic' not in rejected['lastResult']
+            target.last_result['sourceSessionId'] = original_source
+            w.status = 'running'
+            worker.workers[w.worker_id] = w
+            other_worker = worker.Worker(worker_id='fixture-other-worker', session_id=other.id,
+                adapter=CodexAdapter(), status='running', generation=0, process=None, pending_signal=asyncio.Queue())
+            worker.workers[other_worker.worker_id] = other_worker
+            assert await asyncio.to_thread(rotate.main, args) == 0
+            state = json.loads(ledger.read_text())
+            assert len(state['batches']) == 1 and len(state['batches'][0]['targets']) == 1
+            assert state['batches'][0]['targets'][0]['targetSessionId'] == target.id
+            continuation = state['batches'][0]['targets'][0]['continuation']
+            assert continuation['status'] == 'queued'
+            assert len(target.queue_pending) == 1 and target.queue_pending[0]['clientMessageId'] == continuation['clientMessageId']
+            durable = json.loads((root / 'sessions' / (target.id + '.json')).read_text(encoding='utf-8'))
+            assert durable['queue_pending'][0]['clientMessageId'] == continuation['clientMessageId']
+            assert durable['last_result']['terminalKey'] == state['batches'][0]['targets'][0]['terminalKey']
+            assert not source.queue_pending and not other.queue_pending
+            assert set(state['batches'][0]['workers']) == {target.id, other.id}
+            restarts = state['batches'][0]['workers']
+            assert restarts[other.id]['restart']['status'] == 'accepted'
+            assert restarts[target.id]['restart']['status'] == ('skipped_changed' if current_used == 10 else 'accepted')
+            assert bridge.switches == ([('a','b')] if current_used == 100 else [])
+            receipt = await asyncio.to_thread(api.continuation_receipt, target.id, continuation['clientMessageId'])
+            assert receipt['status'] == 'queued' and receipt['queueItemId'] == continuation['queueItemId']
+            assert await asyncio.to_thread(rotate.main, args) == 0
+            assert len(target.queue_pending) == 1
+        finally:
+            worker.workers.pop('fixture-worker', None)
+            worker.workers.pop('fixture-other-worker', None)
+            runtime_issues.set_observer(None)
+            ingester.cancel()
+            try: await ingester
+            except asyncio.CancelledError: pass
+            await transport.close()
+    asyncio.run(run())

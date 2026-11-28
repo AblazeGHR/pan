@@ -175,13 +175,15 @@ def _correlation(value, sid):
     # terminal and event correlations must remain exactly comparable.
     from packages.core.system_fields import SYSTEM_FIELD_NAMES
     keys = set(SYSTEM_FIELD_NAMES) | {'generation', 'accountId', 'taskSeq', 'executionSeq', 'runtimeEpoch'}
-    if (not isinstance(value, dict) or set(value) - keys or value.get('sessionId') != sid
-            or value.get('sourceSessionId') not in (None, sid)):
+    if not isinstance(value, dict) or set(value) - keys or value.get('sessionId') != sid:
+        return None
+    source = value.get('sourceSessionId')
+    if source is not None and (not isinstance(source, str) or not 0 < len(source) <= 256):
         return None
     if any(not ((isinstance(v, str) and 0 < len(v) <= 256) or type(v) is int)
            for v in value.values()):
         return None
-    return dict(value)
+    return {key: val for key, val in value.items() if key != 'sourceSessionId'}
 
 
 def permit(profile, method, path, body):
@@ -280,7 +282,7 @@ def project_collection(profile, path, response):
                 issue_id = payload.get('issueId')
                 if correlation is None or not isinstance(issue_id, str) or not 0 < len(issue_id) <= 256 or event.get('id') != issue_id:
                     continue
-                if isinstance(system, dict) and system.get('sourceSessionId') not in (None, sid):
+                if system.get('sourceSessionId') != payload['correlation'].get('sourceSessionId'):
                     continue
                 if (type(row.get('seq')) is not int or row['seq'] < 0
                         or any(k in system and system[k] != correlation.get(k) for k in ('workerId', 'taskId'))):
@@ -288,7 +290,7 @@ def project_collection(profile, path, response):
                 projected = {'id': issue_id, 'type': 'runtime.issue.v1',
                     'payload': {'issueId': issue_id, 'adapter': 'codex', 'classification': 'codex_quota_exhausted',
                                 'confidence': 'structured', 'correlation': correlation},
-                    'system': {k: system[k] for k in ('sessionId', 'sourceSessionId', 'workerId', 'taskId') if k in system}}
+                    'system': {k: system[k] for k in ('sessionId', 'workerId', 'taskId') if k in system}}
                 rows.append({'seq': row.get('seq'), 'event': projected})
             else:
                 rows.append(row)
@@ -374,7 +376,8 @@ def bind(runtime, root):
                     issue = diagnostic['runtimeIssue']
                     corr = _correlation(issue.get('correlation'), sid)
                     issue_id = issue.get('issueId')
-                    if corr is not None and isinstance(issue_id, str) and 0 < len(issue_id) <= 256:
+                    if (corr is not None and issue['correlation'].get('sourceSessionId') == last.get('sourceSessionId')
+                            and isinstance(issue_id, str) and 0 < len(issue_id) <= 256):
                         result['lastResult']['reportDiagnostic'] = {'runtimeIssue': {'issueId': issue_id, 'correlation': corr}}
             else:
                 result['lastResult'] = None
